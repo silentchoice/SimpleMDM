@@ -343,35 +343,34 @@ async function loadSubRecords() {
 
 async function loadFieldDefs() {
   try {
-    // 加载本部门子表字段定义
     const [defRes, typesRes, masterRes] = await Promise.all([
       listFieldDefs('', 'sub'),
       listSubTypes('sub'),
-      listFieldDefs('', 'master'),  // 主表字段（所有部门共享）
+      listFieldDefs('', 'master'),
     ])
-    const subDefs = defRes.data || []
-    const masterDefs = masterRes.data || []
-    allFieldDefs.value = [...subDefs, ...masterDefs]
+    allFieldDefs.value = [...(defRes.data || []), ...(masterRes.data || [])]
     subTypes.value = typesRes.data || []
   } catch { /* ignore */ }
+}
 
-  // 跨部门：加载目标人员所在部门的字段定义
-  if (form.department && form.department !== userStore.user?.department) {
-    try {
-      const res = await listFieldDefs('', 'sub')
-      // 需要从目标部门获取 — 但 listFieldDefs 只返回当前用户的部门
-      // 用 by-type 接口逐个 sub_type 查
-      const crossDefs = []
-      const seenSubTypes = [...new Set(subRecords.value.map(r => r.sub_type))]
-      for (const st of seenSubTypes) {
-        try {
-          const r = await getFieldDefsByType(st, form.department)
-          if (r.data) crossDefs.push(...r.data)
-        } catch { /* skip */ }
-      }
-      allFieldDefs.value = [...allFieldDefs.value, ...crossDefs]
-    } catch { /* ignore */ }
-  }
+async function loadCrossDeptFieldDefs() {
+  if (!form.department || form.department === userStore.user?.department) return
+  const seenSubTypes = [...new Set(subRecords.value.map(r => r.sub_type))]
+  if (seenSubTypes.length === 0) return
+  try {
+    const crossDefs = []
+    for (const st of seenSubTypes) {
+      try {
+        const r = await getFieldDefsByType(st, form.department)
+        if (r.data) crossDefs.push(...r.data)
+      } catch { /* skip */ }
+    }
+    // 合并去重
+    const existingIds = new Set(allFieldDefs.value.map(f => f.id))
+    for (const f of crossDefs) {
+      if (!existingIds.has(f.id)) allFieldDefs.value.push(f)
+    }
+  } catch { /* ignore */ }
 }
 
 onMounted(async () => {
@@ -389,6 +388,7 @@ onMounted(async () => {
       const res = await getPersonnel(id)
       Object.assign(form, res.data)
       await loadSubRecords()
+      await loadCrossDeptFieldDefs()
     } finally {
       loading.value = false
     }
