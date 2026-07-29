@@ -127,7 +127,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPersonnel, createPersonnel, updatePersonnel, getDepartments } from '../../api/personnel'
 import { listSub, createSub, updateSub } from '../../api/personnelSub'
-import { listFieldDefs, listSubTypes } from '../../api/deptFields'
+import { listFieldDefs, listSubTypes, getFieldDefsByType } from '../../api/deptFields'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../../stores/user'
 import ChangeDiff from '../../components/ChangeDiff.vue'
@@ -256,14 +256,16 @@ const groupedSubRecords = computed(() => {
     if (!groups[st]) groups[st] = []
     groups[st].push(rec)
   }
-  // 获取各 sub_type 的字段定义（可能来自不同部门）
   return Object.entries(groups).map(([subType, records]) => {
-    const fields = allFieldDefs.value.filter(f =>
-      f.sub_type === subType && f.department === (records[0]?.owner_dept || form.department)
+    const ownerDept = records[0]?.owner_dept || form.department
+    // 从已加载的字段定义中匹配（可能跨部门）
+    let fields = allFieldDefs.value.filter(f =>
+      f.sub_type === subType && (f.department === ownerDept || f.table_type === 'master')
     )
-    // 如果本部门没有定义，fallback 到第一条记录的 owner_dept
-    if (fields.length === 0 && records[0]?.owner_dept) {
-      // fields remain empty — will show fallback columns
+    // Fallback: 从数据 JSON keys 生成虚拟列
+    if (fields.length === 0) {
+      const keys = Object.keys(parseJson(records[0]?.data_json || '{}'))
+      fields = keys.map((k, i) => ({ id: 'fb-' + i, field_name: k, field_type: 'string', required: false }))
     }
     return { sub_type: subType, records, fields }
   })
@@ -341,13 +343,35 @@ async function loadSubRecords() {
 
 async function loadFieldDefs() {
   try {
-    const [defRes, typesRes] = await Promise.all([
-      listFieldDefs(),
-      listSubTypes(),
+    // 加载本部门子表字段定义
+    const [defRes, typesRes, masterRes] = await Promise.all([
+      listFieldDefs('', 'sub'),
+      listSubTypes('sub'),
+      listFieldDefs('', 'master'),  // 主表字段（所有部门共享）
     ])
-    allFieldDefs.value = defRes.data || []
+    const subDefs = defRes.data || []
+    const masterDefs = masterRes.data || []
+    allFieldDefs.value = [...subDefs, ...masterDefs]
     subTypes.value = typesRes.data || []
   } catch { /* ignore */ }
+
+  // 跨部门：加载目标人员所在部门的字段定义
+  if (form.department && form.department !== userStore.user?.department) {
+    try {
+      const res = await listFieldDefs('', 'sub')
+      // 需要从目标部门获取 — 但 listFieldDefs 只返回当前用户的部门
+      // 用 by-type 接口逐个 sub_type 查
+      const crossDefs = []
+      const seenSubTypes = [...new Set(subRecords.value.map(r => r.sub_type))]
+      for (const st of seenSubTypes) {
+        try {
+          const r = await getFieldDefsByType(st, form.department)
+          if (r.data) crossDefs.push(...r.data)
+        } catch { /* skip */ }
+      }
+      allFieldDefs.value = [...allFieldDefs.value, ...crossDefs]
+    } catch { /* ignore */ }
+  }
 }
 
 onMounted(async () => {
