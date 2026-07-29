@@ -21,15 +21,16 @@ public class DataInitializer implements CommandLineRunner {
     private final SysPushApiRepository pushApiRepo;
     private final SysUserPermissionRepository permRepo;
     private final SysApproverDeptRepository approverDeptRepo;
+    private final MdmPersonnelSubRepository personnelSubRepo;
     private final AuthService authService;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public DataInitializer(SysUserRepository ur, MdmPersonnelRepository pr, WfApprovalRepository ar,
                            SysPushLogRepository slr, SysPushApiRepository sar, SysUserPermissionRepository spr,
-                           SysApproverDeptRepository sadr, AuthService as) {
+                           SysApproverDeptRepository sadr, MdmPersonnelSubRepository psr, AuthService as) {
         this.userRepo = ur; this.personnelRepo = pr; this.approvalRepo = ar;
         this.pushLogRepo = slr; this.pushApiRepo = sar; this.permRepo = spr;
-        this.approverDeptRepo = sadr; this.authService = as;
+        this.approverDeptRepo = sadr; this.personnelSubRepo = psr; this.authService = as;
     }
 
     @Override
@@ -71,6 +72,16 @@ public class DataInitializer implements CommandLineRunner {
             createPersonnel("EMP007", "孙浩", "男", "工程部", "开发工程师", "13800001007", "sunhao@demo.com"),
             createPersonnel("EMP008", "马超", "男", "销售部", "销售代表", "13800001008", "machao@demo.com")
         );
+
+        // ── Sub table demo data ──
+        createPersonnelSub(personnelList.get(0).getId(), "project",
+            "{\"项目\":\"智能工厂平台\",\"角色\":\"后端负责人\",\"工时占比\":\"80%\"}", "工程部", "shared");
+        createPersonnelSub(personnelList.get(0).getId(), "salary",
+            "{\"基本工资\":\"25000\",\"绩效奖金\":\"5000\",\"年终奖基数\":\"3个月\"}", "工程部", "private");
+        createPersonnelSub(personnelList.get(1).getId(), "project",
+            "{\"项目\":\"电商中台\",\"角色\":\"产品负责人\",\"工时占比\":\"100%\"}", "产品部", "shared");
+        createPersonnelSub(personnelList.get(4).getId(), "sales_target",
+            "{\"Q3销售额\":\"500万\",\"Q4销售额\":\"800万\",\"回款率\":\"95%\"}", "产品部", "private");
 
         // ── Historical Approval #1 — EMP002 update (approved) ──
         MdmPersonnel emp002 = personnelList.get(1);
@@ -171,5 +182,17 @@ public class DataInitializer implements CommandLineRunner {
         api.setStatus(status); api.setDescription(desc);
         api.setRetryMax(retryMax); api.setTimeoutSec(timeout);
         pushApiRepo.save(api);
+    }
+
+    private void createPersonnelSub(Long personnelId, String subType, String dataJson,
+                                     String ownerDept, String visibility) {
+        MdmPersonnelSub sub = new MdmPersonnelSub();
+        sub.setPersonnelId(personnelId);
+        sub.setSubType(subType);
+        sub.setDataJson(dataJson);
+        sub.setOwnerDept(ownerDept);
+        sub.setVisibility(visibility);
+        sub.setVersion(1);
+        personnelSubRepo.save(sub);
     }
 }
