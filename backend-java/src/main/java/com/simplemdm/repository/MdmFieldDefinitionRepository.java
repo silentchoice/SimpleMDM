@@ -6,6 +6,12 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface MdmFieldDefinitionRepository extends JpaRepository<MdmFieldDefinition, Long> {
+    boolean existsBySystemCodeAndDepartmentAndTableTypeAndSubTypeAndFieldKey(
+        String systemCode, String department, String tableType, String subType, String fieldKey);
+    List<MdmFieldDefinition> findBySystemCodeAndTableTypeOrderBySubTypeAscSortOrderAsc(
+        String systemCode, String tableType);
+    List<MdmFieldDefinition> findBySystemCodeAndDepartmentAndTableTypeAndSubTypeOrderBySortOrderAsc(
+        String systemCode, String department, String tableType, String subType);
     List<MdmFieldDefinition> findByDepartmentAndSubTypeOrderBySortOrder(String department, String subType);
     List<MdmFieldDefinition> findByDepartmentAndTableTypeAndSystemCodeOrderBySubTypeAscSortOrder(String department, String tableType, String systemCode);
     List<MdmFieldDefinition> findByDepartmentAndSubTypeAndSystemCodeOrderBySortOrder(String department, String subType, String systemCode);

@@ -24,6 +24,9 @@ public class MdmFieldDefinition {
     @Column(name = "field_name", length = 128, nullable = false)
     private String fieldName;          // 字段名: 基本工资, 项目名称 ...
 
+    @Column(name = "field_key", length = 64, nullable = false)
+    private String fieldKey;
+
     @Column(name = "field_type", length = 32, nullable = false)
     private String fieldType = "string"; // string | number | date | select
 
@@ -32,6 +35,12 @@ public class MdmFieldDefinition {
 
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;     // 排序
+
+    @Column(name = "options_json", columnDefinition = "TEXT")
+    private String optionsJson;
+
+    @Column(name = "system_field", nullable = false)
+    private Boolean systemField = false;
 
     @Column(name = "created_by")
     private Long createdBy;            // 创建人用户ID
@@ -60,12 +69,18 @@ public class MdmFieldDefinition {
     public void setSubType(String subType) { this.subType = subType; }
     public String getFieldName() { return fieldName; }
     public void setFieldName(String fieldName) { this.fieldName = fieldName; }
+    public String getFieldKey() { return fieldKey; }
+    public void setFieldKey(String fieldKey) { this.fieldKey = fieldKey; }
     public String getFieldType() { return fieldType; }
     public void setFieldType(String fieldType) { this.fieldType = fieldType; }
     public Boolean getRequired() { return required; }
     public void setRequired(Boolean required) { this.required = required; }
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+    public String getOptionsJson() { return optionsJson; }
+    public void setOptionsJson(String optionsJson) { this.optionsJson = optionsJson; }
+    public Boolean getSystemField() { return systemField; }
+    public void setSystemField(Boolean systemField) { this.systemField = systemField; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public String getCreatedByName() { return createdByName; }
