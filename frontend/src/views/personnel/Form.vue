@@ -5,26 +5,35 @@
       <el-button @click="$router.back()">返回</el-button>
     </div>
 
-    <!-- 主表（动态字段，从 master field definitions 渲染） -->
+    <!-- 主表 -->
     <el-card shadow="hover" v-loading="loading" style="margin-bottom: 20px;">
       <template #header><strong>部门主数据（主表 — 跨部门共享）</strong></template>
-      <el-form ref="formRef" :model="formData" label-width="120px" :disabled="isView" style="max-width: 640px;">
-        <el-form-item v-for="fd in masterFieldDefs" :key="fd.id"
-          :label="fd.field_name" :required="fd.required">
-          <!-- 部门用下拉 -->
-          <el-select v-if="fd.field_name === '部门'" v-model="formData[fd.field_name]"
-            placeholder="请选择部门" style="width: 100%;">
-            <el-option v-for="d in departments" :key="d" :label="d" :value="d" />
-          </el-select>
-          <!-- 性别用单选 -->
-          <el-radio-group v-else-if="fd.field_name === '性别'" v-model="formData[fd.field_name]">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" :disabled="isView" style="max-width: 640px;">
+        <el-form-item label="工号" prop="employee_code">
+          <el-input v-model="form.employee_code" :disabled="isEdit" />
+        </el-form-item>
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="form.name" />
+        </el-form-item>
+        <el-form-item label="性别">
+          <el-radio-group v-model="form.gender">
             <el-radio value="男">男</el-radio>
             <el-radio value="女">女</el-radio>
           </el-radio-group>
-          <!-- 工号在编辑时禁用 -->
-          <el-input v-else v-model="formData[fd.field_name]"
-            :disabled="fd.field_name === '工号' && isEdit"
-            :type="fd.field_type === 'number' ? 'number' : 'text'" />
+        </el-form-item>
+        <el-form-item label="部门" prop="department">
+          <el-select v-model="form.department" placeholder="请选择部门" style="width: 100%;">
+            <el-option v-for="d in departments" :key="d" :label="d" :value="d" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="职位">
+          <el-input v-model="form.position" />
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="form.phone" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="form.email" />
         </el-form-item>
 
         <el-form-item v-if="!isView">
@@ -114,7 +123,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPersonnel, createPersonnel, updatePersonnel, getDepartments } from '../../api/personnel'
 import { listSub, createSub, updateSub } from '../../api/personnelSub'
@@ -144,48 +153,15 @@ const diffDialogVisible = ref(false)
 const diffData = ref({})
 const departments = ref([])
 
-// Master field definitions → drives the main form
-const masterFieldDefs = computed(() =>
-  allFieldDefs.value.filter(f => f.table_type === 'master').sort((a, b) => a.sort_order - b.sort_order)
-)
-
-// Map Chinese field_name → English DTO key
-const FIELD_MAP = {
-  '工号': 'employee_code', '姓名': 'name', '性别': 'gender',
-  '部门': 'department', '职位': 'position', '手机号': 'phone', '邮箱': 'email',
-}
-
-const formData = reactive({})
-
-let loadedDTO = null  // cached DTO while waiting for field defs
-
-function initFormData() {
-  for (const fd of masterFieldDefs.value) {
-    formData[fd.field_name] = formData[fd.field_name] || ''
-  }
-  if (!formData['性别']) formData['性别'] = '男'
-  // If we already fetched personnel data, fill it now
-  if (loadedDTO) { fillFormDataFromDTO(loadedDTO); loadedDTO = null }
-}
-
-// When master field definitions load, init the form
-watch(masterFieldDefs, () => {
-  if (masterFieldDefs.value.length > 0) initFormData()
+const form = reactive({
+  employee_code: '',
+  name: '',
+  gender: '男',
+  department: '',
+  position: '',
+  phone: '',
+  email: '',
 })
-
-function formDataToDTO() {
-  const dto = {}
-  for (const [cn, en] of Object.entries(FIELD_MAP)) {
-    if (formData[cn] !== undefined) dto[en] = formData[cn]
-  }
-  return dto
-}
-
-function fillFormDataFromDTO(dto) {
-  for (const [cn, en] of Object.entries(FIELD_MAP)) {
-    if (dto[en] !== undefined) formData[cn] = dto[en]
-  }
-}
 
 const rules = {
   employee_code: [{ required: true, message: '请输入工号', trigger: 'blur' }],
@@ -200,14 +176,14 @@ async function handleSubmit() {
   if (isEdit.value) {
     const id = route.params.id
     const original = await getPersonnel(id)
-    const origDto = original.data
-    const newDto = formDataToDTO()
     const diff = {}
-    for (const [cn, en] of Object.entries(FIELD_MAP)) {
-      const oldVal = origDto[en]
-      const newVal = newDto[en]
-      if (oldVal !== newVal) {
-        diff[cn] = { old: oldVal || '(空)', new: newVal || '(空)' }
+    for (const key of ['employee_code', 'name', 'gender', 'department', 'position', 'phone', 'email']) {
+      if (form[key] !== original.data[key]) {
+        const labelMap = {
+          employee_code: '工号', name: '姓名', gender: '性别',
+          department: '部门', position: '职位', phone: '手机号', email: '邮箱',
+        }
+        diff[labelMap[key]] = { old: original.data[key] || '(空)', new: form[key] || '(空)' }
       }
     }
     if (Object.keys(diff).length === 0) {
@@ -224,12 +200,15 @@ async function handleSubmit() {
 async function confirmSubmit() {
   submitting.value = true
   try {
-    const dto = formDataToDTO()
     if (isEdit.value) {
-      await updatePersonnel(route.params.id, dto)
+      const id = route.params.id
+      await updatePersonnel(id, {
+        name: form.name, gender: form.gender, department: form.department,
+        position: form.position, phone: form.phone, email: form.email,
+      })
       ElMessage.success('变更已提交，请等待审批')
     } else {
-      await createPersonnel(dto)
+      await createPersonnel({ ...form })
       ElMessage.success('已提交，请等待审批')
     }
     diffDialogVisible.value = false
@@ -261,7 +240,7 @@ const subForm = reactive({
 
 // 当前用户是否与人员同部门 → 可编辑子表
 const isOwnerDept = computed(() => {
-  return userStore.user?.department === formData['部门']
+  return userStore.user?.department === form.department
 })
 
 // 子记录按 sub_type 分组，每组带字段定义
@@ -273,7 +252,7 @@ const groupedSubRecords = computed(() => {
     groups[st].push(rec)
   }
   return Object.entries(groups).map(([subType, records]) => {
-    const ownerDept = records[0]?.owner_dept || formData['部门']
+    const ownerDept = records[0]?.owner_dept || form.department
     // 从已加载的字段定义中匹配（可能跨部门）
     let fields = allFieldDefs.value.filter(f =>
       f.sub_type === subType && (f.department === ownerDept || f.table_type === 'master')
@@ -370,14 +349,14 @@ async function loadFieldDefs() {
 }
 
 async function loadCrossDeptFieldDefs() {
-  if (!formData['部门'] || formData['部门'] === userStore.user?.department) return
+  if (!form.department || form.department === userStore.user?.department) return
   const seenSubTypes = [...new Set(subRecords.value.map(r => r.sub_type))]
   if (seenSubTypes.length === 0) return
   try {
     const crossDefs = []
     for (const st of seenSubTypes) {
       try {
-        const r = await getFieldDefsByType(st, formData['部门'])
+        const r = await getFieldDefsByType(st, form.department)
         if (r.data) crossDefs.push(...r.data)
       } catch { /* skip */ }
     }
@@ -402,11 +381,7 @@ onMounted(async () => {
     try {
       const id = route.params.id
       const res = await getPersonnel(id)
-      if (masterFieldDefs.value.length > 0) {
-        fillFormDataFromDTO(res.data)
-      } else {
-        loadedDTO = res.data  // wait for field defs to load
-      }
+      Object.assign(form, res.data)
       await loadSubRecords()
       await loadCrossDeptFieldDefs()
     } finally {
