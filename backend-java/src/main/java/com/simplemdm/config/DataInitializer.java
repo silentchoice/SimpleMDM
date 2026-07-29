@@ -76,26 +76,34 @@ public class DataInitializer implements CommandLineRunner {
             createPersonnel("EMP008", "马超", "男", "销售部", "销售代表", "13800001008", "machao@demo.com")
         );
 
-        // ── Field definitions (schema for sub tables) ──
-        createFieldDef("工程部", "project", "项目名称", "string", true, 1, wangwu);
-        createFieldDef("工程部", "project", "角色", "string", true, 2, wangwu);
-        createFieldDef("工程部", "project", "工时占比", "string", false, 3, wangwu);
-        createFieldDef("工程部", "salary", "基本工资", "number", true, 1, wangwu);
-        createFieldDef("工程部", "salary", "绩效奖金", "number", false, 2, wangwu);
-        createFieldDef("工程部", "salary", "年终奖基数", "string", false, 3, wangwu);
-        createFieldDef("产品部", "project", "项目名称", "string", true, 1, lisi);
-        createFieldDef("产品部", "project", "角色", "string", true, 2, lisi);
-        createFieldDef("产品部", "project", "工时占比", "string", false, 3, lisi);
-        createFieldDef("产品部", "sales_target", "Q3销售额", "string", true, 1, lisi);
-        createFieldDef("产品部", "sales_target", "Q4销售额", "string", true, 2, lisi);
-        createFieldDef("产品部", "sales_target", "回款率", "string", false, 3, lisi);
-        // 人力资源部字段定义
-        createFieldDef("人力资源部", "salary", "基本工资", "number", true, 1, wangwu);
-        createFieldDef("人力资源部", "salary", "绩效系数", "number", false, 2, wangwu);
-        createFieldDef("人力资源部", "salary", "社保基数", "number", false, 3, wangwu);
-        createFieldDef("人力资源部", "contract", "合同类型", "string", true, 1, wangwu);
-        createFieldDef("人力资源部", "contract", "合同期限", "string", true, 2, wangwu);
-        createFieldDef("人力资源部", "contract", "到期日期", "date", false, 3, wangwu);
+        // ── Field definitions: master (shared) ──
+        createFieldDef("ALL", "master", "basic", "工号", "string", true, 1, admin);
+        createFieldDef("ALL", "master", "basic", "姓名", "string", true, 2, admin);
+        createFieldDef("ALL", "master", "basic", "性别", "string", true, 3, admin);
+        createFieldDef("ALL", "master", "basic", "部门", "string", true, 4, admin);
+        createFieldDef("ALL", "master", "basic", "职位", "string", false, 5, admin);
+        createFieldDef("ALL", "master", "basic", "手机号", "string", false, 6, admin);
+        createFieldDef("ALL", "master", "basic", "邮箱", "string", false, 7, admin);
+
+        // ── Field definitions: sub (department-specific) ──
+        createFieldDef("工程部", "sub", "project", "项目名称", "string", true, 1, wangwu);
+        createFieldDef("工程部", "sub", "project", "角色", "string", true, 2, wangwu);
+        createFieldDef("工程部", "sub", "project", "工时占比", "string", false, 3, wangwu);
+        createFieldDef("工程部", "sub", "salary", "基本工资", "number", true, 1, wangwu);
+        createFieldDef("工程部", "sub", "salary", "绩效奖金", "number", false, 2, wangwu);
+        createFieldDef("工程部", "sub", "salary", "年终奖基数", "string", false, 3, wangwu);
+        createFieldDef("产品部", "sub", "project", "项目名称", "string", true, 1, lisi);
+        createFieldDef("产品部", "sub", "project", "角色", "string", true, 2, lisi);
+        createFieldDef("产品部", "sub", "project", "工时占比", "string", false, 3, lisi);
+        createFieldDef("产品部", "sub", "sales_target", "Q3销售额", "string", true, 1, lisi);
+        createFieldDef("产品部", "sub", "sales_target", "Q4销售额", "string", true, 2, lisi);
+        createFieldDef("产品部", "sub", "sales_target", "回款率", "string", false, 3, lisi);
+        createFieldDef("人力资源部", "sub", "salary", "基本工资", "number", true, 1, wangwu);
+        createFieldDef("人力资源部", "sub", "salary", "绩效系数", "number", false, 2, wangwu);
+        createFieldDef("人力资源部", "sub", "salary", "社保基数", "number", false, 3, wangwu);
+        createFieldDef("人力资源部", "sub", "contract", "合同类型", "string", true, 1, wangwu);
+        createFieldDef("人力资源部", "sub", "contract", "合同期限", "string", true, 2, wangwu);
+        createFieldDef("人力资源部", "sub", "contract", "到期日期", "date", false, 3, wangwu);
 
         // ── Sub table demo data (JSON key 必须与 field_name 一致) ──
         createPersonnelSub(personnelList.get(0).getId(), "project",
@@ -225,10 +233,11 @@ public class DataInitializer implements CommandLineRunner {
         personnelSubRepo.save(sub);
     }
 
-    private void createFieldDef(String dept, String subType, String fieldName,
+    private void createFieldDef(String dept, String tableType, String subType, String fieldName,
                                  String fieldType, boolean required, int sortOrder, SysUser createdBy) {
         MdmFieldDefinition def = new MdmFieldDefinition();
         def.setDepartment(dept);
+        def.setTableType(tableType);
         def.setSubType(subType);
         def.setFieldName(fieldName);
         def.setFieldType(fieldType);

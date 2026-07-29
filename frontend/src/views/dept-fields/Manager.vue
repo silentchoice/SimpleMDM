@@ -2,14 +2,23 @@
   <div>
     <div class="page-header">
       <h2>字段定义管理 — {{ userStore.user?.department }}</h2>
-      <p style="color: #909399; font-size: 14px;">定义本部门子表的字段结构，定义后将用于人员详情页的扩展数据录入</p>
+      <p style="color: #909399; font-size: 14px;">主表字段跨部门共享；子表字段仅本部门可见</p>
     </div>
+
+    <!-- 主表 / 子表 Tab -->
+    <el-tabs v-model="activeTab" @tab-change="onTabChange" style="margin-bottom: 16px;">
+      <el-tab-pane label="主表字段（共享）" name="master" />
+      <el-tab-pane label="子表字段（部门隔离）" name="sub" />
+    </el-tabs>
 
     <!-- 按 sub_type 分组 -->
     <el-card shadow="hover" v-for="group in groupedFields" :key="group.subType" style="margin-bottom: 20px;">
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span>
+            <el-tag :type="activeTab === 'master' ? 'success' : 'warning'" size="small" style="margin-right: 8px;">
+              {{ activeTab === 'master' ? '主表' : '子表' }}
+            </el-tag>
             <strong>{{ group.subType }}</strong>
             <span style="color: #909399; margin-left: 8px;">{{ group.fields.length }} 个字段</span>
           </span>
@@ -100,6 +109,7 @@ const dialogVisible = ref(false)
 const editingField = ref(null)
 const newSubTypeMode = ref(false)
 const newSubTypeName = ref('')
+const activeTab = ref('sub')
 
 const dialogForm = reactive({
   sub_type: '',
@@ -150,6 +160,8 @@ function showDialog(subType, field) {
   dialogVisible.value = true
 }
 
+function onTabChange() { loadFields() }
+
 async function saveField() {
   if (!dialogForm.field_name) { ElMessage.warning('请输入字段名'); return }
   saving.value = true
@@ -161,7 +173,7 @@ async function saveField() {
       await updateFieldDef(editingField.value.id, { ...dialogForm })
       ElMessage.success('字段已更新')
     } else {
-      await createFieldDef({ ...dialogForm, sub_type: subType })
+      await createFieldDef({ ...dialogForm, sub_type: subType, table_type: activeTab.value })
       ElMessage.success('字段已创建')
     }
     dialogVisible.value = false
@@ -173,7 +185,10 @@ async function saveField() {
 
 async function loadFields() {
   try {
-    const [defRes, typesRes] = await Promise.all([listFieldDefs(), listSubTypes()])
+    const [defRes, typesRes] = await Promise.all([
+      listFieldDefs('', activeTab.value),
+      listSubTypes(activeTab.value),
+    ])
     allFields.value = defRes.data || []
     subTypes.value = typesRes.data || []
   } catch { /* ignore */ }

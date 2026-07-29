@@ -12,6 +12,9 @@ public class MdmFieldDefinition {
     @Column(length = 128, nullable = false)
     private String department;         // 所属部门
 
+    @Column(name = "table_type", length = 16, nullable = false)
+    private String tableType = "sub";   // master | sub  — 主表共享 / 子表隔离
+
     @Column(name = "sub_type", length = 64, nullable = false)
     private String subType;            // 字段组: salary, project, sales_target ...
 
@@ -46,6 +49,8 @@ public class MdmFieldDefinition {
     public void setId(Long id) { this.id = id; }
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
+    public String getTableType() { return tableType; }
+    public void setTableType(String tableType) { this.tableType = tableType; }
     public String getSubType() { return subType; }
     public void setSubType(String subType) { this.subType = subType; }
     public String getFieldName() { return fieldName; }

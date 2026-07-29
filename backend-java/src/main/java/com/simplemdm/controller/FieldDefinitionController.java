@@ -18,15 +18,23 @@ public class FieldDefinitionController {
         this.fieldRepo = fieldRepo;
     }
 
-    /** List all field definitions for current user's department */
+    /** List all field definitions for current user's department.
+     *  table_type=master returns shared master fields (from all depts).
+     *  table_type=sub returns department-specific sub fields. */
     @GetMapping
-    public ApiResponse list(@RequestParam(defaultValue = "") String subType) {
+    public ApiResponse list(@RequestParam(defaultValue = "") String subType,
+                            @RequestParam(defaultValue = "") String tableType) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
         String dept = user.getDepartment();
         if (dept == null) return ApiResponse.error(400, "当前用户无部门");
 
         List<MdmFieldDefinition> fields;
-        if (!subType.isEmpty()) {
+        if ("master".equals(tableType)) {
+            // Master fields are shared — return all, regardless of department
+            fields = fieldRepo.findByTableTypeOrderBySubTypeAscSortOrder("master");
+        } else if (!tableType.isEmpty()) {
+            fields = fieldRepo.findByDepartmentAndTableTypeOrderBySubTypeAscSortOrder(dept, tableType);
+        } else if (!subType.isEmpty()) {
             fields = fieldRepo.findByDepartmentAndSubTypeOrderBySortOrder(dept, subType);
         } else {
             fields = fieldRepo.findByDepartmentOrderBySubTypeAscSortOrder(dept);
@@ -38,10 +46,13 @@ public class FieldDefinitionController {
 
     /** List sub_types for current user's department */
     @GetMapping("/sub-types")
-    public ApiResponse subTypes() {
+    public ApiResponse subTypes(@RequestParam(defaultValue = "sub") String tableType) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
         String dept = user.getDepartment();
         if (dept == null) return ApiResponse.error(400, "当前用户无部门");
+        if ("master".equals(tableType)) {
+            return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartmentAndTableType(dept, "master"));
+        }
         return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartment(dept));
     }
 
@@ -60,6 +71,7 @@ public class FieldDefinitionController {
         String dept = user.getDepartment();
         if (dept == null) return ApiResponse.error(400, "当前用户无部门");
 
+        String tableType = body.getOrDefault("table_type", "sub").toString();
         String subType = (String) body.get("sub_type");
         String fieldName = (String) body.get("field_name");
         String fieldType = body.getOrDefault("field_type", "string").toString();
@@ -72,6 +84,7 @@ public class FieldDefinitionController {
 
         MdmFieldDefinition def = new MdmFieldDefinition();
         def.setDepartment(dept);
+        def.setTableType(tableType);
         def.setSubType(subType);
         def.setFieldName(fieldName);
         def.setFieldType(fieldType);
@@ -117,6 +130,7 @@ public class FieldDefinitionController {
     private Map<String, Object> toMap(MdmFieldDefinition f) {
         Map<String, Object> m = new HashMap<>();
         m.put("id", f.getId());
+        m.put("table_type", f.getTableType());
         m.put("department", f.getDepartment());
         m.put("sub_type", f.getSubType());
         m.put("field_name", f.getFieldName());
