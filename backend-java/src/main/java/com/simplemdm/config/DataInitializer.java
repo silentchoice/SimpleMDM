@@ -119,6 +119,18 @@ public class DataInitializer implements CommandLineRunner {
             "{\"基本工资\":\"18000\",\"绩效系数\":\"1.2\",\"社保基数\":\"12000\"}", "人力资源部", "shared");
         createPersonnelSub(personnelList.get(5).getId(), "contract",
             "{\"合同类型\":\"无固定期限\",\"合同期限\":\"长期\",\"到期日期\":\"-\"}", "人力资源部", "private");
+        // 工程部更多数据
+        createPersonnelSub(personnelList.get(2).getId(), "project",
+            "{\"项目名称\":\"数据中台\",\"角色\":\"技术负责人\",\"工时占比\":\"100%\"}", "工程部", "shared");
+        createPersonnelSub(personnelList.get(2).getId(), "salary",
+            "{\"基本工资\":\"30000\",\"绩效奖金\":\"8000\",\"年终奖基数\":\"4个月\"}", "工程部", "private");
+        createPersonnelSub(personnelList.get(6).getId(), "project",
+            "{\"项目名称\":\"智能工厂平台\",\"角色\":\"前端开发\",\"工时占比\":\"100%\"}", "工程部", "shared");
+        // 产品部更多数据
+        createPersonnelSub(personnelList.get(1).getId(), "sales_target",
+            "{\"Q3销售额\":\"300万\",\"Q4销售额\":\"500万\",\"回款率\":\"90%\"}", "产品部", "shared");
+        createPersonnelSub(personnelList.get(4).getId(), "project",
+            "{\"项目名称\":\"电商中台\",\"角色\":\"产品助理\",\"工时占比\":\"50%\"}", "产品部", "private");
 
         // ── Historical Approval #1 — EMP002 update (approved) ──
         MdmPersonnel emp002 = personnelList.get(1);

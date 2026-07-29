@@ -45,18 +45,18 @@
       </el-form>
     </el-card>
 
-    <!-- 子表（按 sub_type 分组，每组建表） -->
+    <!-- 子表（按可用 sub_type 展示，含已有记录 + 空字段组） -->
     <div v-if="!isCreate" v-loading="subLoading">
-      <el-card shadow="hover" v-for="group in groupedSubRecords" :key="group.sub_type" style="margin-bottom: 20px;">
+      <el-card shadow="hover" v-for="group in allSubGroups" :key="group.sub_type" style="margin-bottom: 20px;">
         <template #header>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <strong>{{ group.sub_type }}（{{ group.fields.length }} 个字段 · {{ group.records.length }} 条记录）</strong>
+            <el-tag v-if="!isOwnerDept" type="info" size="small">只读</el-tag>
             <el-button v-if="!isView && isOwnerDept" type="primary" size="small"
               @click="showSubDialog(group.sub_type, null)">添加记录</el-button>
           </div>
         </template>
-        <el-table :data="group.records" border stripe size="small">
-          <!-- 动态列：按字段定义渲染 -->
+        <el-table v-if="group.records.length > 0" :data="group.records" border stripe size="small">
           <el-table-column v-for="fd in group.fields" :key="fd.id"
             :prop="fd.field_name" :label="fd.field_name" min-width="120">
             <template #default="{ row }">
@@ -77,8 +77,9 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-empty v-else description="暂无记录" :image-size="60" />
       </el-card>
-      <el-empty v-if="groupedSubRecords.length === 0" description="暂无子表数据" :image-size="80" />
+      <el-empty v-if="allSubGroups.length === 0" description="暂无子表字段定义，请先在「字段定义」中配置" :image-size="80" />
     </div>
 
     <!-- 子表编辑弹窗（动态表单） -->
@@ -243,27 +244,33 @@ const isOwnerDept = computed(() => {
   return userStore.user?.department === form.department
 })
 
-// 子记录按 sub_type 分组，每组带字段定义
-const groupedSubRecords = computed(() => {
-  const groups = {}
+// 所有可用 sub_type（有记录 + 有字段定义但无记录的）
+const allSubGroups = computed(() => {
+  const recordGroups = {}
   for (const rec of subRecords.value) {
     const st = rec.sub_type
-    if (!groups[st]) groups[st] = []
-    groups[st].push(rec)
+    if (!recordGroups[st]) recordGroups[st] = []
+    recordGroups[st].push(rec)
   }
-  return Object.entries(groups).map(([subType, records]) => {
+  // Merge with sub_types from field definitions
+  const result = []
+  const seen = new Set()
+  for (const st of [...Object.keys(recordGroups), ...subTypes.value]) {
+    if (seen.has(st)) continue
+    seen.add(st)
+    const records = recordGroups[st] || []
     const ownerDept = records[0]?.owner_dept || form.department
-    // 从已加载的字段定义中匹配（可能跨部门）
     let fields = allFieldDefs.value.filter(f =>
-      f.sub_type === subType && (f.department === ownerDept || f.table_type === 'master')
+      f.sub_type === st && f.table_type === 'sub' &&
+      (f.department === ownerDept || f.department === userStore.user?.department)
     )
-    // Fallback: 从数据 JSON keys 生成虚拟列
     if (fields.length === 0) {
       const keys = Object.keys(parseJson(records[0]?.data_json || '{}'))
       fields = keys.map((k, i) => ({ id: 'fb-' + i, field_name: k, field_type: 'string', required: false }))
     }
-    return { sub_type: subType, records, fields }
-  })
+    result.push({ sub_type: st, records, fields })
+  }
+  return result
 })
 
 function parseJson(jsonStr) {
