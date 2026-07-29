@@ -40,8 +40,11 @@ public class PersonnelService {
         return personnelRepo.findById(id).orElse(null);
     }
 
-    public List<String> getDepartments() {
-        return personnelRepo.findDistinctOwnerDepartments();
+    public List<String> getDepartments(String systemCode) {
+        LinkedHashSet<String> departments = new LinkedHashSet<>(
+            dynamicFieldService.getDepartments(systemCode));
+        departments.addAll(personnelRepo.findDistinctOwnerDepartments());
+        return new ArrayList<>(departments);
     }
 
     @Transactional

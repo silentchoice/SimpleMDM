@@ -102,6 +102,14 @@ class DynamicPersonnelServiceTest {
             eq(false), eq("HR"), any());
     }
 
+    @Test
+    void departmentsIncludeFieldDefinitionDepartmentsBeforePersonnelExists() {
+        when(repository.findDistinctOwnerDepartments()).thenReturn(List.of("工程部"));
+        when(fields.getDepartments("HR")).thenReturn(List.of("人力资源部", "工程部"));
+
+        assertEquals(List.of("人力资源部", "工程部"), service.getDepartments("HR"));
+    }
+
     private MdmPersonnel entity(String ownerDept, String dataJson) {
         MdmPersonnel personnel = new MdmPersonnel();
         personnel.setSystemCode("HR");

@@ -79,6 +79,10 @@ public class DynamicFieldService {
         return result;
     }
 
+    public List<String> getDepartments(String systemCode) {
+        return fieldRepository.findDistinctDepartmentsBySystemCode(systemCode);
+    }
+
     private Object normalize(MdmFieldDefinition definition, Object value) {
         String key = definition.getFieldKey();
         try {

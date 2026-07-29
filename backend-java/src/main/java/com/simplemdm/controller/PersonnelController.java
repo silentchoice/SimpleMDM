@@ -46,7 +46,8 @@ public class PersonnelController {
 
     @GetMapping("/departments")
     public ApiResponse departments() {
-        return ApiResponse.ok(personnelService.getDepartments());
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        return ApiResponse.ok(personnelService.getDepartments(currentSystem(user)));
     }
 
     @GetMapping("/{id}")

@@ -27,5 +27,8 @@ public interface MdmFieldDefinitionRepository extends JpaRepository<MdmFieldDefi
     @Query("SELECT DISTINCT f.subType FROM MdmFieldDefinition f WHERE f.tableType = :tableType AND f.systemCode = :systemCode ORDER BY f.subType")
     List<String> findDistinctSubTypesByTableTypeAndSystemCode(String tableType, String systemCode);
 
+    @Query("SELECT DISTINCT f.department FROM MdmFieldDefinition f WHERE f.systemCode = :systemCode AND f.department IS NOT NULL ORDER BY f.department")
+    List<String> findDistinctDepartmentsBySystemCode(String systemCode);
+
     void deleteByDepartmentAndSubType(String department, String subType);
 }
