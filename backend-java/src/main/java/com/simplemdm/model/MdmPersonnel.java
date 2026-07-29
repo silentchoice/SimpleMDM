@@ -12,6 +12,12 @@ public class MdmPersonnel {
     @Column(name = "system_code", length = 32, nullable = false)
     private String systemCode = "HR";
 
+    @Column(name = "owner_dept", length = 128)
+    private String ownerDept;
+
+    @Column(name = "data_json", columnDefinition = "LONGTEXT")
+    private String dataJson = "{}";
+
     @Column(name = "employee_code", length = 32, nullable = false, unique = true)
     private String employeeCode;
 
@@ -54,6 +60,10 @@ public class MdmPersonnel {
     public void setId(Long id) { this.id = id; }
     public String getSystemCode() { return systemCode; }
     public void setSystemCode(String systemCode) { this.systemCode = systemCode; }
+    public String getOwnerDept() { return ownerDept; }
+    public void setOwnerDept(String ownerDept) { this.ownerDept = ownerDept; }
+    public String getDataJson() { return dataJson; }
+    public void setDataJson(String dataJson) { this.dataJson = dataJson; }
     public String getEmployeeCode() { return employeeCode; }
     public void setEmployeeCode(String employeeCode) { this.employeeCode = employeeCode; }
     public String getName() { return name; }

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/personnel")
@@ -36,23 +37,9 @@ public class PersonnelController {
         String systemCode = (allowedSystems == null || allowedSystems.isEmpty()) ? null : allowedSystems.get(0);
         Page<MdmPersonnel> result = personnelService.listPersonnel(keyword, department, page, pageSize, allowedDepts, systemCode);
 
-        List<Map<String, Object>> items = result.getContent().stream().map(p -> {
-            Map<String, Object> m = new HashMap<>();
-            m.put("id", p.getId());
-            m.put("system_code", p.getSystemCode());
-            m.put("employee_code", p.getEmployeeCode());
-            m.put("name", p.getName());
-            m.put("gender", p.getGender());
-            m.put("department", p.getDepartment());
-            m.put("position", p.getPosition());
-            m.put("phone", p.getPhone());
-            m.put("email", p.getEmail());
-            m.put("status", p.getStatus());
-            m.put("version", p.getVersion());
-            m.put("created_at", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null);
-            m.put("updated_at", p.getUpdatedAt() != null ? p.getUpdatedAt().toString() : null);
-            return m;
-        }).collect(Collectors.toList());
+        List<Map<String, Object>> items = result.getContent().stream()
+            .map(personnelService::toMap)
+            .collect(Collectors.toList());
 
         return ApiResponse.ok(new PageResult<>(items, result.getTotalElements(), page, pageSize));
     }
@@ -66,33 +53,15 @@ public class PersonnelController {
     public ApiResponse get(@PathVariable Long id) {
         MdmPersonnel p = personnelService.getPersonnel(id);
         if (p == null) return ApiResponse.error(404, "人员不存在");
-        Map<String, Object> m = new HashMap<>();
-        m.put("id", p.getId());
-        m.put("employee_code", p.getEmployeeCode());
-        m.put("name", p.getName());
-        m.put("gender", p.getGender());
-        m.put("department", p.getDepartment());
-        m.put("position", p.getPosition());
-        m.put("phone", p.getPhone());
-        m.put("email", p.getEmail());
-        m.put("status", p.getStatus());
-        m.put("version", p.getVersion());
-        m.put("created_at", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null);
-        m.put("updated_at", p.getUpdatedAt() != null ? p.getUpdatedAt().toString() : null);
-        return ApiResponse.ok(m);
+        return ApiResponse.ok(personnelService.toMap(p));
     }
 
     @PostMapping
     @RequirePerm("EDIT")
-    public ApiResponse create(@RequestBody PersonnelDTO dto) {
+    public ApiResponse create(@Valid @RequestBody DynamicPersonnelDTO dto) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
-
-        // Check employee_code unique
-        if (personnelService.getByEmployeeCode(dto.employeeCode) != null) {
-            return ApiResponse.error(400, "工号 " + dto.employeeCode + " 已存在");
-        }
-
-        WfApproval approval = approvalService.createApprovalForCreate(user.getId(), dto);
+        String systemCode = currentSystem(user);
+        WfApproval approval = approvalService.createApprovalForCreate(user.getId(), dto, systemCode);
         Map<String, Object> data = new HashMap<>();
         data.put("personnel_id", approval.getPersonnelId());
         data.put("approval_id", approval.getId());
@@ -101,7 +70,7 @@ public class PersonnelController {
 
     @PutMapping("/{id}")
     @RequirePerm("EDIT")
-    public ApiResponse update(@PathVariable Long id, @RequestBody PersonnelDTO dto) {
+    public ApiResponse update(@PathVariable Long id, @Valid @RequestBody DynamicPersonnelDTO dto) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
         WfApproval approval = approvalService.createApprovalForUpdate(id, user.getId(), dto);
         if (approval == null) return ApiResponse.ok("没有变更需要提交", null);
@@ -109,5 +78,10 @@ public class PersonnelController {
         data.put("personnel_id", id);
         data.put("approval_id", approval.getId());
         return ApiResponse.ok("变更已提交，请等待审批", data);
+    }
+
+    private String currentSystem(SysUser user) {
+        List<String> systems = permService.getPermittedSystems(user.getId(), "EDIT");
+        return systems == null || systems.isEmpty() ? "HR" : systems.get(0);
     }
 }

@@ -1,6 +1,7 @@
 package com.simplemdm.service;
 
 import com.simplemdm.dto.PersonnelDTO;
+import com.simplemdm.dto.DynamicPersonnelDTO;
 import com.simplemdm.model.*;
 import com.simplemdm.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,6 +64,25 @@ public class ApprovalService {
     }
 
     @Transactional
+    public WfApproval createApprovalForCreate(Long submitterId, DynamicPersonnelDTO dto, String systemCode) {
+        MdmPersonnel personnel = personnelService.createFromApproval(dto, systemCode);
+        Map<String, Object> changeData = personnelService.computeDiff(emptyPersonnel(systemCode), dto);
+        Long approverId = findApproverForDepartment(personnel.getOwnerDept());
+        WfApproval approval = new WfApproval();
+        approval.setPersonnelId(personnel.getId());
+        approval.setWorkflowType("create");
+        approval.setSubmitterId(submitterId);
+        approval.setApproverId(approverId);
+        approval.setStatus("pending");
+        try {
+            approval.setChangeData(mapper.writeValueAsString(changeData));
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+        return approvalRepo.save(approval);
+    }
+
+    @Transactional
     public WfApproval createApprovalForUpdate(Long personnelId, Long submitterId, PersonnelDTO dto) {
         MdmPersonnel p = personnelRepo.findById(personnelId).orElse(null);
         if (p == null || "pending_approval".equals(p.getStatus())) return null;
@@ -88,6 +108,29 @@ public class ApprovalService {
         try {
             approval.setChangeData(mapper.writeValueAsString(diff));
         } catch (Exception e) { throw new RuntimeException(e); }
+        return approvalRepo.save(approval);
+    }
+
+    @Transactional
+    public WfApproval createApprovalForUpdate(Long personnelId, Long submitterId, DynamicPersonnelDTO dto) {
+        MdmPersonnel personnel = personnelRepo.findById(personnelId).orElse(null);
+        if (personnel == null || "pending_approval".equals(personnel.getStatus())) return null;
+        Map<String, Object> diff = personnelService.computeDiff(personnel, dto);
+        if (diff.isEmpty()) return null;
+        personnel.setStatus("pending_approval");
+        personnelRepo.save(personnel);
+
+        WfApproval approval = new WfApproval();
+        approval.setPersonnelId(personnelId);
+        approval.setWorkflowType("update");
+        approval.setSubmitterId(submitterId);
+        approval.setApproverId(findApproverForDepartment(personnel.getOwnerDept()));
+        approval.setStatus("pending");
+        try {
+            approval.setChangeData(mapper.writeValueAsString(diff));
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
         return approvalRepo.save(approval);
     }
 
@@ -128,7 +171,8 @@ public class ApprovalService {
         Map<String, Object> result = new HashMap<>();
         result.put("id", a.getId());
         result.put("personnel_id", a.getPersonnelId());
-        result.put("personnel_name", personnelRepo.findById(a.getPersonnelId()).map(MdmPersonnel::getName).orElse(""));
+        result.put("personnel_name", personnelRepo.findById(a.getPersonnelId())
+            .map(this::resolvePersonnelName).orElse(""));
         result.put("workflow_type", a.getWorkflowType());
         result.put("submitter_id", a.getSubmitterId());
         result.put("submitter_name", userRepo.findById(a.getSubmitterId()).map(SysUser::getRealName).orElse(""));
@@ -229,5 +273,20 @@ public class ApprovalService {
             }
         }
         return null;
+    }
+
+    private MdmPersonnel emptyPersonnel(String systemCode) {
+        MdmPersonnel personnel = new MdmPersonnel();
+        personnel.setSystemCode(systemCode);
+        personnel.setOwnerDept(null);
+        personnel.setDataJson("{}");
+        return personnel;
+    }
+
+    private String resolvePersonnelName(MdmPersonnel personnel) {
+        Object name = personnelService.readData(personnel).get("name");
+        if (name != null && !name.toString().isBlank()) return name.toString();
+        if (personnel.getName() != null) return personnel.getName();
+        return "#" + personnel.getId();
     }
 }
