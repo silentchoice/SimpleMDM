@@ -45,49 +45,56 @@
       </el-form>
     </el-card>
 
-    <!-- 子表 -->
-    <el-card shadow="hover" v-if="!isCreate" v-loading="subLoading">
-      <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <strong>扩展数据（子表 — 部门隔离，审批共享）</strong>
-          <el-button v-if="!isView" type="primary" size="small" @click="showSubDialog(null)">添加子表数据</el-button>
-        </div>
-      </template>
-      <el-table :data="subRecords" border stripe v-if="subRecords.length > 0">
-        <el-table-column prop="sub_type" label="数据类型" width="140" />
-        <el-table-column label="数据内容">
-          <template #default="{ row }">
-            <div v-for="(val, key) in parseJson(row.data_json)" :key="key" style="display: inline-block; margin-right: 16px;">
-              <el-tag type="info" size="small">{{ key }}</el-tag> {{ val }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="owner_dept" label="所属部门" width="120" />
-        <el-table-column label="可见性" width="110">
-          <template #default="{ row }">
-            <el-tag :type="visibilityType(row.visibility)" size="small">
-              {{ visibilityLabel(row.visibility) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" v-if="!isView">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="showSubDialog(row)">编辑</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-empty v-else description="暂无子表数据" :image-size="80" />
-    </el-card>
+    <!-- 子表（按 sub_type 分组，每组建表） -->
+    <div v-if="!isCreate" v-loading="subLoading">
+      <el-card shadow="hover" v-for="group in groupedSubRecords" :key="group.sub_type" style="margin-bottom: 20px;">
+        <template #header>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong>{{ group.sub_type }}（{{ group.fields.length }} 个字段 · {{ group.records.length }} 条记录）</strong>
+            <el-button v-if="!isView && isOwnerDept" type="primary" size="small"
+              @click="showSubDialog(group.sub_type, null)">添加记录</el-button>
+          </div>
+        </template>
+        <el-table :data="group.records" border stripe size="small">
+          <!-- 动态列：按字段定义渲染 -->
+          <el-table-column v-for="fd in group.fields" :key="fd.id"
+            :prop="fd.field_name" :label="fd.field_name" min-width="120">
+            <template #default="{ row }">
+              {{ parseJson(row.data_json)[fd.field_name] || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="owner_dept" label="所属部门" width="100" />
+          <el-table-column label="可见性" width="100">
+            <template #default="{ row }">
+              <el-tag :type="visibilityType(row.visibility)" size="small">
+                {{ visibilityLabel(row.visibility) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="80" v-if="!isView && isOwnerDept">
+            <template #default="{ row }">
+              <el-button type="primary" link size="small" @click="showSubDialog(group.sub_type, row)">编辑</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+      <el-empty v-if="groupedSubRecords.length === 0" description="暂无子表数据" :image-size="80" />
+    </div>
 
-    <!-- 子表编辑弹窗 -->
-    <el-dialog v-model="subDialogVisible" :title="subEditing ? '编辑子表数据' : '添加子表数据'" width="520px">
+    <!-- 子表编辑弹窗（动态表单） -->
+    <el-dialog v-model="subDialogVisible"
+      :title="subEditing ? '编辑记录' : '添加 ' + subForm.sub_type + ' 记录'" width="520px">
       <el-form label-width="100px">
-        <el-form-item label="数据类型">
-          <el-input v-model="subForm.sub_type" placeholder="如: salary, project" :disabled="!!subEditing" />
+        <el-form-item label="数据类型" v-if="!subEditing">
+          <el-select v-model="subForm.sub_type" placeholder="选择数据类型" @change="onSubTypeChange" style="width: 100%;">
+            <el-option v-for="st in subTypes" :key="st" :label="st" :value="st" />
+          </el-select>
         </el-form-item>
-        <el-form-item label="数据 (JSON)">
-          <el-input v-model="subForm.data_json_text" type="textarea" :rows="4"
-            placeholder='{"base_salary": "15000", "bonus": "3000"}' />
+        <el-form-item v-for="fd in currentFieldDefs" :key="fd.id"
+          :label="fd.field_name" :required="fd.required">
+          <el-input v-model="subForm.fields[fd.field_name]"
+            :placeholder="fd.required ? '必填' : '可选'"
+            :type="fd.field_type === 'number' ? 'number' : 'text'" />
         </el-form-item>
         <el-form-item label="可见性" v-if="subEditing">
           <el-select v-model="subForm.visibility">
@@ -120,7 +127,9 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPersonnel, createPersonnel, updatePersonnel, getDepartments } from '../../api/personnel'
 import { listSub, createSub, updateSub } from '../../api/personnelSub'
+import { listFieldDefs, listSubTypes } from '../../api/deptFields'
 import { ElMessage } from 'element-plus'
+import { useUserStore } from '../../stores/user'
 import ChangeDiff from '../../components/ChangeDiff.vue'
 
 const route = useRoute()
@@ -214,17 +223,50 @@ async function confirmSubmit() {
   }
 }
 
-// ── 子表逻辑 ──
+// ── 子表逻辑 (动态字段) ──
+const userStore = useUserStore()
 const subRecords = ref([])
 const subLoading = ref(false)
 const subDialogVisible = ref(false)
 const subSaving = ref(false)
 const subEditing = ref(null)
+const subTypes = ref([])
+const allFieldDefs = ref([])          // 当前部门的所有字段定义
+const currentFieldDefs = computed(() => {
+  if (!subForm.sub_type) return []
+  return allFieldDefs.value.filter(f => f.sub_type === subForm.sub_type)
+})
 
 const subForm = reactive({
   sub_type: '',
-  data_json_text: '',
+  fields: {},        // { field_name: value }
   visibility: 'private',
+})
+
+// 当前用户是否与人员同部门 → 可编辑子表
+const isOwnerDept = computed(() => {
+  return userStore.user?.department === form.department
+})
+
+// 子记录按 sub_type 分组，每组带字段定义
+const groupedSubRecords = computed(() => {
+  const groups = {}
+  for (const rec of subRecords.value) {
+    const st = rec.sub_type
+    if (!groups[st]) groups[st] = []
+    groups[st].push(rec)
+  }
+  // 获取各 sub_type 的字段定义（可能来自不同部门）
+  return Object.entries(groups).map(([subType, records]) => {
+    const fields = allFieldDefs.value.filter(f =>
+      f.sub_type === subType && f.department === (records[0]?.owner_dept || form.department)
+    )
+    // 如果本部门没有定义，fallback 到第一条记录的 owner_dept
+    if (fields.length === 0 && records[0]?.owner_dept) {
+      // fields remain empty — will show fallback columns
+    }
+    return { sub_type: subType, records, fields }
+  })
 })
 
 function parseJson(jsonStr) {
@@ -241,16 +283,20 @@ function visibilityType(v) {
   return map[v] || 'info'
 }
 
-function showSubDialog(row) {
+function onSubTypeChange(subType) {
+  subForm.fields = {}
+}
+
+function showSubDialog(subType, row) {
   if (row) {
     subEditing.value = row
     subForm.sub_type = row.sub_type
-    subForm.data_json_text = row.data_json
+    subForm.fields = { ...parseJson(row.data_json) }
     subForm.visibility = row.visibility
   } else {
     subEditing.value = null
-    subForm.sub_type = ''
-    subForm.data_json_text = ''
+    subForm.sub_type = subType || ''
+    subForm.fields = {}
     subForm.visibility = 'private'
   }
   subDialogVisible.value = true
@@ -260,9 +306,10 @@ async function saveSubRecord() {
   subSaving.value = true
   try {
     const id = route.params.id
+    const dataJson = JSON.stringify(subForm.fields)
     if (subEditing.value) {
       await updateSub(id, subEditing.value.id, {
-        dataJson: subForm.data_json_text,
+        dataJson,
         subType: subForm.sub_type,
         visibility: subForm.visibility,
       })
@@ -270,7 +317,7 @@ async function saveSubRecord() {
     } else {
       await createSub(id, {
         subType: subForm.sub_type,
-        dataJson: subForm.data_json_text,
+        dataJson,
       })
       ElMessage.success('子表数据已创建')
     }
@@ -292,11 +339,24 @@ async function loadSubRecords() {
   }
 }
 
+async function loadFieldDefs() {
+  try {
+    const [defRes, typesRes] = await Promise.all([
+      listFieldDefs(),
+      listSubTypes(),
+    ])
+    allFieldDefs.value = defRes.data || []
+    subTypes.value = typesRes.data || []
+  } catch { /* ignore */ }
+}
+
 onMounted(async () => {
   try {
     const res = await getDepartments()
     departments.value = res.data || []
   } catch { /* ignore */ }
+
+  await loadFieldDefs()
 
   if (!isCreate.value) {
     loading.value = true

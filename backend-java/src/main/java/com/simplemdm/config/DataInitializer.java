@@ -22,15 +22,18 @@ public class DataInitializer implements CommandLineRunner {
     private final SysUserPermissionRepository permRepo;
     private final SysApproverDeptRepository approverDeptRepo;
     private final MdmPersonnelSubRepository personnelSubRepo;
+    private final MdmFieldDefinitionRepository fieldDefRepo;
     private final AuthService authService;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public DataInitializer(SysUserRepository ur, MdmPersonnelRepository pr, WfApprovalRepository ar,
                            SysPushLogRepository slr, SysPushApiRepository sar, SysUserPermissionRepository spr,
-                           SysApproverDeptRepository sadr, MdmPersonnelSubRepository psr, AuthService as) {
+                           SysApproverDeptRepository sadr, MdmPersonnelSubRepository psr,
+                           MdmFieldDefinitionRepository fdr, AuthService as) {
         this.userRepo = ur; this.personnelRepo = pr; this.approvalRepo = ar;
         this.pushLogRepo = slr; this.pushApiRepo = sar; this.permRepo = spr;
-        this.approverDeptRepo = sadr; this.personnelSubRepo = psr; this.authService = as;
+        this.approverDeptRepo = sadr; this.personnelSubRepo = psr;
+        this.fieldDefRepo = fdr; this.authService = as;
     }
 
     @Override
@@ -72,6 +75,20 @@ public class DataInitializer implements CommandLineRunner {
             createPersonnel("EMP007", "孙浩", "男", "工程部", "开发工程师", "13800001007", "sunhao@demo.com"),
             createPersonnel("EMP008", "马超", "男", "销售部", "销售代表", "13800001008", "machao@demo.com")
         );
+
+        // ── Field definitions (schema for sub tables) ──
+        createFieldDef("工程部", "project", "项目名称", "string", true, 1, wangwu);
+        createFieldDef("工程部", "project", "角色", "string", true, 2, wangwu);
+        createFieldDef("工程部", "project", "工时占比", "string", false, 3, wangwu);
+        createFieldDef("工程部", "salary", "基本工资", "number", true, 1, wangwu);
+        createFieldDef("工程部", "salary", "绩效奖金", "number", false, 2, wangwu);
+        createFieldDef("工程部", "salary", "年终奖基数", "string", false, 3, wangwu);
+        createFieldDef("产品部", "project", "项目名称", "string", true, 1, lisi);
+        createFieldDef("产品部", "project", "角色", "string", true, 2, lisi);
+        createFieldDef("产品部", "project", "工时占比", "string", false, 3, lisi);
+        createFieldDef("产品部", "sales_target", "Q3销售额", "string", true, 1, lisi);
+        createFieldDef("产品部", "sales_target", "Q4销售额", "string", true, 2, lisi);
+        createFieldDef("产品部", "sales_target", "回款率", "string", false, 3, lisi);
 
         // ── Sub table demo data ──
         createPersonnelSub(personnelList.get(0).getId(), "project",
@@ -194,5 +211,19 @@ public class DataInitializer implements CommandLineRunner {
         sub.setVisibility(visibility);
         sub.setVersion(1);
         personnelSubRepo.save(sub);
+    }
+
+    private void createFieldDef(String dept, String subType, String fieldName,
+                                 String fieldType, boolean required, int sortOrder, SysUser createdBy) {
+        MdmFieldDefinition def = new MdmFieldDefinition();
+        def.setDepartment(dept);
+        def.setSubType(subType);
+        def.setFieldName(fieldName);
+        def.setFieldType(fieldType);
+        def.setRequired(required);
+        def.setSortOrder(sortOrder);
+        def.setCreatedBy(createdBy.getId());
+        def.setCreatedByName(createdBy.getRealName());
+        fieldDefRepo.save(def);
     }
 }

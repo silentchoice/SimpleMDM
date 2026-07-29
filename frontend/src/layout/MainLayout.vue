@@ -36,6 +36,10 @@
           <el-icon><Connection /></el-icon>
           <span>推送日志</span>
         </el-menu-item>
+        <el-menu-item index="/dept-fields">
+          <el-icon><EditPen /></el-icon>
+          <span>字段定义</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

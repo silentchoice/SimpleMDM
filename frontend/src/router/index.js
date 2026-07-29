@@ -67,6 +67,12 @@ const routes = [
         component: () => import('../views/push/ApiManager.vue'),
         meta: { title: '推送API管理' },
       },
+      {
+        path: 'dept-fields',
+        name: 'DeptFieldManager',
+        component: () => import('../views/dept-fields/Manager.vue'),
+        meta: { title: '字段定义管理' },
+      },
     ],
   },
 ]
