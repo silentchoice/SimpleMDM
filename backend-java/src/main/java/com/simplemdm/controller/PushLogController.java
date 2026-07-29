@@ -23,8 +23,6 @@ public class PushLogController {
                             @RequestParam(defaultValue = "") String status,
                             @RequestParam(defaultValue = "1") int page,
                             @RequestParam(defaultValue = "10") int pageSize) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
-        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         Page<Map<String, Object>> result = pushService.listPushLogs(
             targetSystem.isEmpty() ? null : targetSystem,
             status.isEmpty() ? null : status, page, pageSize);

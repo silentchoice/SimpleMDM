@@ -5,14 +5,10 @@ echo   SimpleMDM — 启动服务
 echo ========================================
 
 echo [1/2] 启动后端...
-cd /d "%~dp0backend-java"
-start "SimpleMDM-Backend" cmd /c "mvn spring-boot:run"
-cd /d "%~dp0"
+start "SimpleMDM-Backend" cmd /c "cd /d %~dp0backend-java && mvnw.cmd spring-boot:run"
 
 echo [2/2] 启动前端...
-cd /d "%~dp0frontend"
-start "SimpleMDM-Frontend" cmd /c "npm run dev"
-cd /d "%~dp0"
+start "SimpleMDM-Frontend" cmd /c "cd /d %~dp0frontend && npm run dev"
 
 echo ========================================
 echo   后端: http://localhost:18001

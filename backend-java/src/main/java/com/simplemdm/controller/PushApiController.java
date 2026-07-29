@@ -69,6 +69,8 @@ public class PushApiController {
         return ApiResponse.ok(m);
     }
 
+    // ── 以下写操作仅管理员可操作 ──
+
     @PostMapping
     public ApiResponse create(@RequestBody PushApiDTO dto) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();

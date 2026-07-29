@@ -15,15 +15,11 @@ public class DashboardController {
 
     @GetMapping("")
     public ApiResponse dashboard() {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
-        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         return ApiResponse.ok(dashboardService.getStats());
     }
 
     @GetMapping("/stats")
     public ApiResponse stats() {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
-        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         return ApiResponse.ok(dashboardService.getStats());
     }
 }
