@@ -2,7 +2,9 @@ package com.simplemdm.controller;
 
 import com.simplemdm.dto.*;
 import com.simplemdm.model.SysPushApi;
+import com.simplemdm.model.SysUser;
 import com.simplemdm.repository.*;
+import com.simplemdm.security.JwtInterceptor;
 import org.springframework.data.domain.*;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
@@ -69,6 +71,8 @@ public class PushApiController {
 
     @PostMapping
     public ApiResponse create(@RequestBody PushApiDTO dto) {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         if (pushApiRepo.findByTargetSystem(dto.targetSystem).isPresent())
             return ApiResponse.error(400, "目标系统 " + dto.targetSystem + " 已存在");
         SysPushApi api = new SysPushApi();
@@ -83,6 +87,8 @@ public class PushApiController {
 
     @PutMapping("/{id}")
     public ApiResponse update(@PathVariable Long id, @RequestBody PushApiDTO dto) {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         SysPushApi api = pushApiRepo.findById(id).orElse(null);
         if (api == null) return ApiResponse.error(404, "API配置不存在");
         if (dto.name != null) api.setName(dto.name);
@@ -100,6 +106,8 @@ public class PushApiController {
 
     @DeleteMapping("/{id}")
     public ApiResponse delete(@PathVariable Long id) {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         SysPushApi api = pushApiRepo.findById(id).orElse(null);
         if (api == null) return ApiResponse.error(404, "API配置不存在");
         // Soft-delete: deactivate instead of DELETE
@@ -110,6 +118,8 @@ public class PushApiController {
 
     @PostMapping("/{id}/test")
     public ApiResponse test(@PathVariable Long id) {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         SysPushApi api = pushApiRepo.findById(id).orElse(null);
         if (api == null) return ApiResponse.error(400, "API配置不存在");
         Map<String, Object> detail = Map.of("url", api.getBaseUrl(), "method", api.getMethod(),

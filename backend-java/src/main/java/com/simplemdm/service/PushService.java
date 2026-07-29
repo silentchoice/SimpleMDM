@@ -27,7 +27,6 @@ public class PushService {
         this.personnelRepo = personnelRepo;
     }
 
-    @Transactional
     public List<SysPushLog> executePush(WfApproval approval) {
         MdmPersonnel p = personnelRepo.findById(approval.getPersonnelId()).orElse(null);
         if (p == null) return List.of();

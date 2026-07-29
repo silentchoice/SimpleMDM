@@ -33,6 +33,7 @@ public class MdmPersonnel {
     @Column(length = 32, nullable = false)
     private String status = "active";  // active | inactive | pending_approval
 
+    @Version
     @Column(nullable = false)
     private Integer version = 1;
 

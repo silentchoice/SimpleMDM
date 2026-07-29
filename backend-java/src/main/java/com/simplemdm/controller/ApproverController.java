@@ -3,6 +3,7 @@ package com.simplemdm.controller;
 import com.simplemdm.dto.*;
 import com.simplemdm.model.*;
 import com.simplemdm.repository.*;
+import com.simplemdm.security.JwtInterceptor;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
@@ -19,6 +20,8 @@ public class ApproverController {
 
     @GetMapping
     public ApiResponse list() {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         List<SysApproverDept> all = approverDeptRepo.findAll();
         List<Map<String, Object>> items = new ArrayList<>();
         for (SysApproverDept ad : all) {
@@ -33,6 +36,8 @@ public class ApproverController {
 
     @PostMapping
     public ApiResponse assign(@RequestBody ApproverDeptDTO dto) {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         List<SysApproverDept> existing = approverDeptRepo.findByUserIdAndDepartment(dto.userId, dto.department);
         if (!existing.isEmpty()) return ApiResponse.error(400, "该审批人已分配到此部门");
         SysApproverDept ad = new SysApproverDept();
@@ -43,7 +48,8 @@ public class ApproverController {
 
     @DeleteMapping("/{id}")
     public ApiResponse remove(@PathVariable Long id) {
-        approverDeptRepo.deleteById(id);
-        return ApiResponse.ok("审批人分配已移除", null);
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
+        return ApiResponse.error(403, "删除操作需管理员审核");
     }
 }

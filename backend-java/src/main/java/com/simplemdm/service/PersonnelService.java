@@ -78,7 +78,6 @@ public class PersonnelService {
                 }
             }
             personnel.setStatus("active");
-            personnel.setVersion(personnel.getVersion() + 1);
             personnelRepo.save(personnel);
         } catch (Exception e) {
             throw new RuntimeException("Failed to apply changes", e);

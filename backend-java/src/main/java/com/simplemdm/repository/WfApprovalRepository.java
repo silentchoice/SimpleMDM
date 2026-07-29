@@ -9,6 +9,8 @@ import java.util.List;
 public interface WfApprovalRepository extends JpaRepository<WfApproval, Long> {
     Page<WfApproval> findByApproverIdAndStatus(Long approverId, String status, Pageable pageable);
     Page<WfApproval> findBySubmitterId(Long submitterId, Pageable pageable);
+    Page<WfApproval> findBySubmitterIdAndStatus(Long submitterId, String status, Pageable pageable);
     Page<WfApproval> findByApproverIdInAndStatus(List<Long> approverIds, String status, Pageable pageable);
+    Page<WfApproval> findByStatus(String status, Pageable pageable);
     long countByStatus(String status);
 }

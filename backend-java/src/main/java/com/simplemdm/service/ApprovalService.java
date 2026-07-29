@@ -97,17 +97,28 @@ public class ApprovalService {
         Pageable pageable = PageRequest.of(page - 1, pageSize, Sort.by(Sort.Direction.DESC, "id"));
         Page<WfApproval> approvals;
 
+        boolean hasStatusFilter = statusFilter != null && !statusFilter.isEmpty();
+
         if ("pending_my".equals(listType) && approverDepts != null) {
-            // Find all approvers in the user's managed departments
             List<Long> approverIds = new ArrayList<>();
             approverIds.add(userId);
-            approvals = approvalRepo.findByApproverIdInAndStatus(approverIds, "pending", pageable);
+            String status = hasStatusFilter ? statusFilter : "pending";
+            approvals = approvalRepo.findByApproverIdInAndStatus(approverIds, status, pageable);
         } else if ("pending_my".equals(listType)) {
-            approvals = approvalRepo.findByApproverIdAndStatus(userId, "pending", pageable);
+            String status = hasStatusFilter ? statusFilter : "pending";
+            approvals = approvalRepo.findByApproverIdAndStatus(userId, status, pageable);
         } else if ("my_submitted".equals(listType)) {
-            approvals = approvalRepo.findBySubmitterId(userId, pageable);
+            if (hasStatusFilter) {
+                approvals = approvalRepo.findBySubmitterIdAndStatus(userId, statusFilter, pageable);
+            } else {
+                approvals = approvalRepo.findBySubmitterId(userId, pageable);
+            }
         } else {
-            approvals = approvalRepo.findAll(pageable);
+            if (hasStatusFilter) {
+                approvals = approvalRepo.findByStatus(statusFilter, pageable);
+            } else {
+                approvals = approvalRepo.findAll(pageable);
+            }
         }
 
         return approvals.map(this::enrichApproval);

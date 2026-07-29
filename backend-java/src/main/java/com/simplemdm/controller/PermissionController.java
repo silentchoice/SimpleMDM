@@ -1,7 +1,9 @@
 package com.simplemdm.controller;
 
 import com.simplemdm.dto.*;
+import com.simplemdm.model.SysUser;
 import com.simplemdm.model.SysUserPermission;
+import com.simplemdm.security.JwtInterceptor;
 import com.simplemdm.service.PermissionService;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
@@ -15,6 +17,8 @@ public class PermissionController {
 
     @GetMapping
     public ApiResponse list(@PathVariable Long userId) {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         List<SysUserPermission> perms = permService.getUserPermissions(userId);
         List<Map<String, Object>> items = new ArrayList<>();
         for (SysUserPermission p : perms) {
@@ -28,13 +32,16 @@ public class PermissionController {
 
     @PostMapping
     public ApiResponse add(@PathVariable Long userId, @RequestBody PermissionDTO dto) {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         SysUserPermission p = permService.addPermission(userId, dto.permType, dto.scopeType, dto.scopeValue);
         return ApiResponse.ok("权限已添加", Map.of("id", p.getId()));
     }
 
     @DeleteMapping("/{permId}")
     public ApiResponse remove(@PathVariable Long userId, @PathVariable Long permId) {
-        permService.removePermission(userId, permId);
-        return ApiResponse.ok("权限已移除", null);
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
+        return ApiResponse.error(403, "删除操作需管理员审核");
     }
 }
