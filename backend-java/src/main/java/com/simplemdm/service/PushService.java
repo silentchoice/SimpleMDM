@@ -16,29 +16,30 @@ public class PushService {
     private final SysPushLogRepository pushLogRepo;
     private final SysPushApiRepository pushApiRepo;
     private final MdmPersonnelRepository personnelRepo;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final PersonnelService personnelService;
+    private final ObjectMapper mapper;
 
     private int pushSessionCount = 0;
 
     public PushService(SysPushLogRepository pushLogRepo, SysPushApiRepository pushApiRepo,
-                       MdmPersonnelRepository personnelRepo) {
+                       MdmPersonnelRepository personnelRepo, PersonnelService personnelService,
+                       ObjectMapper mapper) {
         this.pushLogRepo = pushLogRepo;
         this.pushApiRepo = pushApiRepo;
         this.personnelRepo = personnelRepo;
+        this.personnelService = personnelService;
+        this.mapper = mapper;
     }
 
     public List<SysPushLog> executePush(WfApproval approval) {
         MdmPersonnel p = personnelRepo.findById(approval.getPersonnelId()).orElse(null);
         if (p == null) return List.of();
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("employee_code", p.getEmployeeCode());
-        payload.put("name", p.getName());
-        payload.put("gender", p.getGender());
-        payload.put("department", p.getDepartment());
-        payload.put("position", p.getPosition());
-        payload.put("phone", p.getPhone());
-        payload.put("email", p.getEmail());
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("id", p.getId());
+        payload.put("system_code", p.getSystemCode());
+        payload.put("owner_dept", p.getOwnerDept());
+        payload.put("data", personnelService.readData(p));
         payload.put("version", p.getVersion());
 
         List<SysPushApi> activeApis = pushApiRepo.findByStatus("active");
@@ -104,7 +105,10 @@ public class PushService {
         m.put("approval_id", log.getApprovalId());
         m.put("personnel_id", log.getPersonnelId());
         m.put("personnel_name", log.getPersonnelId() != null ?
-            personnelRepo.findById(log.getPersonnelId()).map(MdmPersonnel::getName).orElse("") : "");
+            personnelRepo.findById(log.getPersonnelId()).map(p -> {
+                Object name = personnelService.readData(p).get("name");
+                return name == null ? "#" + p.getId() : name.toString();
+            }).orElse("") : "");
         m.put("target_system", log.getTargetSystem());
         m.put("status", log.getStatus());
         m.put("request_body", log.getRequestBody());
