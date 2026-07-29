@@ -12,6 +12,9 @@ public class SysUserPermission {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "system_code", length = 32)
+    private String systemCode;  // null = ALL systems
+
     @Column(name = "perm_type", length = 16, nullable = false)
     private String permType;  // VIEW | EDIT
 
@@ -28,6 +31,8 @@ public class SysUserPermission {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public String getSystemCode() { return systemCode; }
+    public void setSystemCode(String systemCode) { this.systemCode = systemCode; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
     public String getPermType() { return permType; }

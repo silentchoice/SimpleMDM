@@ -43,16 +43,34 @@ public class PermissionService {
         return depts;
     }
 
+    /** Get system codes the user can access for a given permission type.
+     *  Returns null if user has ALL scope (admin sees all systems).
+     *  Returns empty list if no permissions. */
+    public List<String> getPermittedSystems(Long userId, String permType) {
+        List<SysUserPermission> perms = permRepo.findByUserIdAndPermType(userId, permType);
+        if (perms.isEmpty()) return List.of();
+        for (SysUserPermission p : perms) {
+            if ("ALL".equals(p.getScopeType())) return null; // null = all systems
+        }
+        return perms.stream()
+            .map(SysUserPermission::getSystemCode)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+    }
+
     public List<SysUserPermission> getUserPermissions(Long userId) {
         return permRepo.findByUserId(userId);
     }
 
-    public SysUserPermission addPermission(Long userId, String permType, String scopeType, String scopeValue) {
+    public SysUserPermission addPermission(Long userId, String permType, String scopeType,
+                                            String scopeValue, String systemCode) {
         SysUserPermission p = new SysUserPermission();
         p.setUserId(userId);
         p.setPermType(permType);
         p.setScopeType(scopeType);
         p.setScopeValue(scopeValue);
+        p.setSystemCode(systemCode);
         return permRepo.save(p);
     }
 

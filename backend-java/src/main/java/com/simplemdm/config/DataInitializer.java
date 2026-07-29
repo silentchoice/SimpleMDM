@@ -46,17 +46,18 @@ public class DataInitializer implements CommandLineRunner {
         SysUser zhaoliu = createUser("zhaoliu", "123456", "赵六", "IT部", false);
         SysUser admin = createUser("admin", "admin123", "管理员", "IT部", true);
 
-        // ── Permissions ──
-        // wangwu: VIEW ALL + EDIT HR department
-        createPerm(wangwu.getId(), "VIEW", "ALL", null);
-        createPerm(wangwu.getId(), "EDIT", "DEPT", "人力资源部");
-        createPerm(wangwu.getId(), "EDIT", "DEPT", "工程部");
-        // lisi: VIEW ALL (approver needs to see), no EDIT
-        createPerm(lisi.getId(), "VIEW", "ALL", null);
-        // zhaoliu: VIEW all, no EDIT
-        createPerm(zhaoliu.getId(), "VIEW", "ALL", null);
-        // admin: VIEW ALL, no EDIT (admin cannot edit data)
-        createPerm(admin.getId(), "VIEW", "ALL", null);
+        // ── Permissions (system_code=HR) ──
+        // wangwu: VIEW all HR depts + EDIT HR/工程部
+        createPerm(wangwu.getId(), "VIEW", "ALL", null, "HR");
+        createPerm(wangwu.getId(), "EDIT", "DEPT", "人力资源部", "HR");
+        createPerm(wangwu.getId(), "EDIT", "DEPT", "工程部", "HR");
+        // lisi: VIEW all HR, no EDIT
+        createPerm(lisi.getId(), "VIEW", "ALL", null, "HR");
+        // zhaoliu: VIEW all HR, no EDIT
+        createPerm(zhaoliu.getId(), "VIEW", "ALL", null, "HR");
+        // admin: VIEW ALL systems, no EDIT
+        createPerm(admin.getId(), "VIEW", "ALL", null, null);
+        createPerm(admin.getId(), "VIEW", "ALL", null, "HR");
 
         // ── Approver Assignment: lisi manages HR department ──
         SysApproverDept ad = new SysApproverDept();
@@ -194,18 +195,21 @@ public class DataInitializer implements CommandLineRunner {
         return userRepo.save(u);
     }
 
-    private void createPerm(Long userId, String permType, String scopeType, String scopeValue) {
+    private void createPerm(Long userId, String permType, String scopeType,
+                             String scopeValue, String systemCode) {
         SysUserPermission p = new SysUserPermission();
         p.setUserId(userId);
         p.setPermType(permType);
         p.setScopeType(scopeType);
         p.setScopeValue(scopeValue);
+        p.setSystemCode(systemCode);
         permRepo.save(p);
     }
 
     private MdmPersonnel createPersonnel(String code, String name, String gender,
                                           String dept, String pos, String phone, String email) {
         MdmPersonnel p = new MdmPersonnel();
+        p.setSystemCode("HR");
         p.setEmployeeCode(code); p.setName(name); p.setGender(gender);
         p.setDepartment(dept); p.setPosition(pos); p.setPhone(phone); p.setEmail(email);
         p.setStatus("active"); p.setVersion(1);
@@ -236,6 +240,7 @@ public class DataInitializer implements CommandLineRunner {
     private void createPersonnelSub(Long personnelId, String subType, String dataJson,
                                      String ownerDept, String visibility) {
         MdmPersonnelSub sub = new MdmPersonnelSub();
+        sub.setSystemCode("HR");
         sub.setPersonnelId(personnelId);
         sub.setSubType(subType);
         sub.setDataJson(dataJson);
@@ -248,6 +253,7 @@ public class DataInitializer implements CommandLineRunner {
     private void createFieldDef(String dept, String tableType, String subType, String fieldName,
                                  String fieldType, boolean required, int sortOrder, SysUser createdBy) {
         MdmFieldDefinition def = new MdmFieldDefinition();
+        def.setSystemCode("HR");
         def.setDepartment(dept);
         def.setTableType(tableType);
         def.setSubType(subType);

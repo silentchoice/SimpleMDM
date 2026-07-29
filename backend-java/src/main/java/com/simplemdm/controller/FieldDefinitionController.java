@@ -4,6 +4,7 @@ import com.simplemdm.dto.ApiResponse;
 import com.simplemdm.model.*;
 import com.simplemdm.repository.*;
 import com.simplemdm.security.JwtInterceptor;
+import com.simplemdm.service.PermissionService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -13,9 +14,17 @@ import java.util.*;
 public class FieldDefinitionController {
 
     private final MdmFieldDefinitionRepository fieldRepo;
+    private final PermissionService permService;
 
-    public FieldDefinitionController(MdmFieldDefinitionRepository fieldRepo) {
+    public FieldDefinitionController(MdmFieldDefinitionRepository fieldRepo, PermissionService permService) {
         this.fieldRepo = fieldRepo;
+        this.permService = permService;
+    }
+
+    private String getUserSystemCode() {
+        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        List<String> systems = permService.getPermittedSystems(user.getId(), "VIEW");
+        return (systems == null || systems.isEmpty()) ? "HR" : systems.get(0);
     }
 
     /** List all field definitions for current user's department.
@@ -28,16 +37,16 @@ public class FieldDefinitionController {
         String dept = user.getDepartment();
         if (dept == null) return ApiResponse.error(400, "当前用户无部门");
 
+        String sysCode = getUserSystemCode();
         List<MdmFieldDefinition> fields;
         if ("master".equals(tableType)) {
-            // Master fields are shared — return all, regardless of department
-            fields = fieldRepo.findByTableTypeOrderBySubTypeAscSortOrder("master");
+            fields = fieldRepo.findByTableTypeAndSystemCodeOrderBySubTypeAscSortOrder("master", sysCode);
         } else if (!tableType.isEmpty()) {
-            fields = fieldRepo.findByDepartmentAndTableTypeOrderBySubTypeAscSortOrder(dept, tableType);
+            fields = fieldRepo.findByDepartmentAndTableTypeAndSystemCodeOrderBySubTypeAscSortOrder(dept, tableType, sysCode);
         } else if (!subType.isEmpty()) {
-            fields = fieldRepo.findByDepartmentAndSubTypeOrderBySortOrder(dept, subType);
+            fields = fieldRepo.findByDepartmentAndSubTypeAndSystemCodeOrderBySortOrder(dept, subType, sysCode);
         } else {
-            fields = fieldRepo.findByDepartmentOrderBySubTypeAscSortOrder(dept);
+            fields = fieldRepo.findByDepartmentAndSystemCodeOrderBySubTypeAscSortOrder(dept, sysCode);
         }
 
         List<Map<String, Object>> items = fields.stream().map(this::toMap).toList();
@@ -49,11 +58,12 @@ public class FieldDefinitionController {
     public ApiResponse subTypes(@RequestParam(defaultValue = "sub") String tableType) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
         String dept = user.getDepartment();
+        String sysCode = getUserSystemCode();
         if (dept == null) return ApiResponse.error(400, "当前用户无部门");
         if ("master".equals(tableType)) {
-            return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartmentAndTableType(dept, "master"));
+            return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartmentAndTableTypeAndSystemCode(dept, "master", sysCode));
         }
-        return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartment(dept));
+        return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartmentAndSystemCode(dept, sysCode));
     }
 
     /** Get field definitions for a specific sub_type (any dept — for cross-dept viewing) */

@@ -8,4 +8,5 @@ public class PermissionDTO {
     @NotBlank public String permType;   // VIEW | EDIT
     @NotBlank public String scopeType;  // DEPT | POSITION | ALL
     public String scopeValue;
+    public String systemCode;
 }

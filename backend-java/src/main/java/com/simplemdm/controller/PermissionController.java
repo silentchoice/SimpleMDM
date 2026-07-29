@@ -25,6 +25,7 @@ public class PermissionController {
             Map<String, Object> m = new HashMap<>();
             m.put("id", p.getId()); m.put("perm_type", p.getPermType());
             m.put("scope_type", p.getScopeType()); m.put("scope_value", p.getScopeValue());
+            m.put("system_code", p.getSystemCode());
             items.add(m);
         }
         return ApiResponse.ok(items);
@@ -34,7 +35,8 @@ public class PermissionController {
     public ApiResponse add(@PathVariable Long userId, @RequestBody PermissionDTO dto) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
-        SysUserPermission p = permService.addPermission(userId, dto.permType, dto.scopeType, dto.scopeValue);
+        String sysCode = dto.systemCode != null ? dto.systemCode : "HR";
+        SysUserPermission p = permService.addPermission(userId, dto.permType, dto.scopeType, dto.scopeValue, sysCode);
         return ApiResponse.ok("权限已添加", Map.of("id", p.getId()));
     }
 

@@ -21,15 +21,18 @@ public class PersonnelService {
     }
 
     @Transactional(readOnly = true)
-    public Page<MdmPersonnel> listPersonnel(String keyword, String department, int page, int pageSize, List<String> allowedDepts) {
+    public Page<MdmPersonnel> listPersonnel(String keyword, String department, int page, int pageSize,
+                                             List<String> allowedDepts, String systemCode) {
         Pageable pageable = PageRequest.of(page - 1, pageSize, Sort.by(Sort.Direction.DESC, "id"));
-        if (allowedDepts == null || allowedDepts.isEmpty()) {
+        if (allowedDepts == null) {
+            // ALL scope — filter by system code only
+            if (systemCode != null) return personnelRepo.findBySystemCode(systemCode, pageable);
             return personnelRepo.findAll(pageable);
         }
         return personnelRepo.searchByKeywordAndDept(
             (keyword != null && !keyword.isEmpty()) ? keyword : null,
             (department != null && !department.isEmpty()) ? department : null,
-            allowedDepts, pageable
+            allowedDepts, systemCode, pageable
         );
     }
 

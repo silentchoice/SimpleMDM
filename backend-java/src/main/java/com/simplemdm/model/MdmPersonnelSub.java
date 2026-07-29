@@ -9,6 +9,9 @@ public class MdmPersonnelSub {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "system_code", length = 32, nullable = false)
+    private String systemCode = "HR";
+
     @Column(name = "personnel_id", nullable = false)
     private Long personnelId;
 
@@ -38,6 +41,8 @@ public class MdmPersonnelSub {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public String getSystemCode() { return systemCode; }
+    public void setSystemCode(String systemCode) { this.systemCode = systemCode; }
     public Long getPersonnelId() { return personnelId; }
     public void setPersonnelId(Long personnelId) { this.personnelId = personnelId; }
     public String getSubType() { return subType; }

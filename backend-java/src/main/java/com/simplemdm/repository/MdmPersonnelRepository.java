@@ -19,6 +19,11 @@ public interface MdmPersonnelRepository extends JpaRepository<MdmPersonnel, Long
     @Query("SELECT p FROM MdmPersonnel p WHERE " +
            "(:keyword IS NULL OR p.name LIKE %:keyword% OR p.employeeCode LIKE %:keyword% OR p.position LIKE %:keyword%) " +
            "AND (:department IS NULL OR p.department = :department) " +
-           "AND p.department IN :allowedDepts")
-    Page<MdmPersonnel> searchByKeywordAndDept(String keyword, String department, List<String> allowedDepts, Pageable pageable);
+           "AND p.department IN :allowedDepts " +
+           "AND (:systemCode IS NULL OR p.systemCode = :systemCode)")
+    Page<MdmPersonnel> searchByKeywordAndDept(String keyword, String department, List<String> allowedDepts,
+                                               String systemCode, Pageable pageable);
+
+    @Query("SELECT p FROM MdmPersonnel p WHERE p.systemCode = :systemCode")
+    Page<MdmPersonnel> findBySystemCode(String systemCode, Pageable pageable);
 }

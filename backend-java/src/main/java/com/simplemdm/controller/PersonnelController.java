@@ -32,11 +32,14 @@ public class PersonnelController {
                             @RequestParam(defaultValue = "10") int pageSize) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
         List<String> allowedDepts = permService.getViewableDepts(user.getId());
-        Page<MdmPersonnel> result = personnelService.listPersonnel(keyword, department, page, pageSize, allowedDepts);
+        List<String> allowedSystems = permService.getPermittedSystems(user.getId(), "VIEW");
+        String systemCode = (allowedSystems == null || allowedSystems.isEmpty()) ? null : allowedSystems.get(0);
+        Page<MdmPersonnel> result = personnelService.listPersonnel(keyword, department, page, pageSize, allowedDepts, systemCode);
 
         List<Map<String, Object>> items = result.getContent().stream().map(p -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", p.getId());
+            m.put("system_code", p.getSystemCode());
             m.put("employee_code", p.getEmployeeCode());
             m.put("name", p.getName());
             m.put("gender", p.getGender());

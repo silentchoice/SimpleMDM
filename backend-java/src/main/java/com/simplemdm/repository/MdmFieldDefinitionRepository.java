@@ -7,15 +7,16 @@ import java.util.List;
 
 public interface MdmFieldDefinitionRepository extends JpaRepository<MdmFieldDefinition, Long> {
     List<MdmFieldDefinition> findByDepartmentAndSubTypeOrderBySortOrder(String department, String subType);
-    List<MdmFieldDefinition> findByDepartmentAndTableTypeOrderBySubTypeAscSortOrder(String department, String tableType);
-    List<MdmFieldDefinition> findByDepartmentOrderBySubTypeAscSortOrder(String department);
-    List<MdmFieldDefinition> findByTableTypeOrderBySubTypeAscSortOrder(String tableType);
+    List<MdmFieldDefinition> findByDepartmentAndTableTypeAndSystemCodeOrderBySubTypeAscSortOrder(String department, String tableType, String systemCode);
+    List<MdmFieldDefinition> findByDepartmentAndSubTypeAndSystemCodeOrderBySortOrder(String department, String subType, String systemCode);
+    List<MdmFieldDefinition> findByDepartmentAndSystemCodeOrderBySubTypeAscSortOrder(String department, String systemCode);
+    List<MdmFieldDefinition> findByTableTypeAndSystemCodeOrderBySubTypeAscSortOrder(String tableType, String systemCode);
 
-    @Query("SELECT DISTINCT f.subType FROM MdmFieldDefinition f WHERE f.department = :department ORDER BY f.subType")
-    List<String> findDistinctSubTypesByDepartment(String department);
+    @Query("SELECT DISTINCT f.subType FROM MdmFieldDefinition f WHERE f.department = :department AND f.systemCode = :systemCode ORDER BY f.subType")
+    List<String> findDistinctSubTypesByDepartmentAndSystemCode(String department, String systemCode);
 
-    @Query("SELECT DISTINCT f.subType FROM MdmFieldDefinition f WHERE f.department = :department AND f.tableType = :tableType ORDER BY f.subType")
-    List<String> findDistinctSubTypesByDepartmentAndTableType(String department, String tableType);
+    @Query("SELECT DISTINCT f.subType FROM MdmFieldDefinition f WHERE f.department = :department AND f.tableType = :tableType AND f.systemCode = :systemCode ORDER BY f.subType")
+    List<String> findDistinctSubTypesByDepartmentAndTableTypeAndSystemCode(String department, String tableType, String systemCode);
 
     void deleteByDepartmentAndSubType(String department, String subType);
 }

@@ -55,6 +55,7 @@ public class PersonnelSubController {
         }
 
         MdmPersonnelSub sub = new MdmPersonnelSub();
+        sub.setSystemCode(p.getSystemCode());
         sub.setPersonnelId(personnelId);
         sub.setSubType(dto.subType);
         sub.setDataJson(dto.dataJson);
