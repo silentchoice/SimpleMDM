@@ -89,16 +89,28 @@ public class DataInitializer implements CommandLineRunner {
         createFieldDef("产品部", "sales_target", "Q3销售额", "string", true, 1, lisi);
         createFieldDef("产品部", "sales_target", "Q4销售额", "string", true, 2, lisi);
         createFieldDef("产品部", "sales_target", "回款率", "string", false, 3, lisi);
+        // 人力资源部字段定义
+        createFieldDef("人力资源部", "salary", "基本工资", "number", true, 1, wangwu);
+        createFieldDef("人力资源部", "salary", "绩效系数", "number", false, 2, wangwu);
+        createFieldDef("人力资源部", "salary", "社保基数", "number", false, 3, wangwu);
+        createFieldDef("人力资源部", "contract", "合同类型", "string", true, 1, wangwu);
+        createFieldDef("人力资源部", "contract", "合同期限", "string", true, 2, wangwu);
+        createFieldDef("人力资源部", "contract", "到期日期", "date", false, 3, wangwu);
 
-        // ── Sub table demo data ──
+        // ── Sub table demo data (JSON key 必须与 field_name 一致) ──
         createPersonnelSub(personnelList.get(0).getId(), "project",
-            "{\"项目\":\"智能工厂平台\",\"角色\":\"后端负责人\",\"工时占比\":\"80%\"}", "工程部", "shared");
+            "{\"项目名称\":\"智能工厂平台\",\"角色\":\"后端负责人\",\"工时占比\":\"80%\"}", "工程部", "shared");
         createPersonnelSub(personnelList.get(0).getId(), "salary",
             "{\"基本工资\":\"25000\",\"绩效奖金\":\"5000\",\"年终奖基数\":\"3个月\"}", "工程部", "private");
         createPersonnelSub(personnelList.get(1).getId(), "project",
-            "{\"项目\":\"电商中台\",\"角色\":\"产品负责人\",\"工时占比\":\"100%\"}", "产品部", "shared");
+            "{\"项目名称\":\"电商中台\",\"角色\":\"产品负责人\",\"工时占比\":\"100%\"}", "产品部", "shared");
         createPersonnelSub(personnelList.get(4).getId(), "sales_target",
             "{\"Q3销售额\":\"500万\",\"Q4销售额\":\"800万\",\"回款率\":\"95%\"}", "产品部", "private");
+        // 人力资源部子表数据
+        createPersonnelSub(personnelList.get(5).getId(), "salary",
+            "{\"基本工资\":\"18000\",\"绩效系数\":\"1.2\",\"社保基数\":\"12000\"}", "人力资源部", "shared");
+        createPersonnelSub(personnelList.get(5).getId(), "contract",
+            "{\"合同类型\":\"无固定期限\",\"合同期限\":\"长期\",\"到期日期\":\"-\"}", "人力资源部", "private");
 
         // ── Historical Approval #1 — EMP002 update (approved) ──
         MdmPersonnel emp002 = personnelList.get(1);
