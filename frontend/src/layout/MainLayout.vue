@@ -102,11 +102,13 @@ const activeMenu = computed(() => {
 })
 
 const roleLabel = computed(() => {
+  if (userStore.isAdmin) return '管理员'
   const map = { operator: 'HR操作员', approver: 'HR审批人', viewer: '查看者' }
-  return map[userStore.role] || userStore.role
+  return map[userStore.role] || userStore.role || '普通用户'
 })
 
 const roleTagType = computed(() => {
+  if (userStore.isAdmin) return 'danger'
   const map = { operator: 'warning', approver: 'success', viewer: 'info' }
   return map[userStore.role] || ''
 })

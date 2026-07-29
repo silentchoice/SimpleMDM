@@ -2,7 +2,7 @@
   <div>
     <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
       <h2>人员管理</h2>
-      <el-button type="primary" @click="$router.push('/personnel/create')" v-if="userStore.isOperator()">
+      <el-button type="primary" @click="$router.push('/personnel/create')" v-if="userStore.hasEditPermission">
         <el-icon><Plus /></el-icon> 新增人员
       </el-button>
     </div>
@@ -47,7 +47,7 @@
           <template #default="{ row }">
             <el-button size="small" text type="primary" @click="$router.push(`/personnel/${row.id}`)">查看</el-button>
             <el-button
-              v-if="userStore.isOperator() && row.status === 'active'"
+              v-if="userStore.hasEditPermission && row.status === 'active'"
               size="small" text type="warning"
               @click="$router.push(`/personnel/${row.id}/edit`)"
             >编辑</el-button>
