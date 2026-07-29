@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPersonnel, createPersonnel, updatePersonnel, getDepartments } from '../../api/personnel'
 import { listSub, createSub, updateSub } from '../../api/personnelSub'
@@ -157,12 +157,21 @@ const FIELD_MAP = {
 
 const formData = reactive({})
 
+let loadedDTO = null  // cached DTO while waiting for field defs
+
 function initFormData() {
   for (const fd of masterFieldDefs.value) {
-    if (!(fd.field_name in formData)) formData[fd.field_name] = ''
+    formData[fd.field_name] = formData[fd.field_name] || ''
   }
   if (!formData['性别']) formData['性别'] = '男'
+  // If we already fetched personnel data, fill it now
+  if (loadedDTO) { fillFormDataFromDTO(loadedDTO); loadedDTO = null }
 }
+
+// When master field definitions load, init the form
+watch(masterFieldDefs, () => {
+  if (masterFieldDefs.value.length > 0) initFormData()
+})
 
 function formDataToDTO() {
   const dto = {}
@@ -386,17 +395,18 @@ onMounted(async () => {
     departments.value = res.data || []
   } catch { /* ignore */ }
 
-  initFormData()
   await loadFieldDefs()
-  // Re-init after field defs loaded
-  initFormData()
 
   if (!isCreate.value) {
     loading.value = true
     try {
       const id = route.params.id
       const res = await getPersonnel(id)
-      fillFormDataFromDTO(res.data)
+      if (masterFieldDefs.value.length > 0) {
+        fillFormDataFromDTO(res.data)
+      } else {
+        loadedDTO = res.data  // wait for field defs to load
+      }
       await loadSubRecords()
       await loadCrossDeptFieldDefs()
     } finally {
