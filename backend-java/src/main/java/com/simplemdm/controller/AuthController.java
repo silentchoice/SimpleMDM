@@ -55,6 +55,7 @@ public class AuthController {
             pm.put("perm_type", p.getPermType());
             pm.put("scope_type", p.getScopeType());
             pm.put("scope_value", p.getScopeValue());
+            pm.put("system_code", p.getSystemCode());
             permList.add(pm);
         }
 

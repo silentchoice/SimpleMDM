@@ -239,9 +239,13 @@ const subForm = reactive({
   visibility: 'private',
 })
 
-// 当前用户是否与人员同部门 → 可编辑子表
+// 当前用户是否有该人员所在部门的编辑权限
 const isOwnerDept = computed(() => {
-  return userStore.user?.department === form.department
+  const perms = userStore.permissions || []
+  return perms.some(p =>
+    p.perm_type === 'EDIT' &&
+    (p.scope_type === 'ALL' || p.scope_value === form.department)
+  )
 })
 
 // 所有可用 sub_type（有记录 + 有字段定义但无记录的）
