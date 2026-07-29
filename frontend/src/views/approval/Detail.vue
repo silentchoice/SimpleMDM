@@ -34,7 +34,7 @@
         <!-- Change Diff -->
         <el-card shadow="hover" v-if="parsedDiff && Object.keys(parsedDiff).length > 0">
           <template #header><span style="font-weight: 600;">变更对比</span></template>
-          <ChangeDiff :change-data="parsedDiff" />
+          <ChangeDiff :change-data="parsedDiff" :definitions="fieldDefinitions" />
         </el-card>
 
         <!-- Approval Actions -->
@@ -67,6 +67,7 @@ import { getApproval, approve, reject, withdraw } from '../../api/approval'
 import { useUserStore } from '../../stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ChangeDiff from '../../components/ChangeDiff.vue'
+import { listFieldDefs } from '../../api/deptFields'
 
 const route = useRoute()
 const router = useRouter()
@@ -75,6 +76,7 @@ const userStore = useUserStore()
 const detail = ref({})
 const comment = ref('')
 const acting = ref(false)
+const fieldDefinitions = ref([])
 
 const parsedDiff = computed(() => {
   if (!detail.value.change_data) return null
@@ -151,5 +153,8 @@ async function handleWithdraw() {
   }
 }
 
-onMounted(() => fetchDetail())
+onMounted(async () => {
+  const [, definitions] = await Promise.all([fetchDetail(), listFieldDefs('', 'master')])
+  fieldDefinitions.value = definitions.data || []
+})
 </script>

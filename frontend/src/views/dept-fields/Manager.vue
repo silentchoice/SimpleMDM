@@ -26,6 +26,7 @@
         </div>
       </template>
       <el-table :data="group.fields" border stripe size="small">
+        <el-table-column prop="field_key" label="字段标识" width="160" />
         <el-table-column prop="field_name" label="字段名" width="180" />
         <el-table-column prop="field_type" label="类型" width="100">
           <template #default="{ row }">
@@ -68,6 +69,10 @@
         <el-form-item label="字段组名" v-if="newSubTypeMode">
           <el-input v-model="newSubTypeName" placeholder="如: salary, contract" />
         </el-form-item>
+        <el-form-item label="字段标识" required>
+          <el-input v-model="dialogForm.field_key" :disabled="Boolean(editingField)"
+            placeholder="如: base_salary" />
+        </el-form-item>
         <el-form-item label="字段名" required>
           <el-input v-model="dialogForm.field_name" placeholder="如: 基本工资" />
         </el-form-item>
@@ -77,7 +82,11 @@
             <el-option label="数字 (number)" value="number" />
             <el-option label="日期 (date)" value="date" />
             <el-option label="下拉 (select)" value="select" />
+            <el-option label="单选 (radio)" value="radio" />
           </el-select>
+        </el-form-item>
+        <el-form-item v-if="['select', 'radio'].includes(dialogForm.field_type)" label="选项">
+          <el-input v-model="optionsText" placeholder="多个选项用英文逗号分隔，如: P1,P2" />
         </el-form-item>
         <el-form-item label="是否必填">
           <el-switch v-model="dialogForm.required" />
@@ -109,10 +118,12 @@ const dialogVisible = ref(false)
 const editingField = ref(null)
 const newSubTypeMode = ref(false)
 const newSubTypeName = ref('')
+const optionsText = ref('')
 const activeTab = ref('sub')
 
 const dialogForm = reactive({
   sub_type: '',
+  field_key: '',
   field_name: '',
   field_type: 'string',
   required: false,
@@ -132,11 +143,13 @@ function showNewSubTypeDialog() {
   newSubTypeMode.value = true
   editingField.value = null
   dialogForm.sub_type = ''
+  dialogForm.field_key = ''
   dialogForm.field_name = ''
   dialogForm.field_type = 'string'
   dialogForm.required = false
   dialogForm.sort_order = 0
   newSubTypeName.value = ''
+  optionsText.value = ''
   dialogVisible.value = true
 }
 
@@ -145,17 +158,23 @@ function showDialog(subType, field) {
   if (field) {
     editingField.value = field
     dialogForm.sub_type = field.sub_type
+    dialogForm.field_key = field.field_key
     dialogForm.field_name = field.field_name
     dialogForm.field_type = field.field_type
     dialogForm.required = field.required
     dialogForm.sort_order = field.sort_order
+    optionsText.value = (field.options || []).map(option =>
+      typeof option === 'object' ? option.value : option
+    ).join(',')
   } else {
     editingField.value = null
     dialogForm.sub_type = subType
+    dialogForm.field_key = ''
     dialogForm.field_name = ''
     dialogForm.field_type = 'string'
     dialogForm.required = false
     dialogForm.sort_order = 0
+    optionsText.value = ''
   }
   dialogVisible.value = true
 }
@@ -163,6 +182,7 @@ function showDialog(subType, field) {
 function onTabChange() { loadFields() }
 
 async function saveField() {
+  if (!dialogForm.field_key) { ElMessage.warning('请输入字段标识'); return }
   if (!dialogForm.field_name) { ElMessage.warning('请输入字段名'); return }
   saving.value = true
   try {
@@ -170,10 +190,21 @@ async function saveField() {
     if (!subType) { ElMessage.warning('请选择或输入字段组名'); return }
 
     if (editingField.value) {
-      await updateFieldDef(editingField.value.id, { ...dialogForm })
+      await updateFieldDef(editingField.value.id, {
+        field_name: dialogForm.field_name,
+        field_type: dialogForm.field_type,
+        required: dialogForm.required,
+        sort_order: dialogForm.sort_order,
+        options: parseOptions(),
+      })
       ElMessage.success('字段已更新')
     } else {
-      await createFieldDef({ ...dialogForm, sub_type: subType, table_type: activeTab.value })
+      await createFieldDef({
+        ...dialogForm,
+        sub_type: subType,
+        table_type: activeTab.value,
+        options: parseOptions(),
+      })
       ElMessage.success('字段已创建')
     }
     dialogVisible.value = false
@@ -181,6 +212,11 @@ async function saveField() {
   } finally {
     saving.value = false
   }
+}
+
+function parseOptions() {
+  if (!['select', 'radio'].includes(dialogForm.field_type)) return []
+  return optionsText.value.split(',').map(value => value.trim()).filter(Boolean)
 }
 
 async function loadFields() {

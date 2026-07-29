@@ -22,11 +22,19 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  definitions: {
+    type: Array,
+    default: () => [],
+  },
 })
 
 const rows = computed(() => {
+  const labels = new Map(props.definitions.map(definition =>
+    [definition.field_key, definition.field_name]
+  ))
+  labels.set('owner_dept', '所属部门')
   return Object.entries(props.changeData).map(([field, vals]) => ({
-    field,
+    field: labels.get(field) || field,
     old: vals.old ?? '(空)',
     new: vals.new ?? '(空)',
     changed: vals.old !== vals.new,
