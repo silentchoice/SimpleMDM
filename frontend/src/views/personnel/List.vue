@@ -1,9 +1,9 @@
 <template>
   <div>
     <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
-      <h2>人员管理</h2>
+      <h2>部门主数据</h2>
       <el-button type="primary" @click="$router.push('/personnel/create')" v-if="userStore.hasEditPermission">
-        <el-icon><Plus /></el-icon> 新增人员
+        <el-icon><Plus /></el-icon> 新增
       </el-button>
     </div>
 

@@ -21,7 +21,7 @@
         </el-menu-item>
         <el-menu-item index="/personnel">
           <el-icon><UserFilled /></el-icon>
-          <span>人员管理</span>
+          <span>部门主数据</span>
         </el-menu-item>
         <el-menu-item index="/approvals">
           <el-icon><DocumentChecked /></el-icon>

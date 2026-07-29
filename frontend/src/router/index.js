@@ -23,13 +23,13 @@ const routes = [
         path: 'personnel',
         name: 'PersonnelList',
         component: () => import('../views/personnel/List.vue'),
-        meta: { title: '人员管理' },
+        meta: { title: '部门主数据' },
       },
       {
         path: 'personnel/create',
         name: 'PersonnelCreate',
         component: () => import('../views/personnel/Form.vue'),
-        meta: { title: '新增人员', mode: 'create' },
+        meta: { title: '新增主数据', mode: 'create' },
       },
       {
         path: 'personnel/:id',
