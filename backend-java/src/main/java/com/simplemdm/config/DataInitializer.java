@@ -78,60 +78,60 @@ public class DataInitializer implements CommandLineRunner {
         );
 
         // ── Field definitions: master (shared) ──
-        createFieldDef("ALL", "master", "basic", "工号", "string", true, 1, admin);
-        createFieldDef("ALL", "master", "basic", "姓名", "string", true, 2, admin);
-        createFieldDef("ALL", "master", "basic", "性别", "string", true, 3, admin);
-        createFieldDef("ALL", "master", "basic", "部门", "string", true, 4, admin);
-        createFieldDef("ALL", "master", "basic", "职位", "string", false, 5, admin);
-        createFieldDef("ALL", "master", "basic", "手机号", "string", false, 6, admin);
-        createFieldDef("ALL", "master", "basic", "邮箱", "string", false, 7, admin);
+        createFieldDef("ALL", "master", "basic", "owner_dept", "所属部门", "string", true, 0, admin, true);
+        createFieldDef("ALL", "master", "basic", "employee_code", "工号", "string", true, 1, admin);
+        createFieldDef("ALL", "master", "basic", "name", "姓名", "string", true, 2, admin);
+        createFieldDef("ALL", "master", "basic", "gender", "性别", "radio", true, 3, admin, false, "[\"男\",\"女\"]");
+        createFieldDef("ALL", "master", "basic", "position", "职位", "string", false, 4, admin);
+        createFieldDef("ALL", "master", "basic", "phone", "手机号", "string", false, 5, admin);
+        createFieldDef("ALL", "master", "basic", "email", "邮箱", "string", false, 6, admin);
 
         // ── Field definitions: sub (department-specific) ──
-        createFieldDef("工程部", "sub", "project", "项目名称", "string", true, 1, wangwu);
-        createFieldDef("工程部", "sub", "project", "角色", "string", true, 2, wangwu);
-        createFieldDef("工程部", "sub", "project", "工时占比", "string", false, 3, wangwu);
-        createFieldDef("工程部", "sub", "salary", "基本工资", "number", true, 1, wangwu);
-        createFieldDef("工程部", "sub", "salary", "绩效奖金", "number", false, 2, wangwu);
-        createFieldDef("工程部", "sub", "salary", "年终奖基数", "string", false, 3, wangwu);
-        createFieldDef("产品部", "sub", "project", "项目名称", "string", true, 1, lisi);
-        createFieldDef("产品部", "sub", "project", "角色", "string", true, 2, lisi);
-        createFieldDef("产品部", "sub", "project", "工时占比", "string", false, 3, lisi);
-        createFieldDef("产品部", "sub", "sales_target", "Q3销售额", "string", true, 1, lisi);
-        createFieldDef("产品部", "sub", "sales_target", "Q4销售额", "string", true, 2, lisi);
-        createFieldDef("产品部", "sub", "sales_target", "回款率", "string", false, 3, lisi);
-        createFieldDef("人力资源部", "sub", "salary", "基本工资", "number", true, 1, wangwu);
-        createFieldDef("人力资源部", "sub", "salary", "绩效系数", "number", false, 2, wangwu);
-        createFieldDef("人力资源部", "sub", "salary", "社保基数", "number", false, 3, wangwu);
-        createFieldDef("人力资源部", "sub", "contract", "合同类型", "string", true, 1, wangwu);
-        createFieldDef("人力资源部", "sub", "contract", "合同期限", "string", true, 2, wangwu);
-        createFieldDef("人力资源部", "sub", "contract", "到期日期", "date", false, 3, wangwu);
+        createFieldDef("工程部", "sub", "project", "project_name", "项目名称", "string", true, 1, wangwu);
+        createFieldDef("工程部", "sub", "project", "project_role", "角色", "string", true, 2, wangwu);
+        createFieldDef("工程部", "sub", "project", "allocation", "工时占比", "string", false, 3, wangwu);
+        createFieldDef("工程部", "sub", "salary", "base_salary", "基本工资", "number", true, 1, wangwu);
+        createFieldDef("工程部", "sub", "salary", "performance_bonus", "绩效奖金", "number", false, 2, wangwu);
+        createFieldDef("工程部", "sub", "salary", "annual_bonus_base", "年终奖基数", "string", false, 3, wangwu);
+        createFieldDef("产品部", "sub", "project", "project_name", "项目名称", "string", true, 1, lisi);
+        createFieldDef("产品部", "sub", "project", "project_role", "角色", "string", true, 2, lisi);
+        createFieldDef("产品部", "sub", "project", "allocation", "工时占比", "string", false, 3, lisi);
+        createFieldDef("产品部", "sub", "sales_target", "q3_sales", "Q3销售额", "string", true, 1, lisi);
+        createFieldDef("产品部", "sub", "sales_target", "q4_sales", "Q4销售额", "string", true, 2, lisi);
+        createFieldDef("产品部", "sub", "sales_target", "collection_rate", "回款率", "string", false, 3, lisi);
+        createFieldDef("人力资源部", "sub", "salary", "base_salary", "基本工资", "number", true, 1, wangwu);
+        createFieldDef("人力资源部", "sub", "salary", "performance_factor", "绩效系数", "number", false, 2, wangwu);
+        createFieldDef("人力资源部", "sub", "salary", "social_security_base", "社保基数", "number", false, 3, wangwu);
+        createFieldDef("人力资源部", "sub", "contract", "contract_type", "合同类型", "string", true, 1, wangwu);
+        createFieldDef("人力资源部", "sub", "contract", "contract_term", "合同期限", "string", true, 2, wangwu);
+        createFieldDef("人力资源部", "sub", "contract", "expiry_date", "到期日期", "date", false, 3, wangwu);
 
         // ── Sub table demo data (JSON key 必须与 field_name 一致) ──
         createPersonnelSub(personnelList.get(0).getId(), "project",
-            "{\"项目名称\":\"智能工厂平台\",\"角色\":\"后端负责人\",\"工时占比\":\"80%\"}", "工程部", "shared");
+            "{\"project_name\":\"智能工厂平台\",\"project_role\":\"后端负责人\",\"allocation\":\"80%\"}", "工程部", "shared");
         createPersonnelSub(personnelList.get(0).getId(), "salary",
-            "{\"基本工资\":\"25000\",\"绩效奖金\":\"5000\",\"年终奖基数\":\"3个月\"}", "工程部", "private");
+            "{\"base_salary\":25000,\"performance_bonus\":5000,\"annual_bonus_base\":\"3个月\"}", "工程部", "private");
         createPersonnelSub(personnelList.get(1).getId(), "project",
-            "{\"项目名称\":\"电商中台\",\"角色\":\"产品负责人\",\"工时占比\":\"100%\"}", "产品部", "shared");
+            "{\"project_name\":\"电商中台\",\"project_role\":\"产品负责人\",\"allocation\":\"100%\"}", "产品部", "shared");
         createPersonnelSub(personnelList.get(4).getId(), "sales_target",
-            "{\"Q3销售额\":\"500万\",\"Q4销售额\":\"800万\",\"回款率\":\"95%\"}", "产品部", "private");
+            "{\"q3_sales\":\"500万\",\"q4_sales\":\"800万\",\"collection_rate\":\"95%\"}", "产品部", "private");
         // 人力资源部子表数据
         createPersonnelSub(personnelList.get(5).getId(), "salary",
-            "{\"基本工资\":\"18000\",\"绩效系数\":\"1.2\",\"社保基数\":\"12000\"}", "人力资源部", "shared");
+            "{\"base_salary\":18000,\"performance_factor\":1.2,\"social_security_base\":12000}", "人力资源部", "shared");
         createPersonnelSub(personnelList.get(5).getId(), "contract",
-            "{\"合同类型\":\"无固定期限\",\"合同期限\":\"长期\",\"到期日期\":\"-\"}", "人力资源部", "private");
+            "{\"contract_type\":\"无固定期限\",\"contract_term\":\"长期\",\"expiry_date\":\"2027-12-31\"}", "人力资源部", "private");
         // 工程部更多数据
         createPersonnelSub(personnelList.get(2).getId(), "project",
-            "{\"项目名称\":\"数据中台\",\"角色\":\"技术负责人\",\"工时占比\":\"100%\"}", "工程部", "shared");
+            "{\"project_name\":\"数据中台\",\"project_role\":\"技术负责人\",\"allocation\":\"100%\"}", "工程部", "shared");
         createPersonnelSub(personnelList.get(2).getId(), "salary",
-            "{\"基本工资\":\"30000\",\"绩效奖金\":\"8000\",\"年终奖基数\":\"4个月\"}", "工程部", "private");
+            "{\"base_salary\":30000,\"performance_bonus\":8000,\"annual_bonus_base\":\"4个月\"}", "工程部", "private");
         createPersonnelSub(personnelList.get(6).getId(), "project",
-            "{\"项目名称\":\"智能工厂平台\",\"角色\":\"前端开发\",\"工时占比\":\"100%\"}", "工程部", "shared");
+            "{\"project_name\":\"智能工厂平台\",\"project_role\":\"前端开发\",\"allocation\":\"100%\"}", "工程部", "shared");
         // 产品部更多数据
         createPersonnelSub(personnelList.get(1).getId(), "sales_target",
-            "{\"Q3销售额\":\"300万\",\"Q4销售额\":\"500万\",\"回款率\":\"90%\"}", "产品部", "shared");
+            "{\"q3_sales\":\"300万\",\"q4_sales\":\"500万\",\"collection_rate\":\"90%\"}", "产品部", "shared");
         createPersonnelSub(personnelList.get(4).getId(), "project",
-            "{\"项目名称\":\"电商中台\",\"角色\":\"产品助理\",\"工时占比\":\"50%\"}", "产品部", "private");
+            "{\"project_name\":\"电商中台\",\"project_role\":\"产品助理\",\"allocation\":\"50%\"}", "产品部", "private");
 
         // ── Historical Approval #1 — EMP002 update (approved) ──
         MdmPersonnel emp002 = personnelList.get(1);
@@ -141,7 +141,7 @@ public class DataInitializer implements CommandLineRunner {
         approval1.setSubmitterId(wangwu.getId());
         approval1.setApproverId(lisi.getId());
         approval1.setStatus("approved");
-        approval1.setChangeData("{\"department\":{\"old\":\"运营部\",\"new\":\"产品部\"},\"position\":{\"old\":\"运营总监\",\"new\":\"产品总监\"}}");
+        approval1.setChangeData("{\"owner_dept\":{\"old\":\"运营部\",\"new\":\"产品部\"},\"position\":{\"old\":\"运营总监\",\"new\":\"产品总监\"}}");
         approval1.setSubmitTime(LocalDateTime.of(2026, 7, 20, 10, 30, 0));
         approval1.setApproveTime(LocalDateTime.of(2026, 7, 20, 14, 20, 0));
         approval1.setApproveComment("同意调动，即日起生效");
@@ -161,7 +161,7 @@ public class DataInitializer implements CommandLineRunner {
         approval2.setSubmitterId(wangwu.getId());
         approval2.setApproverId(lisi.getId());
         approval2.setStatus("rejected");
-        approval2.setChangeData("{\"department\":{\"old\":\"销售部\",\"new\":\"市场部\"}}");
+        approval2.setChangeData("{\"owner_dept\":{\"old\":\"销售部\",\"new\":\"市场部\"}}");
         approval2.setSubmitTime(LocalDateTime.of(2026, 7, 22, 9, 0, 0));
         approval2.setApproveTime(LocalDateTime.of(2026, 7, 22, 11, 15, 0));
         approval2.setApproveComment("该员工尚在试用期，暂不调动");
@@ -210,8 +210,15 @@ public class DataInitializer implements CommandLineRunner {
                                           String dept, String pos, String phone, String email) {
         MdmPersonnel p = new MdmPersonnel();
         p.setSystemCode("HR");
-        p.setEmployeeCode(code); p.setName(name); p.setGender(gender);
-        p.setDepartment(dept); p.setPosition(pos); p.setPhone(phone); p.setEmail(email);
+        p.setOwnerDept(dept);
+        try {
+            p.setDataJson(mapper.writeValueAsString(Map.of(
+                "employee_code", code, "name", name, "gender", gender,
+                "position", pos, "phone", phone, "email", email
+            )));
+        } catch (Exception exception) {
+            throw new IllegalStateException("Unable to create seed personnel", exception);
+        }
         p.setStatus("active"); p.setVersion(1);
         return personnelRepo.save(p);
     }
@@ -220,7 +227,7 @@ public class DataInitializer implements CommandLineRunner {
         SysPushLog log = new SysPushLog();
         log.setApprovalId(approvalId); log.setPersonnelId(personnelId);
         log.setTargetSystem(target); log.setStatus(status);
-        log.setRequestBody("{\"employee_code\":\"EMP002\",\"name\":\"李丽\",\"department\":\"产品部\",\"position\":\"产品总监\",\"version\":2}");
+        log.setRequestBody("{\"id\":2,\"system_code\":\"HR\",\"owner_dept\":\"产品部\",\"data\":{\"employee_code\":\"EMP002\",\"name\":\"李丽\",\"position\":\"产品总监\"},\"version\":2}");
         log.setResponseBody(resp); log.setResponseCode(200);
         log.setPushedAt(LocalDateTime.of(2026, 7, 20, 14, 20, 5));
         pushLogRepo.save(log);
@@ -250,17 +257,34 @@ public class DataInitializer implements CommandLineRunner {
         personnelSubRepo.save(sub);
     }
 
-    private void createFieldDef(String dept, String tableType, String subType, String fieldName,
+    private void createFieldDef(String dept, String tableType, String subType, String fieldKey, String fieldName,
                                  String fieldType, boolean required, int sortOrder, SysUser createdBy) {
+        createFieldDef(dept, tableType, subType, fieldKey, fieldName, fieldType,
+            required, sortOrder, createdBy, false, null);
+    }
+
+    private void createFieldDef(String dept, String tableType, String subType, String fieldKey, String fieldName,
+                                String fieldType, boolean required, int sortOrder, SysUser createdBy,
+                                boolean systemField) {
+        createFieldDef(dept, tableType, subType, fieldKey, fieldName, fieldType,
+            required, sortOrder, createdBy, systemField, null);
+    }
+
+    private void createFieldDef(String dept, String tableType, String subType, String fieldKey, String fieldName,
+                                String fieldType, boolean required, int sortOrder, SysUser createdBy,
+                                boolean systemField, String optionsJson) {
         MdmFieldDefinition def = new MdmFieldDefinition();
         def.setSystemCode("HR");
         def.setDepartment(dept);
         def.setTableType(tableType);
         def.setSubType(subType);
+        def.setFieldKey(fieldKey);
         def.setFieldName(fieldName);
         def.setFieldType(fieldType);
         def.setRequired(required);
         def.setSortOrder(sortOrder);
+        def.setSystemField(systemField);
+        def.setOptionsJson(optionsJson);
         def.setCreatedBy(createdBy.getId());
         def.setCreatedByName(createdBy.getRealName());
         fieldDefRepo.save(def);

@@ -13,13 +13,16 @@ public class DashboardService {
     private final WfApprovalRepository approvalRepo;
     private final SysPushLogRepository pushLogRepo;
     private final SysUserRepository userRepo;
+    private final PersonnelService personnelService;
 
     public DashboardService(MdmPersonnelRepository personnelRepo, WfApprovalRepository approvalRepo,
-                            SysPushLogRepository pushLogRepo, SysUserRepository userRepo) {
+                            SysPushLogRepository pushLogRepo, SysUserRepository userRepo,
+                            PersonnelService personnelService) {
         this.personnelRepo = personnelRepo;
         this.approvalRepo = approvalRepo;
         this.pushLogRepo = pushLogRepo;
         this.userRepo = userRepo;
+        this.personnelService = personnelService;
     }
 
     public Map<String, Object> getStats() {
@@ -45,7 +48,10 @@ public class DashboardService {
         for (WfApproval a : recentApprovals) {
             Map<String, Object> item = new HashMap<>();
             item.put("id", a.getId());
-            item.put("personnel_name", personnelRepo.findById(a.getPersonnelId()).map(MdmPersonnel::getName).orElse(""));
+            item.put("personnel_name", personnelRepo.findById(a.getPersonnelId()).map(personnel -> {
+                Object name = personnelService.readData(personnel).get("name");
+                return name == null ? "#" + personnel.getId() : name.toString();
+            }).orElse(""));
             item.put("workflow_type", a.getWorkflowType());
             item.put("submitter_name", userRepo.findById(a.getSubmitterId()).map(SysUser::getRealName).orElse(""));
             item.put("approver_name", a.getApproverId() != null ? userRepo.findById(a.getApproverId()).map(SysUser::getRealName).orElse("") : "");

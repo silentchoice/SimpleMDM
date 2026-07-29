@@ -1,6 +1,5 @@
 package com.simplemdm.service;
 
-import com.simplemdm.dto.PersonnelDTO;
 import com.simplemdm.dto.DynamicPersonnelDTO;
 import com.simplemdm.model.*;
 import com.simplemdm.repository.*;
@@ -35,35 +34,6 @@ public class ApprovalService {
     }
 
     @Transactional
-    public WfApproval createApprovalForCreate(Long submitterId, PersonnelDTO dto) {
-        MdmPersonnel p = personnelService.createFromApproval(dto);
-
-        Map<String, Map<String, Object>> changeData = new HashMap<>();
-        for (java.lang.reflect.Field f : PersonnelDTO.class.getDeclaredFields()) {
-            try {
-                f.setAccessible(true);
-                Object val = f.get(dto);
-                if (val != null && !"id".equals(f.getName()) && !"version".equals(f.getName()) && !"status".equals(f.getName())) {
-                    changeData.put(f.getName(), Map.of("old", null, "new", val));
-                }
-            } catch (Exception ignored) {}
-        }
-
-        Long approverId = findApproverForDepartment(p.getDepartment());
-
-        WfApproval approval = new WfApproval();
-        approval.setPersonnelId(p.getId());
-        approval.setWorkflowType("create");
-        approval.setSubmitterId(submitterId);
-        approval.setApproverId(approverId);
-        approval.setStatus("pending");
-        try {
-            approval.setChangeData(mapper.writeValueAsString(changeData));
-        } catch (Exception e) { throw new RuntimeException(e); }
-        return approvalRepo.save(approval);
-    }
-
-    @Transactional
     public WfApproval createApprovalForCreate(Long submitterId, DynamicPersonnelDTO dto, String systemCode) {
         MdmPersonnel personnel = personnelService.createFromApproval(dto, systemCode);
         Map<String, Object> changeData = personnelService.computeDiff(emptyPersonnel(systemCode), dto);
@@ -79,35 +49,6 @@ public class ApprovalService {
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
-        return approvalRepo.save(approval);
-    }
-
-    @Transactional
-    public WfApproval createApprovalForUpdate(Long personnelId, Long submitterId, PersonnelDTO dto) {
-        MdmPersonnel p = personnelRepo.findById(personnelId).orElse(null);
-        if (p == null || "pending_approval".equals(p.getStatus())) return null;
-
-        Map<String, Object> diffResult = personnelService.computeDiff(p, dto);
-        if (diffResult == null) return null;
-
-        @SuppressWarnings("unchecked")
-        Map<String, Map<String, Object>> diff = (Map<String, Map<String, Object>>) diffResult.get("diff");
-        if (diff.isEmpty()) return null;
-
-        p.setStatus("pending_approval");
-        personnelRepo.save(p);
-
-        Long approverId = findApproverForDepartment(p.getDepartment());
-
-        WfApproval approval = new WfApproval();
-        approval.setPersonnelId(personnelId);
-        approval.setWorkflowType("update");
-        approval.setSubmitterId(submitterId);
-        approval.setApproverId(approverId);
-        approval.setStatus("pending");
-        try {
-            approval.setChangeData(mapper.writeValueAsString(diff));
-        } catch (Exception e) { throw new RuntimeException(e); }
         return approvalRepo.save(approval);
     }
 
@@ -286,7 +227,6 @@ public class ApprovalService {
     private String resolvePersonnelName(MdmPersonnel personnel) {
         Object name = personnelService.readData(personnel).get("name");
         if (name != null && !name.toString().isBlank()) return name.toString();
-        if (personnel.getName() != null) return personnel.getName();
         return "#" + personnel.getId();
     }
 }

@@ -24,6 +24,7 @@ class PersonnelSubServiceTest {
     private MdmPersonnelRepository personnelRepository;
     private DynamicFieldService fields;
     private PersonnelSubService service;
+    private PermissionService permissions;
     private SysUser editor;
 
     @BeforeEach
@@ -31,10 +32,13 @@ class PersonnelSubServiceTest {
         subRepository = mock(MdmPersonnelSubRepository.class);
         personnelRepository = mock(MdmPersonnelRepository.class);
         fields = mock(DynamicFieldService.class);
+        permissions = mock(PermissionService.class);
         service = new PersonnelSubService(
-            subRepository, personnelRepository, fields, new ObjectMapper());
+            subRepository, personnelRepository, fields, new ObjectMapper(), permissions);
         editor = new SysUser();
+        editor.setId(7L);
         editor.setDepartment("工程部");
+        when(permissions.getEditableDepts(7L)).thenReturn(java.util.List.of("工程部"));
         when(subRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -60,6 +64,7 @@ class PersonnelSubServiceTest {
     void rejectsEditorFromAnotherDepartment() {
         when(personnelRepository.findById(1L)).thenReturn(Optional.of(parent()));
         editor.setDepartment("产品部");
+        when(permissions.getEditableDepts(7L)).thenReturn(java.util.List.of("产品部"));
         PersonnelSubDTO dto = new PersonnelSubDTO();
         dto.subType = "project";
         dto.data = Map.of("project_name", "智能工厂");

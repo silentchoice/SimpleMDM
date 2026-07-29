@@ -53,7 +53,7 @@ The frontend starts at http://localhost:5173
 
 ## Tech Stack
 
-- **Backend**: FastAPI (Python) + SQLAlchemy 2.0 + SQLite
+- **Backend**: Java 17 + Spring Boot 3.3 + Spring Data JPA
 - **Frontend**: Vue 3 + Element Plus + Vite
 - **Auth**: JWT token-based
 
@@ -79,6 +79,6 @@ simple-mdm/
 
 ## Database
 
-The demo uses SQLite (embedded, zero configuration). The database file is created automatically at `backend/simple_mdm.db` on first launch. Demo data is seeded automatically when the database is empty.
-
-To migrate to MySQL/PostgreSQL, change the `DATABASE_URL` in `app/config.py`.
+The Java demo uses MySQL 8.0 and rebuilds its schema and seed data whenever
+the backend starts. Master and sub-table business fields are defined at
+runtime and stored as JSON using immutable `field_key` identifiers.

@@ -63,16 +63,18 @@ public class FieldDefinitionController {
         String sysCode = getUserSystemCode();
         if (dept == null) return ApiResponse.error(400, "当前用户无部门");
         if ("master".equals(tableType)) {
-            return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartmentAndTableTypeAndSystemCode(dept, "master", sysCode));
+            return ApiResponse.ok(fieldRepo.findDistinctSubTypesByTableTypeAndSystemCode("master", sysCode));
         }
-        return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartmentAndSystemCode(dept, sysCode));
+        return ApiResponse.ok(fieldRepo.findDistinctSubTypesByDepartmentAndTableTypeAndSystemCode(
+            dept, "sub", sysCode));
     }
 
     /** Get field definitions for a specific sub_type (any dept — for cross-dept viewing) */
     @GetMapping("/by-type")
     public ApiResponse getByType(@RequestParam String subType,
                                   @RequestParam String department) {
-        List<MdmFieldDefinition> fields = fieldRepo.findByDepartmentAndSubTypeOrderBySortOrder(department, subType);
+        List<MdmFieldDefinition> fields = fieldRepo.findByDepartmentAndSubTypeAndSystemCodeOrderBySortOrder(
+            department, subType, getUserSystemCode());
         return ApiResponse.ok(fields.stream().map(this::toMap).toList());
     }
 
@@ -133,12 +135,18 @@ public class FieldDefinitionController {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
         MdmFieldDefinition def = fieldRepo.findById(id).orElse(null);
         if (def == null) return ApiResponse.error(404, "字段定义不存在");
-        if (!def.getDepartment().equals(user.getDepartment())) {
+        if (!"master".equals(def.getTableType()) && !def.getDepartment().equals(user.getDepartment())) {
             return ApiResponse.error(403, "只能编辑本部门的字段定义");
         }
 
         if (body.containsKey("field_name")) def.setFieldName((String) body.get("field_name"));
-        if (body.containsKey("field_type")) def.setFieldType((String) body.get("field_type"));
+        if (body.containsKey("field_type")) {
+            String nextType = (String) body.get("field_type");
+            if (Boolean.TRUE.equals(def.getSystemField()) && !Objects.equals(def.getFieldType(), nextType)) {
+                return ApiResponse.error(400, "系统字段类型不可修改");
+            }
+            def.setFieldType(nextType);
+        }
         if (body.containsKey("required")) def.setRequired((Boolean) body.get("required"));
         if (body.containsKey("sort_order")) def.setSortOrder((Integer) body.get("sort_order"));
         if (body.containsKey("options")) {
@@ -158,6 +166,9 @@ public class FieldDefinitionController {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
         MdmFieldDefinition def = fieldRepo.findById(id).orElse(null);
         if (def == null) return ApiResponse.error(404, "字段定义不存在");
+        if (Boolean.TRUE.equals(def.getSystemField())) {
+            return ApiResponse.error(403, "系统字段不可删除");
+        }
         if (!def.getDepartment().equals(user.getDepartment())) {
             return ApiResponse.error(403, "只能删除本部门的字段定义");
         }

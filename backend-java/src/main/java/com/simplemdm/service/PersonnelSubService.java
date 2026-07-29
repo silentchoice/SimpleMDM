@@ -21,21 +21,24 @@ public class PersonnelSubService {
     private final MdmPersonnelRepository personnelRepository;
     private final DynamicFieldService fieldService;
     private final ObjectMapper objectMapper;
+    private final PermissionService permissionService;
 
     public PersonnelSubService(MdmPersonnelSubRepository subRepository,
                                MdmPersonnelRepository personnelRepository,
                                DynamicFieldService fieldService,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               PermissionService permissionService) {
         this.subRepository = subRepository;
         this.personnelRepository = personnelRepository;
         this.fieldService = fieldService;
         this.objectMapper = objectMapper;
+        this.permissionService = permissionService;
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(Long personnelId, SysUser user) {
         MdmPersonnel parent = requireParent(personnelId);
-        boolean owner = Objects.equals(user.getDepartment(), parent.getOwnerDept());
+        boolean owner = canEdit(user, parent.getOwnerDept());
         return subRepository.findByPersonnelId(personnelId).stream()
             .filter(record -> owner || "shared".equals(record.getVisibility()))
             .map(this::toMap)
@@ -45,7 +48,7 @@ public class PersonnelSubService {
     @Transactional
     public Map<String, Object> create(Long personnelId, PersonnelSubDTO dto, SysUser user) {
         MdmPersonnel parent = requireParent(personnelId);
-        requireOwner(user, parent.getOwnerDept());
+        requireEditor(user, parent.getOwnerDept());
         DynamicFieldService.ValidationResult validated = fieldService.validate(
             parent.getSystemCode(), parent.getOwnerDept(), "sub", dto.subType, dto.data);
 
@@ -65,7 +68,7 @@ public class PersonnelSubService {
         MdmPersonnelSub record = subRepository.findById(subId)
             .filter(value -> Objects.equals(value.getPersonnelId(), personnelId))
             .orElseThrow(() -> new BusinessException(404, "子表记录不存在"));
-        requireOwner(user, record.getOwnerDept());
+        requireEditor(user, record.getOwnerDept());
         if (dto.subType != null && !dto.subType.equals(record.getSubType())) {
             throw new BusinessException(400, "子表记录的数据类型不可修改");
         }
@@ -82,10 +85,15 @@ public class PersonnelSubService {
             .orElseThrow(() -> new BusinessException(404, "人员不存在"));
     }
 
-    private void requireOwner(SysUser user, String ownerDept) {
-        if (user.getDepartment() == null || !user.getDepartment().equals(ownerDept)) {
-            throw new BusinessException(403, "只能编辑本部门的子表数据");
+    private void requireEditor(SysUser user, String ownerDept) {
+        if (!canEdit(user, ownerDept)) {
+            throw new BusinessException(403, "只能编辑有权限部门的子表数据");
         }
+    }
+
+    private boolean canEdit(SysUser user, String ownerDept) {
+        List<String> editable = permissionService.getEditableDepts(user.getId());
+        return editable == null || editable.contains(ownerDept);
     }
 
     private Map<String, Object> toMap(MdmPersonnelSub record) {

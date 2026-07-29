@@ -60,6 +60,9 @@ public class PersonnelController {
     @RequirePerm("EDIT")
     public ApiResponse create(@Valid @RequestBody DynamicPersonnelDTO dto) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
+        if (!canEditDepartment(user, dto.ownerDept)) {
+            return ApiResponse.error(403, "无权编辑部门: " + dto.ownerDept);
+        }
         String systemCode = currentSystem(user);
         WfApproval approval = approvalService.createApprovalForCreate(user.getId(), dto, systemCode);
         Map<String, Object> data = new HashMap<>();
@@ -72,6 +75,11 @@ public class PersonnelController {
     @RequirePerm("EDIT")
     public ApiResponse update(@PathVariable Long id, @Valid @RequestBody DynamicPersonnelDTO dto) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
+        MdmPersonnel existing = personnelService.getPersonnel(id);
+        if (existing == null) return ApiResponse.error(404, "人员不存在");
+        if (!canEditDepartment(user, existing.getOwnerDept()) || !canEditDepartment(user, dto.ownerDept)) {
+            return ApiResponse.error(403, "无权编辑该部门主数据");
+        }
         WfApproval approval = approvalService.createApprovalForUpdate(id, user.getId(), dto);
         if (approval == null) return ApiResponse.ok("没有变更需要提交", null);
         Map<String, Object> data = new HashMap<>();
@@ -83,5 +91,10 @@ public class PersonnelController {
     private String currentSystem(SysUser user) {
         List<String> systems = permService.getPermittedSystems(user.getId(), "EDIT");
         return systems == null || systems.isEmpty() ? "HR" : systems.get(0);
+    }
+
+    private boolean canEditDepartment(SysUser user, String department) {
+        List<String> editable = permService.getEditableDepts(user.getId());
+        return editable == null || editable.contains(department);
     }
 }
