@@ -2,7 +2,7 @@
   <div>
     <div class="page-header header-row">
       <h2>部门主数据</h2>
-      <el-button v-if="userStore.hasEditPermission" type="primary"
+      <el-button v-if="isOwnDepartment" type="primary"
         @click="$router.push('/personnel/create')">
         <el-icon><Plus /></el-icon> 新增
       </el-button>
@@ -14,8 +14,8 @@
             style="width: 240px;" @keyup.enter="fetchData" />
         </el-form-item>
         <el-form-item label="部门">
-          <el-select v-model="query.department" placeholder="全部" clearable
-            style="width: 180px;" @change="fetchData">
+          <el-select v-model="selectedDepartment" placeholder="请选择部门"
+            style="width: 180px;" @change="selectDepartment">
             <el-option v-for="department in departments" :key="department"
               :label="department" :value="department" />
           </el-select>
@@ -44,11 +44,9 @@
         <el-table-column prop="updated_at" label="更新时间" width="170" />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" text type="primary"
-              @click="$router.push(`/personnel/${row.id}`)">查看</el-button>
-            <el-button v-if="canEdit(row) && row.status === 'active'"
-              size="small" text type="warning"
-              @click="$router.push(`/personnel/${row.id}/edit`)">编辑</el-button>
+            <el-button size="small" text type="primary" @click="openDetail(row)">查看</el-button>
+            <el-button v-if="isOwnDepartment && canEdit(row) && row.status === 'active'"
+              size="small" text type="warning" @click="openEdit(row)">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -63,6 +61,8 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Plus } from '@element-plus/icons-vue'
 import { listPersonnel, getDepartments } from '../../api/personnel'
 import { listFieldDefs } from '../../api/deptFields'
 import { useUserStore } from '../../stores/user'
@@ -70,14 +70,20 @@ import { sortedDefinitions } from '../../utils/dynamicFields'
 import DynamicFieldValue from '../../components/DynamicFieldValue.vue'
 
 const userStore = useUserStore()
+const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
 const tableData = ref([])
 const definitions = ref([])
 const total = ref(0)
 const departments = ref([])
-const query = reactive({ keyword: '', department: '', page: 1, page_size: 10 })
+const selectedDepartment = ref('')
+const query = reactive({ keyword: '', page: 1, page_size: 10 })
 const visibleDefinitions = computed(() =>
   sortedDefinitions(definitions.value.filter(field => !field.system_field))
+)
+const isOwnDepartment = computed(() =>
+  !!selectedDepartment.value && selectedDepartment.value === userStore.user?.department
 )
 
 function canEdit(row) {
@@ -93,17 +99,46 @@ function statusLabel(status) {
   return ({ active: '正常', inactive: '禁用', pending_approval: '待审批' })[status] || status
 }
 function resetQuery() {
-  Object.assign(query, { keyword: '', department: '', page: 1 })
+  Object.assign(query, { keyword: '', page: 1 })
   fetchData()
 }
+function openDetail(row) {
+  router.push({
+    path: `/personnel/${row.id}`,
+    query: { from_department: selectedDepartment.value },
+  })
+}
+function openEdit(row) {
+  router.push({
+    path: `/personnel/${row.id}/edit`,
+    query: { from_department: selectedDepartment.value },
+  })
+}
+async function selectDepartment(department) {
+  selectedDepartment.value = department
+  query.page = 1
+  await router.replace({
+    query: { ...route.query, department },
+  })
+  await fetchData()
+}
+let requestSequence = 0
 async function fetchData() {
+  if (!selectedDepartment.value) return
+  const sequence = ++requestSequence
   loading.value = true
+  tableData.value = []
+  total.value = 0
   try {
-    const response = await listPersonnel(query)
+    const response = await listPersonnel({
+      ...query,
+      department: selectedDepartment.value,
+    })
+    if (sequence !== requestSequence) return
     tableData.value = response.data.items || []
     total.value = response.data.total || 0
   } finally {
-    loading.value = false
+    if (sequence === requestSequence) loading.value = false
   }
 }
 onMounted(async () => {
@@ -113,6 +148,18 @@ onMounted(async () => {
   ])
   definitions.value = definitionResponse.data || []
   departments.value = departmentResponse.data || []
+  const routeDepartment = String(route.query.department || '')
+  const ownDepartment = userStore.user?.department || ''
+  selectedDepartment.value = departments.value.includes(routeDepartment)
+    ? routeDepartment
+    : departments.value.includes(ownDepartment)
+      ? ownDepartment
+      : departments.value[0] || ''
+  if (selectedDepartment.value && routeDepartment !== selectedDepartment.value) {
+    await router.replace({
+      query: { ...route.query, department: selectedDepartment.value },
+    })
+  }
   await fetchData()
 })
 </script>
