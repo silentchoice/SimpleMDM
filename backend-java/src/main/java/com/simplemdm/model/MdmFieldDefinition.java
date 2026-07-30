@@ -4,7 +4,13 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "mdm_field_definition")
+@Table(
+    name = "mdm_field_definition",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_field_definition_system_key",
+        columnNames = {"system_code", "field_key"}
+    )
+)
 public class MdmFieldDefinition {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -41,6 +47,9 @@ public class MdmFieldDefinition {
 
     @Column(name = "system_field", nullable = false)
     private Boolean systemField = false;
+
+    @Column(nullable = false)
+    private Boolean shared = false;
 
     @Column(name = "created_by")
     private Long createdBy;            // 创建人用户ID
@@ -81,6 +90,8 @@ public class MdmFieldDefinition {
     public void setOptionsJson(String optionsJson) { this.optionsJson = optionsJson; }
     public Boolean getSystemField() { return systemField; }
     public void setSystemField(Boolean systemField) { this.systemField = systemField; }
+    public Boolean getShared() { return shared; }
+    public void setShared(Boolean shared) { this.shared = shared; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public String getCreatedByName() { return createdByName; }

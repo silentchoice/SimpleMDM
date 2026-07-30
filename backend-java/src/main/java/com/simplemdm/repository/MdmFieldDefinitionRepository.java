@@ -4,8 +4,10 @@ import com.simplemdm.model.MdmFieldDefinition;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
+import java.util.Optional;
 
 public interface MdmFieldDefinitionRepository extends JpaRepository<MdmFieldDefinition, Long> {
+    Optional<MdmFieldDefinition> findBySystemCodeAndFieldKey(String systemCode, String fieldKey);
     boolean existsBySystemCodeAndDepartmentAndTableTypeAndSubTypeAndFieldKey(
         String systemCode, String department, String tableType, String subType, String fieldKey);
     List<MdmFieldDefinition> findBySystemCodeAndTableTypeOrderBySubTypeAscSortOrderAsc(
