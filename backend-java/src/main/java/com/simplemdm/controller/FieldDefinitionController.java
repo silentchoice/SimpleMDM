@@ -5,6 +5,7 @@ import com.simplemdm.model.*;
 import com.simplemdm.repository.*;
 import com.simplemdm.security.JwtInterceptor;
 import com.simplemdm.service.PermissionService;
+import com.simplemdm.service.FieldDefinitionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,11 +17,14 @@ public class FieldDefinitionController {
 
     private final MdmFieldDefinitionRepository fieldRepo;
     private final PermissionService permService;
+    private final FieldDefinitionService fieldDefinitionService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public FieldDefinitionController(MdmFieldDefinitionRepository fieldRepo, PermissionService permService) {
+    public FieldDefinitionController(MdmFieldDefinitionRepository fieldRepo, PermissionService permService,
+                                     FieldDefinitionService fieldDefinitionService) {
         this.fieldRepo = fieldRepo;
         this.permService = permService;
+        this.fieldDefinitionService = fieldDefinitionService;
     }
 
     private String getUserSystemCode() {
@@ -82,100 +86,20 @@ public class FieldDefinitionController {
     @PostMapping
     public ApiResponse create(@RequestBody Map<String, Object> body) {
         SysUser user = JwtInterceptor.CURRENT_USER.get();
-        String dept = user.getDepartment();
-        if (dept == null) return ApiResponse.error(400, "当前用户无部门");
-
-        String tableType = body.getOrDefault("table_type", "sub").toString();
-        String subType = (String) body.get("sub_type");
-        String fieldKey = (String) body.get("field_key");
-        String fieldName = (String) body.get("field_name");
-        String fieldType = body.getOrDefault("field_type", "string").toString();
-        Boolean required = (Boolean) body.getOrDefault("required", false);
-        Integer sortOrder = (Integer) body.getOrDefault("sort_order", 0);
-
-        if (subType == null || fieldKey == null || fieldName == null) {
-            return ApiResponse.error(400, "sub_type、field_key 和 field_name 为必填");
-        }
-        if (!fieldKey.matches("^[a-z][a-z0-9_]{1,63}$")) {
-            return ApiResponse.error(400, "field_key 只能使用小写英文字母、数字和下划线，且必须以字母开头");
-        }
-
-        String sysCode = getUserSystemCode();
-        String definitionDept = "master".equals(tableType) ? "ALL" : dept;
-        if (fieldRepo.existsBySystemCodeAndDepartmentAndTableTypeAndSubTypeAndFieldKey(
-            sysCode, definitionDept, tableType, subType, fieldKey)) {
-            return ApiResponse.error(400, "字段标识 " + fieldKey + " 已存在");
-        }
-        MdmFieldDefinition def = new MdmFieldDefinition();
-        def.setSystemCode(sysCode);
-        def.setDepartment(definitionDept);
-        def.setTableType(tableType);
-        def.setSubType(subType);
-        def.setFieldKey(fieldKey);
-        def.setFieldName(fieldName);
-        def.setFieldType(fieldType);
-        def.setRequired(required);
-        def.setSortOrder(sortOrder);
-        def.setCreatedBy(user.getId());
-        def.setCreatedByName(user.getRealName());
-        if (body.containsKey("options")) {
-            try {
-                def.setOptionsJson(objectMapper.writeValueAsString(body.get("options")));
-            } catch (Exception exception) {
-                return ApiResponse.error(400, "字段选项格式无效");
-            }
-        }
-        def = fieldRepo.save(def);
-
-        return ApiResponse.ok("字段已创建", toMap(def));
+        MdmFieldDefinition definition = fieldDefinitionService.create(body, user, getUserSystemCode());
+        return ApiResponse.ok("字段已创建", toMap(definition));
     }
-
     @PutMapping("/{id}")
     public ApiResponse update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
-        MdmFieldDefinition def = fieldRepo.findById(id).orElse(null);
-        if (def == null) return ApiResponse.error(404, "字段定义不存在");
-        if (!"master".equals(def.getTableType()) && !def.getDepartment().equals(user.getDepartment())) {
-            return ApiResponse.error(403, "只能编辑本部门的字段定义");
-        }
-
-        if (body.containsKey("field_name")) def.setFieldName((String) body.get("field_name"));
-        if (body.containsKey("field_type")) {
-            String nextType = (String) body.get("field_type");
-            if (Boolean.TRUE.equals(def.getSystemField()) && !Objects.equals(def.getFieldType(), nextType)) {
-                return ApiResponse.error(400, "系统字段类型不可修改");
-            }
-            def.setFieldType(nextType);
-        }
-        if (body.containsKey("required")) def.setRequired((Boolean) body.get("required"));
-        if (body.containsKey("sort_order")) def.setSortOrder((Integer) body.get("sort_order"));
-        if (body.containsKey("options")) {
-            try {
-                def.setOptionsJson(objectMapper.writeValueAsString(body.get("options")));
-            } catch (Exception exception) {
-                return ApiResponse.error(400, "字段选项格式无效");
-            }
-        }
-        def = fieldRepo.save(def);
-
-        return ApiResponse.ok("字段已更新", toMap(def));
+        MdmFieldDefinition definition = fieldDefinitionService.update(
+            id, body, JwtInterceptor.CURRENT_USER.get());
+        return ApiResponse.ok("字段已更新", toMap(definition));
     }
-
     @DeleteMapping("/{id}")
     public ApiResponse delete(@PathVariable Long id) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
-        MdmFieldDefinition def = fieldRepo.findById(id).orElse(null);
-        if (def == null) return ApiResponse.error(404, "字段定义不存在");
-        if (Boolean.TRUE.equals(def.getSystemField())) {
-            return ApiResponse.error(403, "系统字段不可删除");
-        }
-        if (!def.getDepartment().equals(user.getDepartment())) {
-            return ApiResponse.error(403, "只能删除本部门的字段定义");
-        }
-        // Soft delete via status — for now, warn that delete requires admin review
-        return ApiResponse.error(403, "删除操作需管理员审核");
+        fieldDefinitionService.deleteSubField(id, JwtInterceptor.CURRENT_USER.get());
+        return ApiResponse.ok("字段及历史数据已删除", null);
     }
-
     private Map<String, Object> toMap(MdmFieldDefinition f) {
         Map<String, Object> m = new HashMap<>();
         m.put("id", f.getId());
@@ -195,6 +119,7 @@ public class FieldDefinitionController {
             m.put("options", List.of());
         }
         m.put("system_field", f.getSystemField());
+        m.put("shared", f.getShared());
         m.put("created_by", f.getCreatedBy());
         m.put("created_by_name", f.getCreatedByName());
         m.put("created_at", f.getCreatedAt() != null ? f.getCreatedAt().toString() : null);
