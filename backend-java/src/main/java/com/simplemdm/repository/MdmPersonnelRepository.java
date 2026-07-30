@@ -11,6 +11,9 @@ public interface MdmPersonnelRepository extends JpaRepository<MdmPersonnel, Long
     @Query("SELECT DISTINCT p.ownerDept FROM MdmPersonnel p WHERE p.ownerDept IS NOT NULL ORDER BY p.ownerDept")
     List<String> findDistinctOwnerDepartments();
 
+    @Query("SELECT DISTINCT p.ownerDept FROM MdmPersonnel p WHERE p.systemCode = :systemCode AND p.ownerDept IS NOT NULL ORDER BY p.ownerDept")
+    List<String> findDistinctOwnerDepartmentsBySystemCode(String systemCode);
+
     @Query("SELECT p FROM MdmPersonnel p WHERE " +
            "(:keyword IS NULL OR LOWER(p.dataJson) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:department IS NULL OR p.ownerDept = :department) " +
