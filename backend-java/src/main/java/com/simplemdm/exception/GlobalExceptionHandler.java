@@ -2,15 +2,16 @@ package com.simplemdm.exception;
 
 import com.simplemdm.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse handleBusiness(BusinessException e) {
-        return ApiResponse.error(e.getCode(), e.getMessage());
+    public ResponseEntity<ApiResponse> handleBusiness(BusinessException e) {
+        return ResponseEntity.status(e.getCode())
+            .body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
