@@ -117,3 +117,93 @@
 - JWT 密钥由 `SIMPLE_MDM_JWT_SECRET` 环境变量提供。
 - GitHub 发布分支使用干净的单一快照，不包含曾经提交过本地密码的旧 Git 历史。
 - 演示账号密码属于公开测试数据，可以保留，但不得用于真实环境。
+
+## 续作完成记录
+
+掉线后已从综合实施计划继续完成全部九项任务。
+
+### 已完成能力
+
+- 同一系统内动态字段标识全局唯一。
+- 字段定义创建、更新、删除采用事务化服务。
+- 跨部门子表只返回字段定义中 `shared=true` 的字段和值。
+- 人员列表必须选择具体部门，并将部门写入 URL。
+- 跨部门列表只读；新增、主表编辑和子表写操作仅限本人所属部门。
+- 详情页通过 `from_department` 返回原部门列表。
+- 删除子字段会同步清理相关历史 JSON 键。
+- 记录级 `visibility` 已从前端 UI 和提交载荷中移除。
+- 业务异常的 HTTP 状态会跟随 `BusinessException.code`，403 不再被固定映射成 400。
+
+### 主要提交
+
+- `cedc8f4`：系统内字段键唯一约束。
+- `9f01ce2`：字段治理事务服务。
+- `b323732`：字段级共享投影。
+- `2bc142b`：按所选部门授权主数据。
+- `fcc03ce`：刷新隔离的动态字段演示数据。
+- `3479763`：共享与可删除子字段管理界面。
+- `37005c2`：URL 驱动的必选部门上下文。
+- `d674ae8`：安全的详情返回与跨部门只读。
+- `68005d3`：保留业务异常 HTTP 状态。
+- `9b29406`：完整验收记录。
+
+### 验收结果
+
+- Java 后端：47 个测试全部通过。
+- 前端：19 个测试全部通过。
+- Vite 生产构建成功。
+- 数据库重复字段键分组数：0。
+- 主表错误共享字段数：0。
+- 重置后保留 4 个用户、7 条权限、1 条审批人分配。
+- 重复主/子表字段键：HTTP 400，并返回冲突来源。
+- 部门管理员删除本部门子字段：HTTP 200，字段定义和历史 JSON 残留均为 0。
+- 删除主字段：HTTP 403。
+- 主管理员删除子字段：HTTP 403，消息为“主管理员无字段删除权限”。
+
+详细证据：
+
+- `docs/superpowers/verification/2026-07-30-field-governance-acceptance.md`
+
+### 数据库与运行状态
+
+- 已执行一次 `app.demo.reset=true` 的受控演示数据重置。
+- 当前提交配置为 `app.demo.reset=false`。
+- 会话结束时 Java 后端以 `reset=false` 运行在端口 `18001`。
+- `reset=false` 启动器仍会补回缺失的演示字段和对应演示 JSON；若需要验证永久删除，应在删除后、再次重启前检查。
+
+### GitHub 发布
+
+当前完整开发分支：
+
+- `feat/dynamic-master-sub-fields`
+- 最新验收提交：`9b29406`
+
+为避免推送旧 Python 后端历史，已从 GitHub Java-only 基线创建选择性发布分支，只同步：
+
+- `frontend/`
+- `backend-java/`
+
+GitHub 发布结果：
+
+- 远程仓库：`https://github.com/silentchoice/SimpleMDM.git`
+- 分支：`publish/dynamic-master-sub-fields`
+- 发布提交：`1d8eb8e`
+- PR 入口：`https://github.com/silentchoice/SimpleMDM/pull/new/publish/dynamic-master-sub-fields`
+
+发布副本再次验证：
+
+- Java 后端 47/47。
+- 前端 19/19。
+- 生产构建成功。
+- 未包含 Python `backend/`、本地数据库密码或 JWT 密钥。
+
+## 下次唤醒
+
+唤醒词：`SimpleMDM`
+
+收到唤醒词后：
+
+1. 读取本文件和最终验收记录。
+2. 检查 `feat/dynamic-master-sub-fields` 与 `publish/dynamic-master-sub-fields` 的 Git 状态。
+3. 根据用户指令继续创建 PR、合并发布分支，或处理评审意见。
+4. 不要把旧 Python 后端或本地敏感配置推送到 GitHub。
