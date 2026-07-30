@@ -89,6 +89,20 @@ class DynamicFieldServiceTest {
         assertFalse(diff.containsKey("employee_code"));
     }
 
+    @Test
+    void visibleSubDefinitionsFilterSharedFieldsForForeignViewer() {
+        MdmFieldDefinition privateField = field("private_cost", "成本", "number", false, null, 1);
+        privateField.setShared(false);
+        MdmFieldDefinition sharedField = field("project_name", "项目", "string", false, null, 2);
+        sharedField.setShared(true);
+        when(repository.findBySystemCodeAndDepartmentAndTableTypeAndSubTypeOrderBySortOrderAsc(
+            "HR", "工程部", "sub", "project")).thenReturn(List.of(privateField, sharedField));
+
+        assertEquals(List.of(sharedField),
+            service.visibleSubDefinitions("HR", "工程部", "人力资源部", "project"));
+        assertEquals(List.of(privateField, sharedField),
+            service.visibleSubDefinitions("HR", "工程部", "工程部", "project"));
+    }
     private MdmFieldDefinition field(String key, String name, String type, boolean required,
                                      String options, int sortOrder) {
         MdmFieldDefinition field = new MdmFieldDefinition();

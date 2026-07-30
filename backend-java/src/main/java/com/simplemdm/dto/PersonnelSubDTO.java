@@ -9,6 +9,5 @@ public class PersonnelSubDTO {
     public Long personnelId;
     @NotBlank public String subType;
     @NotNull public Map<String, Object> data;
-    public String visibility;
     public Integer version;
 }
