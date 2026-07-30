@@ -2,6 +2,8 @@ package com.simplemdm.service;
 
 import com.simplemdm.dto.DynamicPersonnelDTO;
 import com.simplemdm.model.MdmPersonnel;
+import com.simplemdm.model.SysUser;
+import com.simplemdm.exception.BusinessException;
 import com.simplemdm.repository.MdmPersonnelRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.*;
@@ -16,12 +18,14 @@ public class PersonnelService {
     private final MdmPersonnelRepository personnelRepo;
     private final DynamicFieldService dynamicFieldService;
     private final ObjectMapper objectMapper;
+    private final PermissionService permissionService;
 
     public PersonnelService(MdmPersonnelRepository personnelRepo, DynamicFieldService dynamicFieldService,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper, PermissionService permissionService) {
         this.personnelRepo = personnelRepo;
         this.dynamicFieldService = dynamicFieldService;
         this.objectMapper = objectMapper;
+        this.permissionService = permissionService;
     }
 
     @Transactional(readOnly = true)
@@ -40,6 +44,16 @@ public class PersonnelService {
         return personnelRepo.findById(id).orElse(null);
     }
 
+    public MdmPersonnel requireViewablePersonnel(Long id, SysUser user) {
+        MdmPersonnel personnel = personnelRepo.findById(id)
+            .orElseThrow(() -> new BusinessException(404, "人员不存在"));
+        List<String> viewable = permissionService.getConcreteViewableDepts(
+            user.getId(), personnel.getSystemCode());
+        if (!viewable.contains(personnel.getOwnerDept())) {
+            throw new BusinessException(403, "无权查看该部门主数据");
+        }
+        return personnel;
+    }
     public List<String> getDepartments(String systemCode) {
         LinkedHashSet<String> departments = new LinkedHashSet<>(
             dynamicFieldService.getDepartments(systemCode));

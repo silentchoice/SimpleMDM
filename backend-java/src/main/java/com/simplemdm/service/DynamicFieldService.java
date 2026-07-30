@@ -61,6 +61,14 @@ public class DynamicFieldService {
         return new ValidationResult(normalized);
     }
 
+    public List<MdmFieldDefinition> visibleSubDefinitions(
+            String systemCode, String ownerDepartment, String viewerDepartment, String subType) {
+        List<MdmFieldDefinition> definitions =
+            fieldRepository.findBySystemCodeAndDepartmentAndTableTypeAndSubTypeOrderBySortOrderAsc(
+                systemCode, ownerDepartment, "sub", subType);
+        if (Objects.equals(ownerDepartment, viewerDepartment)) return definitions;
+        return definitions.stream().filter(field -> Boolean.TRUE.equals(field.getShared())).toList();
+    }
     public Map<String, Object> computeDiff(Map<String, Object> oldData, Map<String, Object> newData) {
         LinkedHashMap<String, Object> result = new LinkedHashMap<>();
         LinkedHashSet<String> keys = new LinkedHashSet<>();

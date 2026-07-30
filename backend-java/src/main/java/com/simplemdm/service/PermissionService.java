@@ -2,6 +2,8 @@ package com.simplemdm.service;
 
 import com.simplemdm.model.SysUserPermission;
 import com.simplemdm.repository.SysUserPermissionRepository;
+import com.simplemdm.repository.MdmFieldDefinitionRepository;
+import com.simplemdm.repository.MdmPersonnelRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -10,9 +12,15 @@ import java.util.*;
 public class PermissionService {
 
     private final SysUserPermissionRepository permRepo;
+    private final MdmFieldDefinitionRepository fieldRepository;
+    private final MdmPersonnelRepository personnelRepository;
 
-    public PermissionService(SysUserPermissionRepository permRepo) {
+    public PermissionService(SysUserPermissionRepository permRepo,
+                             MdmFieldDefinitionRepository fieldRepository,
+                             MdmPersonnelRepository personnelRepository) {
         this.permRepo = permRepo;
+        this.fieldRepository = fieldRepository;
+        this.personnelRepository = personnelRepository;
     }
 
     /** Get all departments the user can VIEW */
@@ -32,6 +40,15 @@ public class PermissionService {
         return depts;
     }
 
+    public List<String> getConcreteViewableDepts(Long userId, String systemCode) {
+        List<String> scoped = getViewableDepts(userId);
+        if (scoped != null) return scoped.stream().distinct().sorted().toList();
+        LinkedHashSet<String> all = new LinkedHashSet<>(
+            fieldRepository.findDistinctDepartmentsBySystemCode(systemCode));
+        all.remove("ALL");
+        all.addAll(personnelRepository.findDistinctOwnerDepartmentsBySystemCode(systemCode));
+        return all.stream().sorted().toList();
+    }
     /** Get all departments the user can EDIT */
     public List<String> getEditableDepts(Long userId) {
         List<SysUserPermission> perms = permRepo.findByUserIdAndPermType(userId, "EDIT");

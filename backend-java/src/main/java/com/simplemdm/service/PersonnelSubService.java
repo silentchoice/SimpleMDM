@@ -38,13 +38,23 @@ public class PersonnelSubService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(Long personnelId, SysUser user) {
         MdmPersonnel parent = requireParent(personnelId);
-        boolean owner = canEdit(user, parent.getOwnerDept());
-        return subRepository.findByPersonnelId(personnelId).stream()
-            .filter(record -> owner || "shared".equals(record.getVisibility()))
-            .map(this::toMap)
-            .toList();
+        boolean owner = Objects.equals(parent.getOwnerDept(), user.getDepartment());
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (MdmPersonnelSub record : subRepository.findByPersonnelId(personnelId)) {
+            List<com.simplemdm.model.MdmFieldDefinition> definitions = fieldService.visibleSubDefinitions(
+                parent.getSystemCode(), parent.getOwnerDept(), user.getDepartment(), record.getSubType());
+            if (!owner && definitions.isEmpty()) continue;
+            Map<String, Object> raw = read(record.getDataJson());
+            LinkedHashMap<String, Object> projected = new LinkedHashMap<>();
+            for (com.simplemdm.model.MdmFieldDefinition definition : definitions) {
+                if (raw.containsKey(definition.getFieldKey())) {
+                    projected.put(definition.getFieldKey(), raw.get(definition.getFieldKey()));
+                }
+            }
+            result.add(toMap(record, projected));
+        }
+        return result;
     }
-
     @Transactional
     public Map<String, Object> create(Long personnelId, PersonnelSubDTO dto, SysUser user) {
         MdmPersonnel parent = requireParent(personnelId);
@@ -58,7 +68,6 @@ public class PersonnelSubService {
         record.setSubType(dto.subType);
         record.setOwnerDept(parent.getOwnerDept());
         record.setDataJson(write(validated.data()));
-        record.setVisibility("private");
         record.setVersion(1);
         return toMap(subRepository.save(record));
     }
@@ -75,7 +84,6 @@ public class PersonnelSubService {
         DynamicFieldService.ValidationResult validated = fieldService.validate(
             record.getSystemCode(), record.getOwnerDept(), "sub", record.getSubType(), dto.data);
         record.setDataJson(write(validated.data()));
-        if (dto.visibility != null) record.setVisibility(dto.visibility);
         record.setVersion(record.getVersion() + 1);
         return toMap(subRepository.save(record));
     }
@@ -97,13 +105,16 @@ public class PersonnelSubService {
     }
 
     private Map<String, Object> toMap(MdmPersonnelSub record) {
+        return toMap(record, read(record.getDataJson()));
+    }
+
+    private Map<String, Object> toMap(MdmPersonnelSub record, Map<String, Object> data) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", record.getId());
         result.put("personnel_id", record.getPersonnelId());
         result.put("sub_type", record.getSubType());
         result.put("owner_dept", record.getOwnerDept());
-        result.put("data", read(record.getDataJson()));
-        result.put("visibility", record.getVisibility());
+        result.put("data", data);
         result.put("version", record.getVersion());
         result.put("created_at", record.getCreatedAt() == null ? null : record.getCreatedAt().toString());
         result.put("updated_at", record.getUpdatedAt() == null ? null : record.getUpdatedAt().toString());

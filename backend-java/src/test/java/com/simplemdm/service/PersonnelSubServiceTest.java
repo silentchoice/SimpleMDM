@@ -5,12 +5,14 @@ import com.simplemdm.dto.PersonnelSubDTO;
 import com.simplemdm.exception.BusinessException;
 import com.simplemdm.model.MdmPersonnel;
 import com.simplemdm.model.MdmPersonnelSub;
+import com.simplemdm.model.MdmFieldDefinition;
 import com.simplemdm.model.SysUser;
 import com.simplemdm.repository.MdmPersonnelRepository;
 import com.simplemdm.repository.MdmPersonnelSubRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -75,6 +77,50 @@ class PersonnelSubServiceTest {
         assertEquals(403, error.getCode());
     }
 
+    @Test
+    void anotherDepartmentReceivesOnlySharedSubFields() {
+        when(personnelRepository.findById(1L)).thenReturn(Optional.of(parent()));
+        MdmPersonnelSub record = record("{\"engineering_project_name\":\"工厂平台\",\"engineering_internal_cost\":9000}");
+        when(subRepository.findByPersonnelId(1L)).thenReturn(List.of(record));
+        editor.setDepartment("人力资源部");
+        when(fields.visibleSubDefinitions("HR", "工程部", "人力资源部", "project"))
+            .thenReturn(List.of(field("engineering_project_name", true)));
+
+        List<Map<String,Object>> result = service.list(1L, editor);
+
+        assertEquals(Map.of("engineering_project_name", "工厂平台"), result.get(0).get("data"));
+        assertFalse(result.get(0).containsKey("visibility"));
+    }
+
+    @Test
+    void ownerDepartmentReceivesAllDefinedFields() {
+        when(personnelRepository.findById(1L)).thenReturn(Optional.of(parent()));
+        when(subRepository.findByPersonnelId(1L)).thenReturn(List.of(record("{\"a\":1,\"b\":2,\"stale\":3}")));
+        when(fields.visibleSubDefinitions("HR", "工程部", "工程部", "project"))
+            .thenReturn(List.of(field("a", false), field("b", true)));
+        List<Map<String,Object>> result = service.list(1L, editor);
+        assertEquals(Map.of("a", 1, "b", 2), result.get(0).get("data"));
+    }
+
+    @Test
+    void foreignViewerReceivesNoGroupWithoutSharedFields() {
+        when(personnelRepository.findById(1L)).thenReturn(Optional.of(parent()));
+        when(subRepository.findByPersonnelId(1L)).thenReturn(List.of(record("{\"private_cost\":9}")));
+        editor.setDepartment("人力资源部");
+        when(fields.visibleSubDefinitions("HR", "工程部", "人力资源部", "project")).thenReturn(List.of());
+        assertTrue(service.list(1L, editor).isEmpty());
+    }
+
+    private MdmPersonnelSub record(String json) {
+        MdmPersonnelSub r = new MdmPersonnelSub();
+        r.setPersonnelId(1L); r.setSystemCode("HR"); r.setOwnerDept("工程部");
+        r.setSubType("project"); r.setDataJson(json); r.setVersion(1); r.setVisibility("private");
+        return r;
+    }
+
+    private MdmFieldDefinition field(String key, boolean shared) {
+        MdmFieldDefinition f = new MdmFieldDefinition(); f.setFieldKey(key); f.setShared(shared); return f;
+    }
     private MdmPersonnel parent() {
         MdmPersonnel parent = new MdmPersonnel();
         parent.setId(1L);

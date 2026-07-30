@@ -19,3 +19,7 @@ export function createFieldDef(data) {
 export function updateFieldDef(id, data) {
   return request.put(`/dept-fields/${id}`, data)
 }
+
+export function deleteFieldDef(id) {
+  return request.delete('/dept-fields/' + id)
+}

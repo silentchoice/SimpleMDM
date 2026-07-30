@@ -20,6 +20,12 @@ export const useUserStore = defineStore('user', () => {
     isAdmin.value || permissions.value.some(p => p.perm_type === 'VIEW')
   )
 
+  const canManageOwnDepartment = computed(() =>
+    !isAdmin.value && permissions.value.some(permission =>
+      permission.perm_type === 'EDIT' &&
+      permission.scope_value === user.value?.department
+    )
+  )
   // Backward-compatible role helpers
   const role = computed(() => {
     if (isAdmin.value) return 'admin'
@@ -53,7 +59,7 @@ export const useUserStore = defineStore('user', () => {
   return {
     token, user, permissions, isLoggedIn, isAdmin, role,
     isOperator, isApprover, isViewer,
-    hasEditPermission, hasViewPermission,
+    hasEditPermission, hasViewPermission, canManageOwnDepartment,
     login, logout,
   }
 })

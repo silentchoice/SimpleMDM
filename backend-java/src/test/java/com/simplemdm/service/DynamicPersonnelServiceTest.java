@@ -3,6 +3,8 @@ package com.simplemdm.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.simplemdm.dto.DynamicPersonnelDTO;
 import com.simplemdm.model.MdmPersonnel;
+import com.simplemdm.model.SysUser;
+import com.simplemdm.exception.BusinessException;
 import com.simplemdm.repository.MdmPersonnelRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,12 +23,14 @@ class DynamicPersonnelServiceTest {
     private MdmPersonnelRepository repository;
     private DynamicFieldService fields;
     private PersonnelService service;
+    private PermissionService permissions;
 
     @BeforeEach
     void setUp() {
         repository = mock(MdmPersonnelRepository.class);
         fields = mock(DynamicFieldService.class);
-        service = new PersonnelService(repository, fields, new ObjectMapper());
+        permissions = mock(PermissionService.class);
+        service = new PersonnelService(repository, fields, new ObjectMapper(), permissions);
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -110,6 +114,19 @@ class DynamicPersonnelServiceTest {
         assertEquals(List.of("人力资源部", "工程部"), service.getDepartments("HR"));
     }
 
+    @Test
+    void requireViewablePersonnelRejectsHiddenOwnerDepartment() {
+        MdmPersonnel hidden = entity("市场部", "{}");
+        when(repository.findById(9L)).thenReturn(java.util.Optional.of(hidden));
+        when(permissions.getConcreteViewableDepts(7L, "HR")).thenReturn(List.of("工程部"));
+        SysUser user = new SysUser(); user.setId(7L); user.setDepartment("工程部");
+
+        BusinessException error = assertThrows(BusinessException.class,
+            () -> service.requireViewablePersonnel(9L, user));
+
+        assertEquals(403, error.getCode());
+        assertEquals("无权查看该部门主数据", error.getMessage());
+    }
     private MdmPersonnel entity(String ownerDept, String dataJson) {
         MdmPersonnel personnel = new MdmPersonnel();
         personnel.setSystemCode("HR");

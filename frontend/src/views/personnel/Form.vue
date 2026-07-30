@@ -2,7 +2,7 @@
   <div>
     <div class="page-header page-header-row">
       <h2>{{ pageTitle }}</h2>
-      <el-button @click="router.back()">返回</el-button>
+      <el-button data-test="back" @click="returnToList">返回</el-button>
     </div>
 
     <el-card shadow="hover" v-loading="loading" style="margin-bottom: 20px;">
@@ -12,7 +12,7 @@
         :model="form"
         :rules="rules"
         label-width="120px"
-        :disabled="isView"
+        :disabled="isView || (!isCreate && !isOwnDepartment)"
         style="max-width: 680px;"
       >
         <el-form-item label="所属部门" prop="owner_dept" required>
@@ -33,11 +33,11 @@
             v-model="form.data[definition.field_key]"
           />
         </el-form-item>
-        <el-form-item v-if="!isView">
+        <el-form-item v-if="!isView && (isCreate || isOwnDepartment)">
           <el-button type="primary" @click="handleSubmit" :loading="submitting">
             {{ isEdit ? '提交审批' : '提交（需审批）' }}
           </el-button>
-          <el-button @click="router.back()">取消</el-button>
+          <el-button @click="returnToList">取消</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -49,8 +49,8 @@
           <div class="page-header-row">
             <strong>{{ group.sub_type }}（{{ group.fields.length }} 个字段 · {{ group.records.length }} 条记录）</strong>
             <div>
-              <el-tag v-if="!isOwnerDept" type="info" size="small">只读</el-tag>
-              <el-button v-if="!isView && isOwnerDept" type="primary" size="small"
+              <el-tag v-if="!isOwnDepartment" type="info" size="small">只读</el-tag>
+              <el-button v-if="!isView && isOwnDepartment" type="primary" size="small"
                 @click="showSubDialog(group.sub_type)">添加记录</el-button>
             </div>
           </div>
@@ -64,14 +64,8 @@
             </template>
           </el-table-column>
           <el-table-column prop="owner_dept" label="所属部门" width="120" />
-          <el-table-column label="可见性" width="110">
-            <template #default="{ row }">
-              <el-tag :type="visibilityType(row.visibility)" size="small">
-                {{ visibilityLabel(row.visibility) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="!isView && isOwnerDept" label="操作" width="80">
+
+          <el-table-column v-if="!isView && isOwnDepartment" label="操作" width="80">
             <template #default="{ row }">
               <el-button type="primary" link size="small"
                 @click="showSubDialog(group.sub_type, row)">编辑</el-button>
@@ -92,13 +86,7 @@
           <DynamicFieldInput :definition="definition"
             v-model="subForm.data[definition.field_key]" />
         </el-form-item>
-        <el-form-item v-if="subEditing" label="可见性">
-          <el-select v-model="subForm.visibility">
-            <el-option label="仅本部门" value="private" />
-            <el-option label="审批共享中" value="pending_share" />
-            <el-option label="已共享" value="shared" />
-          </el-select>
-        </el-form-item>
+
       </el-form>
       <template #footer>
         <el-button @click="subDialogVisible = false">取消</el-button>
@@ -139,6 +127,11 @@ const isEdit = computed(() => mode.value === 'edit')
 const isCreate = computed(() => mode.value === 'create')
 const pageTitle = computed(() => isCreate.value ? '新增主数据' : isEdit.value ? '编辑主数据' : '主数据详情')
 
+function returnToList() {
+  const source = String(route.query.from_department || userStore.user?.department || '')
+  router.push({ path: '/personnel', query: source ? { department: source } : {} })
+}
+
 const formRef = ref()
 const form = reactive({ owner_dept: '', data: {}, version: null })
 const original = ref({ owner_dept: '', data: {} })
@@ -170,10 +163,9 @@ const rules = computed(() => {
   }
   return result
 })
-const isOwnerDept = computed(() => (userStore.permissions || []).some(permission =>
-  permission.perm_type === 'EDIT' &&
-  (permission.scope_type === 'ALL' || permission.scope_value === form.owner_dept)
-))
+const isOwnDepartment = computed(() =>
+  !!form.owner_dept && form.owner_dept === userStore.user?.department
+)
 
 const allSubGroups = computed(() => {
   const recordsByType = Object.groupBy
@@ -220,7 +212,7 @@ async function confirmSubmit() {
     if (isEdit.value) await updatePersonnel(route.params.id, payload)
     else await createPersonnel(payload)
     ElMessage.success(isEdit.value ? '变更已提交，请等待审批' : '已提交，请等待审批')
-    router.push('/personnel')
+    returnToList()
   } finally {
     submitting.value = false
   }
@@ -229,7 +221,7 @@ async function confirmSubmit() {
 const subDialogVisible = ref(false)
 const subEditing = ref(null)
 const subSaving = ref(false)
-const subForm = reactive({ sub_type: '', data: {}, visibility: 'private' })
+const subForm = reactive({ sub_type: '', data: {} })
 const currentSubDefs = computed(() =>
   sortedDefinitions(allSubFieldDefs.value.filter(field => field.sub_type === subForm.sub_type))
 )
@@ -238,7 +230,6 @@ function showSubDialog(subType, row = null) {
   subEditing.value = row
   subForm.sub_type = subType
   subForm.data = buildInitialData(currentDefinitions(subType), row?.data || {})
-  subForm.visibility = row?.visibility || 'private'
   subDialogVisible.value = true
 }
 
@@ -258,7 +249,6 @@ async function saveSubRecord() {
     const payload = {
       subType: subForm.sub_type,
       data: normalizePayload(currentSubDefs.value, subForm.data),
-      visibility: subForm.visibility,
       version: subEditing.value?.version,
     }
     if (subEditing.value) await updateSub(route.params.id, subEditing.value.id, payload)
@@ -271,12 +261,6 @@ async function saveSubRecord() {
   }
 }
 
-function visibilityLabel(value) {
-  return ({ private: '仅本部门', pending_share: '审批共享中', shared: '已共享' })[value] || value
-}
-function visibilityType(value) {
-  return ({ private: 'info', pending_share: 'warning', shared: 'success' })[value] || 'info'
-}
 
 async function loadSubRecords() {
   subLoading.value = true
