@@ -40,11 +40,17 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="sort_order" label="排序" width="70" />
+        <el-table-column v-if="activeTab === 'sub'" label="是否共享" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.shared ? 'success' : 'info'" size="small">{{ row.shared ? '是' : '否' }}</el-tag>
+          </template>
+        </el-table-column>        <el-table-column prop="sort_order" label="排序" width="70" />
         <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="160">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="showDialog(group.subType, row)">编辑</el-button>
+            <el-button v-if="activeTab === 'sub' && !row.system_field && userStore.canManageOwnDepartment"
+              type="danger" link size="small" @click="removeField(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -91,7 +97,9 @@
         <el-form-item label="是否必填">
           <el-switch v-model="dialogForm.required" />
         </el-form-item>
-        <el-form-item label="排序">
+        <el-form-item v-if="activeTab === 'sub'" label="是否共享">
+          <el-switch v-model="dialogForm.shared" />
+        </el-form-item>        <el-form-item label="排序">
           <el-input-number v-model="dialogForm.sort_order" :min="0" :max="99" />
         </el-form-item>
       </el-form>
@@ -105,9 +113,9 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { listFieldDefs, listSubTypes, createFieldDef, updateFieldDef } from '../../api/deptFields'
+import { listFieldDefs, listSubTypes, createFieldDef, updateFieldDef, deleteFieldDef } from '../../api/deptFields'
 import { useUserStore } from '../../stores/user'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const userStore = useUserStore()
 
@@ -127,6 +135,7 @@ const dialogForm = reactive({
   field_name: '',
   field_type: 'string',
   required: false,
+  shared: false,
   sort_order: 0,
 })
 
@@ -147,6 +156,7 @@ function showNewSubTypeDialog() {
   dialogForm.field_name = ''
   dialogForm.field_type = 'string'
   dialogForm.required = false
+  dialogForm.shared = false
   dialogForm.sort_order = 0
   newSubTypeName.value = ''
   optionsText.value = ''
@@ -162,6 +172,7 @@ function showDialog(subType, field) {
     dialogForm.field_name = field.field_name
     dialogForm.field_type = field.field_type
     dialogForm.required = field.required
+    dialogForm.shared = Boolean(field.shared)
     dialogForm.sort_order = field.sort_order
     optionsText.value = (field.options || []).map(option =>
       typeof option === 'object' ? option.value : option
@@ -173,6 +184,7 @@ function showDialog(subType, field) {
     dialogForm.field_name = ''
     dialogForm.field_type = 'string'
     dialogForm.required = false
+  dialogForm.shared = false
     dialogForm.sort_order = 0
     optionsText.value = ''
   }
@@ -194,6 +206,7 @@ async function saveField() {
         field_name: dialogForm.field_name,
         field_type: dialogForm.field_type,
         required: dialogForm.required,
+        shared: activeTab.value === 'sub' ? dialogForm.shared : false,
         sort_order: dialogForm.sort_order,
         options: parseOptions(),
       })
@@ -219,6 +232,18 @@ function parseOptions() {
   return optionsText.value.split(',').map(value => value.trim()).filter(Boolean)
 }
 
+async function removeField(field) {
+  await ElMessageBox.confirm(
+    '删除后，该字段定义以及所有历史子表记录中的对应数据都会永久清除。',
+    '确认删除字段',
+    { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
+  )
+  await deleteFieldDef(field.id)
+  ElMessage.success('字段及历史数据已删除')
+  dialogVisible.value = false
+  editingField.value = null
+  await loadFields()
+}
 async function loadFields() {
   try {
     const [defRes, typesRes] = await Promise.all([
