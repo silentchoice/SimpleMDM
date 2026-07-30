@@ -11,7 +11,7 @@
 ## 全局约束
 
 - Java 17 LTS
-- MySQL 8.0 (127.0.0.1:3306, root/01270127, 库名 simple_mdm)
+- MySQL 8.0 (127.0.0.1:3306, root/${SIMPLE_MDM_DB_PASSWORD}, 库名 simple_mdm)
 - 禁止 DELETE 语句 — 数据删除走 status 更新
 - 需物理删除时必须先征求用户同意
 - 后端端口 18001（与原版一致）
@@ -121,7 +121,7 @@ spring:
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/simple_mdm?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf-8
     username: root
-    password: 01270127
+    password: ${SIMPLE_MDM_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
@@ -134,7 +134,7 @@ spring:
 
 app:
   jwt:
-    secret: simple-mdm-demo-secret-key-change-in-production
+    secret: change-me-in-production
     expiration-minutes: 1440
   push:
     success-rate: 0.9

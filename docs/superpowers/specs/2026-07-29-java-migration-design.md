@@ -13,7 +13,7 @@ Python FastAPI → Java Spring Boot 3 迁移，同时落实 2026-07-28 会议确
 | 语言 | Java 17 |
 | 框架 | Spring Boot 3.x |
 | ORM | Spring Data JPA + Hibernate |
-| 数据库 | MySQL 8.0 (127.0.0.1:3306, root/01270127, 库名 simple_mdm) |
+| 数据库 | MySQL 8.0 (127.0.0.1:3306, root/${SIMPLE_MDM_DB_PASSWORD}, 库名 simple_mdm) |
 | 鉴权 | jjwt + BCryptPasswordEncoder |
 | 构建 | Maven |
 | 前端 | Vue 3 + Element Plus (不变，需适配新 API) |

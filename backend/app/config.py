@@ -15,7 +15,7 @@ class Settings:
     )
 
     # JWT
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "simple-mdm-demo-secret-key-change-in-production")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me-in-production")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours for demo
 
