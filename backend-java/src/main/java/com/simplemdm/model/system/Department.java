@@ -114,6 +114,10 @@ public class Department {
         return id;
     }
 
+    public String getCode() { return code; }
+
+    public String getName() { return name; }
+
     public SystemEntity getSystem() {
         return system;
     }

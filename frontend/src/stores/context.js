@@ -25,8 +25,17 @@ export const useContextStore = defineStore('mdm-context', () => {
     systemId.value = selected?.id ?? user.system_id ?? null
     systemCode.value = selected?.code ?? routeQuery.system ?? ''
     objectCode.value = routeQuery.object || objectCode.value
+    const visibleIds = []
+    const collectIds = nodes => nodes.forEach(node => {
+      visibleIds.push(Number(node.id))
+      collectIds(node.children || [])
+    })
+    collectIds(departments.value)
     const queryDepartment = Number(routeQuery.department)
-    departmentId.value = Number.isInteger(queryDepartment) && queryDepartment > 0 ? queryDepartment : (user.department_id ?? null)
+    const primary = Number(user.department_id)
+    departmentId.value = visibleIds.includes(queryDepartment)
+      ? queryDepartment
+      : (visibleIds.includes(primary) ? primary : (visibleIds[0] ?? null))
   }
 
   function select({ system, object, department } = {}) {

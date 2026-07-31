@@ -6,6 +6,7 @@
       <el-table-column prop="code" label="对象编码" />
       <el-table-column prop="name" label="对象名称" />
       <el-table-column prop="id" label="ID" />
+      <el-table-column label="字段"><template #default="{ row }">{{ (row.fields || []).map(field => field.field_name).join('、') || '—' }}</template></el-table-column>
     </el-table>
   </el-card>
 </template>

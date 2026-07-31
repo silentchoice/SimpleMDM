@@ -35,6 +35,8 @@ public class DepartmentController {
             if (user.getSystemId().equals(department.getSystem().getId()) && visible.contains(department.getId())) {
                 Map<String, Object> node = new LinkedHashMap<>();
                 node.put("id", department.getId());
+                node.put("code", department.getCode());
+                node.put("name", department.getName());
                 node.put("path", department.getPath());
                 node.put("level", department.getLevel());
                 node.put("children", new ArrayList<Map<String, Object>>());

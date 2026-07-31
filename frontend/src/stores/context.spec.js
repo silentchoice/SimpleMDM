@@ -29,7 +29,7 @@ describe('generic MDM context', () => {
       { system: 'HR', object: 'person', department: '20' },
     )
     expect(store.objectCode).toBe('person')
-    expect(store.departmentId).toBe(20)
-    expect(store.query).toEqual({ system: 'HR', object: 'person', department: '20' })
+    expect(store.departmentId).toBe(10)
+    expect(store.query).toEqual({ system: 'HR', object: 'person', department: '10' })
   })
 })

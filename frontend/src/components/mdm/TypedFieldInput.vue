@@ -1,5 +1,7 @@
 <template>
-  <el-switch v-if="type === 'BOOLEAN'" :model-value="modelValue" @update:model-value="update" />
+  <el-select v-if="type === 'BOOLEAN'" :model-value="modelValue" clearable @update:model-value="update">
+    <el-option label="是" :value="true" /><el-option label="否" :value="false" />
+  </el-select>
   <el-input-number v-else-if="type === 'INTEGER'" :model-value="numberValue" :precision="0" @update:model-value="update" />
   <el-input-number v-else-if="type === 'DECIMAL'" :model-value="numberValue" :precision="field.scale_value ?? 2" @update:model-value="update" />
   <el-date-picker v-else-if="type === 'DATE'" :model-value="modelValue" type="date" value-format="YYYY-MM-DD" @update:model-value="update" />

@@ -20,7 +20,7 @@ describe('generic MDM form', () => {
     localStorage.setItem('permissions', JSON.stringify([{ code: 'MDM_RECORD_EDIT', can_edit: true }]))
     listObjectTypes.mockResolvedValue({ data: [{ code: 'person', fields: [
       { field_key: 'name', field_name: '姓名', data_type: 'STRING', required: true },
-      { field_key: 'salary', field_name: '薪资', data_type: 'DECIMAL' },
+      { field_key: 'salary', field_name: '薪资', data_type: 'DECIMAL', precision_value: 12, scale_value: 2 },
       { field_key: 'active', field_name: '在职', data_type: 'BOOLEAN' },
       { field_key: 'manager', field_name: '上级', data_type: 'REFERENCE' },
     ] }] })
@@ -49,7 +49,7 @@ describe('generic MDM form', () => {
     await wrapper.get('[data-test="save"]').trigger('click')
     await flushPromises()
     expect(createRecord).toHaveBeenCalledWith('person', expect.objectContaining({
-      data: { name: '李四', salary: 12.5, active: true, manager: 42 },
+      data: { name: '李四', salary: '12.50', active: true, manager: 42 },
     }))
   })
 

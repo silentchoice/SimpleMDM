@@ -15,7 +15,7 @@
     <el-table :data="records" v-loading="loading">
       <el-table-column prop="record_code" label="编码" />
       <el-table-column v-for="field in fields" :key="field.field_key" :label="field.field_name">
-        <template #default="{ row }"><TypedFieldValue :field="field" :value="row.data?.[field.field_key]" /></template>
+        <template #default="{ row }"><TypedFieldValue :field="field" :value="row.data?.[field.field_key]" :options="referenceOptions[field.reference_object_type_id] || []" /></template>
       </el-table-column>
       <el-table-column label="操作">
         <template #default="{ row }">
@@ -37,6 +37,7 @@ const context = useContextStore()
 const objectTypes = ref([])
 const records = ref([])
 const loading = ref(false)
+const referenceOptions = ref({})
 const selectedObject = ref(route.query.object || '')
 const selectedDepartment = ref(route.query.department ? Number(route.query.department) : null)
 const permissions = JSON.parse(localStorage.getItem('permissions') || '[]')
@@ -48,9 +49,16 @@ onMounted(async () => {
   selectedDepartment.value = context.departmentId
   objectTypes.value = (await listObjectTypes()).data || []
   if (!selectedObject.value) selectedObject.value = objectTypes.value[0]?.code || ''
+  await loadReferenceOptions()
   await syncQuery()
   await load()
 })
+async function loadReferenceOptions() {
+  const byId = new Map(objectTypes.value.map(type => [Number(type.id), type.code]))
+  const ids = [...new Set(fields.value.filter(field => field.data_type === 'REFERENCE').map(field => Number(field.reference_object_type_id)).filter(Number.isFinite))]
+  const pairs = await Promise.all(ids.map(async id => [id, (await listRecords(byId.get(id))).data || []]))
+  referenceOptions.value = Object.fromEntries(pairs)
+}
 async function load() {
   if (!selectedObject.value) return
   loading.value = true
@@ -63,7 +71,7 @@ async function syncQuery() {
   context.select({ object: selectedObject.value, department: selectedDepartment.value })
   await router.replace({ query: context.query })
 }
-async function changeObject() { await syncQuery(); await load() }
+async function changeObject() { await syncQuery(); await loadReferenceOptions(); await load() }
 async function changeDepartment() { await syncQuery(); await load() }
 function openCreate() { router.push({ path: '/mdm/create', query: context.query }) }
 function openEdit(row) { router.push({ path: `/mdm/${row.id}/edit`, query: context.query }) }
