@@ -318,6 +318,46 @@ class RecordServiceTest {
         verify(childRecords, never()).saveAndFlush(any());
         verify(childValues, never()).saveAll(any());
     }
+    @Test
+    void updatesChildValuesWithParentDepartmentAuthorizationAndVersionCheck() {
+        MdmRecord parent = parentRecord();
+        ChildType childType = childType(person);
+        ChildRecord child = ChildRecord.create(parent, childType, 0, 7L);
+        ReflectionTestUtils.setField(child, "id", 901L);
+        ReflectionTestUtils.setField(child, "version", 2L);
+        ChildFieldDefinition number = childField(childType, "number", FieldDataType.STRING, true, false, null);
+        ReflectionTestUtils.setField(number, "id", 302L);
+        ChildRecordValue existing = ChildRecordValue.create(child, number,
+            new com.simplemdm.model.mdm.TypedValue("123", null, null, null, null, null, null, null), 7L);
+        given(childRecords.findById(901L)).willReturn(Optional.of(child));
+        given(records.findById(900L)).willReturn(Optional.of(parent));
+        given(childTypes.findById(200L)).willReturn(Optional.of(childType));
+        given(childFields.findByChildTypeId(200L)).willReturn(List.of(number));
+        given(childValues.findByChildRecordIdAndFieldDefinitionId(901L, 302L)).willReturn(Optional.of(existing));
+
+        ChildRecordView updated = service.updateChildAs(7L, 901L, 2L, Map.of("number", "456"));
+
+        assertThat(updated.id()).isEqualTo(901L);
+        verify(authorization).can(7L, "MDM_RECORD_EDIT", 51L);
+        verify(childValues).saveAll(any());
+    }
+
+    @Test
+    void rejectsChildUpdateWithStaleVersionBeforeChangingValues() {
+        MdmRecord parent = parentRecord();
+        ChildType childType = childType(person);
+        ChildRecord child = ChildRecord.create(parent, childType, 0, 7L);
+        ReflectionTestUtils.setField(child, "id", 901L);
+        ReflectionTestUtils.setField(child, "version", 2L);
+        given(childRecords.findById(901L)).willReturn(Optional.of(child));
+        given(records.findById(900L)).willReturn(Optional.of(parent));
+        given(childTypes.findById(200L)).willReturn(Optional.of(childType));
+
+        assertThatThrownBy(() -> service.updateChildAs(7L, 901L, 1L, Map.of("number", "456")))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("version");
+        verify(childValues, never()).saveAll(any());
+    }
     private MdmRecord parentRecord() {
         MdmRecord parent = MdmRecord.create(10L, person, 100L, department, "P-1", 7L);
         ReflectionTestUtils.setField(parent, "id", 900L);

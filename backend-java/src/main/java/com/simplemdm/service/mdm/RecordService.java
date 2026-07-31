@@ -162,6 +162,59 @@ public class RecordService {
             .map(entry -> ChildRecordValue.create(child, entry.getKey(), entry.getValue(), userId)).toList());
         return new ChildRecordView(child.getId(), parent.getId(), child.getChildTypeId(), child.getSystemId(), parent.getDepartmentId(), 0L);
     }
+    @Transactional
+    public ChildRecordView updateChild(Long id, long version, Map<String, Object> data) {
+        return updateChildAs(authenticatedSystemUser(), id, version, data);
+    }
+
+    @Transactional
+    ChildRecordView updateChildAs(Long userId, Long id, long version, Map<String, Object> data) {
+        if (id == null || data == null) throw new BusinessException(400, "Child record ID and data are required");
+        ChildRecord child = childRecords.findById(id)
+            .orElseThrow(() -> new BusinessException(404, "Child record not found"));
+        MdmRecord parent = records.findById(child.getRecordId())
+            .orElseThrow(() -> new BusinessException(409, "Parent record is missing"));
+        ChildType childType = childTypes.findById(child.getChildTypeId())
+            .orElseThrow(() -> new BusinessException(409, "Child type is missing"));
+        if (!parent.getSystemId().equals(child.getSystemId()) || !parent.getSystemId().equals(childType.getSystemId())
+            || !parent.getObjectTypeId().equals(childType.getObjectTypeId())) {
+            throw new BusinessException(409, "Child record context is invalid");
+        }
+        authorize(userId, parent.getDepartmentId());
+        if (child.getVersion() != version) throw new BusinessException(409, "Child record version is stale");
+
+        List<ChildFieldDefinition> definitions = childFields.findByChildTypeId(childType.getId());
+        Set<String> keys = new HashSet<>();
+        List<ChildRecordValue> changed = new ArrayList<>();
+        for (ChildFieldDefinition field : definitions) {
+            keys.add(field.getFieldKey());
+            FieldDefinition validationField = FieldDefinition.create(field.getChildTypeId(),
+                ObjectType.create(field.getSystemId(), "CHILD_VALUE", "Child value"),
+                new CreateFieldCommand(field.getFieldKey(), field.getFieldKey(), field.getDataType(), field.isRequired(),
+                    field.isUniqueValue(), false, false, field.getMaxLength(), field.getPrecision(), field.getScale(),
+                    field.getReferenceObjectTypeId(), null, null, 0), null);
+            Object raw = data.get(field.getFieldKey());
+            TypedValue value = converter.convert(validationField, raw);
+            validateChildReference(field, raw);
+            if (field.isRequired() && value.nonNullValueCount() == 0) throw new BusinessException(400, "Field is required");
+            if (field.isUniqueValue() && value.nonNullValueCount() > 0
+                && Optional.ofNullable(childValues.findByFieldDefinitionId(field.getId())).orElse(List.of()).stream()
+                    .anyMatch(existing -> !child.getId().equals(existing.getChildRecordId())
+                        && existing.typedValue().equals(value))) {
+                throw new BusinessException(409, "Duplicate value for unique child field");
+            }
+            ChildRecordValue row = childValues.findByChildRecordIdAndFieldDefinitionId(child.getId(), field.getId())
+                .orElseThrow(() -> new BusinessException(409, "Child record value row is missing"));
+            row.apply(value, userId);
+            changed.add(row);
+        }
+        if (!keys.containsAll(data.keySet())) throw new BusinessException(400, "Unknown child field key");
+        child.touch(userId);
+        childRecords.saveAndFlush(child);
+        childValues.saveAll(changed);
+        return new ChildRecordView(child.getId(), parent.getId(), child.getChildTypeId(), child.getSystemId(),
+            parent.getDepartmentId(), child.getVersion());
+    }
     private Map<FieldDefinition, TypedValue> convertAll(List<FieldDefinition> definitions, Map<String, Object> data) {
         Map<String, FieldDefinition> byKey = index(definitions);
         if (!byKey.keySet().containsAll(data.keySet())) throw new BusinessException(400, "Unknown field key");

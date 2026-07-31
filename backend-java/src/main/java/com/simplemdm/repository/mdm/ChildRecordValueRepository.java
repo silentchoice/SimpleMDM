@@ -5,4 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ChildRecordValueRepository extends JpaRepository<ChildRecordValue, Long> {
     java.util.List<ChildRecordValue> findByFieldDefinitionId(Long fieldDefinitionId);
+    java.util.Optional<ChildRecordValue> findByChildRecordIdAndFieldDefinitionId(Long childRecordId, Long fieldDefinitionId);
 }

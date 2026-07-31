@@ -145,8 +145,18 @@ public class MdmRecordController {
             || !authorization.can(user.getId(), "MDM_RECORD_EDIT", parent.getDepartmentId())) {
             throw new BusinessException(403, "User is not authorized to edit this department");
         }
-        requiredChildType(user, parent.getObjectTypeId(), childCode);
-        throw new BusinessException(501, "Child record updates are not available in the current record service contract");
+        ChildType childType = requiredChildType(user, parent.getObjectTypeId(), childCode);
+        if (request == null || request.id() == null || request.data() == null) {
+            throw new BusinessException(400, "Child record ID and data are required");
+        }
+        com.simplemdm.model.mdm.ChildRecord child = childRecords.findById(request.id())
+            .orElseThrow(() -> new BusinessException(404, "Child record not found"));
+        if (!recordId.equals(child.getRecordId()) || !childType.getId().equals(child.getChildTypeId())) {
+            throw new BusinessException(404, "Child record not found");
+        }
+        ChildRecordView updated = recordService.updateChild(request.id(), request.version(), request.data());
+        return ApiResponse.ok(Map.of("id", updated.id(), "parent_record_id", updated.parentRecordId(),
+            "child_type", childCode, "department_id", updated.departmentId(), "version", updated.version(), "data", request.data()));
     }
 
     private List<RecordResponse> assemble(String objectCode, Long objectTypeId, List<MdmRecord> matching) {

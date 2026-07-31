@@ -36,4 +36,6 @@ public class ChildRecord {
     public Long getRecordId() { return recordId; }
     public Long getChildTypeId() { return childTypeId; }
     public Long getDepartmentId() { return parent == null ? null : parent.getDepartmentId(); }
+    public long getVersion() { return version == null ? 0L : version; }
+    public void touch(Long actorId) { updatedBy = actorId; updatedAt = LocalDateTime.now(); }
 }

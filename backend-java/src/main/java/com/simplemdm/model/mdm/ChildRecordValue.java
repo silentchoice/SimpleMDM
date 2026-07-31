@@ -36,6 +36,10 @@ public class ChildRecordValue {
         return new ChildRecordValue(child, field, value, actorId);
     }
     public Long getChildRecordId() { return childRecordId; }
+    public void apply(TypedValue value, Long actorId) {
+        stringValue = value.stringValue(); textValue = value.textValue(); integerValue = value.integerValue(); decimalValue = value.decimalValue();
+        booleanValue = value.booleanValue(); dateValue = value.dateValue(); datetimeValue = value.datetimeValue(); referenceRecordId = value.referenceRecordId(); updatedBy = actorId;
+    }
     public TypedValue typedValue() { return new TypedValue(stringValue, textValue, integerValue, decimalValue, booleanValue, dateValue, datetimeValue, referenceRecordId); }
     public int nonNullValueCount() {
         return new TypedValue(stringValue, textValue, integerValue, decimalValue, booleanValue, dateValue, datetimeValue, referenceRecordId).nonNullValueCount();
