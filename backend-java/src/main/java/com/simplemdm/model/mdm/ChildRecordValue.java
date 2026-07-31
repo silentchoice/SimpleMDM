@@ -27,6 +27,17 @@ public class ChildRecordValue {
     @Column(name = "updated_by") private Long updatedBy;
     @Version @Column(nullable = false) private Long version;
     protected ChildRecordValue() { }
+    private ChildRecordValue(ChildRecord child, ChildFieldDefinition field, TypedValue value, Long actorId) {
+        systemId = child.getSystemId(); childRecordId = child.getId(); fieldDefinitionId = field.getId(); createdBy = actorId; updatedBy = actorId;
+        stringValue = value.stringValue(); textValue = value.textValue(); integerValue = value.integerValue(); decimalValue = value.decimalValue();
+        booleanValue = value.booleanValue(); dateValue = value.dateValue(); datetimeValue = value.datetimeValue(); referenceRecordId = value.referenceRecordId();
+    }
+    public static ChildRecordValue create(ChildRecord child, ChildFieldDefinition field, TypedValue value, Long actorId) {
+        return new ChildRecordValue(child, field, value, actorId);
+    }
+    public int nonNullValueCount() {
+        return new TypedValue(stringValue, textValue, integerValue, decimalValue, booleanValue, dateValue, datetimeValue, referenceRecordId).nonNullValueCount();
+    }
     @PrePersist void onCreate() { LocalDateTime now = LocalDateTime.now(); createdAt = now; updatedAt = now; }
     @PreUpdate void onUpdate() { updatedAt = LocalDateTime.now(); }
 }

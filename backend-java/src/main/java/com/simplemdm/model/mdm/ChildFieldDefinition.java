@@ -61,4 +61,14 @@ public class ChildFieldDefinition {
     @PrePersist void onCreate() { LocalDateTime now = LocalDateTime.now(); createdAt = now; updatedAt = now; }
     @PreUpdate void onUpdate() { updatedAt = LocalDateTime.now(); }
     public Long getId() { return id; }
+    public Long getSystemId() { return systemId; }
+    public Long getChildTypeId() { return childTypeId; }
+    public String getFieldKey() { return fieldKey; }
+    public FieldDataType getDataType() { return dataType; }
+    public boolean isRequired() { return required; }
+    public boolean isUniqueValue() { return uniqueValue; }
+    public Integer getMaxLength() { return maxLength; }
+    public Integer getPrecision() { return precision; }
+    public Integer getScale() { return scale; }
+    public Long getReferenceObjectTypeId() { return referenceObjectTypeId; }
 }

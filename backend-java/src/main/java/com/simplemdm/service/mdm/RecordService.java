@@ -2,6 +2,10 @@ package com.simplemdm.service.mdm;
 
 import com.simplemdm.exception.BusinessException;
 import com.simplemdm.model.mdm.FieldDataType;
+import com.simplemdm.model.mdm.ChildRecord;
+import com.simplemdm.model.mdm.ChildRecordValue;
+import com.simplemdm.model.mdm.ChildType;
+import com.simplemdm.model.mdm.ChildFieldDefinition;
 import com.simplemdm.model.mdm.FieldDefinition;
 import com.simplemdm.model.mdm.MdmRecord;
 import com.simplemdm.model.mdm.ObjectType;
@@ -9,6 +13,10 @@ import com.simplemdm.model.mdm.RecordValue;
 import com.simplemdm.model.mdm.TypedValue;
 import com.simplemdm.model.system.Department;
 import com.simplemdm.repository.mdm.FieldDefinitionRepository;
+import com.simplemdm.repository.mdm.ChildRecordRepository;
+import com.simplemdm.repository.mdm.ChildRecordValueRepository;
+import com.simplemdm.repository.mdm.ChildTypeRepository;
+import com.simplemdm.repository.mdm.ChildFieldDefinitionRepository;
 import com.simplemdm.repository.mdm.MdmRecordRepository;
 import com.simplemdm.repository.mdm.ObjectTypeRepository;
 import com.simplemdm.repository.mdm.RecordValueRepository;
@@ -37,12 +45,16 @@ public class RecordService {
     private final AuthorizationService authorization;
     private final TypedValueConverter converter;
     private final CurrentUserProvider currentUser;
+    private final ChildRecordRepository childRecords;
+    private final ChildRecordValueRepository childValues;
+    private final ChildTypeRepository childTypes;
+    private final ChildFieldDefinitionRepository childFields;
 
     public RecordService(MdmRecordRepository records, RecordValueRepository values, ObjectTypeRepository objectTypes,
                          FieldDefinitionRepository fields, DepartmentRepository departments,
-                         AuthorizationService authorization, TypedValueConverter converter, CurrentUserProvider currentUser) {
+                         AuthorizationService authorization, TypedValueConverter converter, CurrentUserProvider currentUser, ChildRecordRepository childRecords, ChildRecordValueRepository childValues, ChildTypeRepository childTypes, ChildFieldDefinitionRepository childFields) {
         this.records = records; this.values = values; this.objectTypes = objectTypes; this.fields = fields;
-        this.departments = departments; this.authorization = authorization; this.converter = converter; this.currentUser = currentUser;
+        this.departments = departments; this.authorization = authorization; this.converter = converter; this.currentUser = currentUser; this.childRecords = childRecords; this.childValues = childValues; this.childTypes = childTypes; this.childFields = childFields;
     }
 
     @Transactional
@@ -104,6 +116,42 @@ public class RecordService {
         return view(record);
     }
 
+    @Transactional
+    public ChildRecordView createChild(CreateChildRecordCommand command) {
+        return createChildAs(authenticatedSystemUser(), command);
+    }
+
+    @Transactional
+    public ChildRecordView createChildAs(Long userId, CreateChildRecordCommand command) {
+        if (command == null || command.parentRecordId() == null || command.childTypeId() == null || command.data() == null) {
+            throw new BusinessException(400, "Parent record, child type, and data are required");
+        }
+        MdmRecord parent = records.findById(command.parentRecordId())
+            .orElseThrow(() -> new BusinessException(404, "Parent record not found"));
+        ChildType childType = childTypes.findById(command.childTypeId())
+            .orElseThrow(() -> new BusinessException(404, "Child type not found"));
+        if (!parent.getSystemId().equals(childType.getSystemId()) || !parent.getObjectTypeId().equals(childType.getObjectTypeId())) {
+            throw new BusinessException(400, "Child type must belong to the parent record context");
+        }
+        authorize(userId, parent.getDepartmentId());
+        List<ChildFieldDefinition> definitions = childFields.findByChildTypeId(command.childTypeId());
+        Map<ChildFieldDefinition, TypedValue> typed = new HashMap<>();
+        Set<String> keys = new HashSet<>();
+        for (ChildFieldDefinition field : definitions) {
+            keys.add(field.getFieldKey());
+            FieldDefinition validationField = FieldDefinition.create(field.getChildTypeId(),
+                ObjectType.create(field.getSystemId(), "CHILD_VALUE", "Child value"),
+                new CreateFieldCommand(field.getFieldKey(), field.getFieldKey(), field.getDataType(), field.isRequired(),
+                    field.isUniqueValue(), false, false, field.getMaxLength(), field.getPrecision(), field.getScale(),
+                    field.getReferenceObjectTypeId(), null, null, 0), null);
+            typed.put(field, converter.convert(validationField, command.data().get(field.getFieldKey())));
+        }
+        if (!keys.containsAll(command.data().keySet())) throw new BusinessException(400, "Unknown child field key");
+        ChildRecord child = childRecords.saveAndFlush(ChildRecord.create(parent, childType, 0, userId));
+        childValues.saveAll(typed.entrySet().stream()
+            .map(entry -> ChildRecordValue.create(child, entry.getKey(), entry.getValue(), userId)).toList());
+        return new ChildRecordView(child.getId(), parent.getId(), child.getChildTypeId(), child.getSystemId(), parent.getDepartmentId(), 0L);
+    }
     private Map<FieldDefinition, TypedValue> convertAll(List<FieldDefinition> definitions, Map<String, Object> data) {
         Map<String, FieldDefinition> byKey = index(definitions);
         if (!byKey.keySet().containsAll(data.keySet())) throw new BusinessException(400, "Unknown field key");
