@@ -101,6 +101,8 @@ class FlywayMigrationTest {
 
             assertThat(uniqueIndexes(connection, "WF_APPROVAL_CHANGE"))
                 .contains(List.of("APPROVAL_REQUEST_ID", "FIELD_DEFINITION_ID"));
+            assertThat(uniqueIndexes(connection, "MDM_FIELD_DEFINITION"))
+                .contains(List.of("OBJECT_TYPE_ID", "FIELD_KEY"));
             assertThat(checkConstraintNames(connection, "WF_APPROVAL_CHANGE"))
                 .contains("CK_APPROVAL_CHANGE_OLD_ONE_TYPE", "CK_APPROVAL_CHANGE_NEW_ONE_TYPE");
         }

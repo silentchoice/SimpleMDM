@@ -9,26 +9,23 @@ import com.simplemdm.repository.mdm.ObjectTypeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class MetadataServiceTest {
 
-    @Mock
-    private ObjectTypeRepository objectTypes;
-    @Mock
-    private FieldDefinitionRepository fields;
+    @Mock private ObjectTypeRepository objectTypes;
+    @Mock private FieldDefinitionRepository fields;
 
     private MetadataService service;
     private ObjectType person;
@@ -43,13 +40,13 @@ class MetadataServiceTest {
     @Test
     void createsAFieldForThePersistedObjectType() {
         given(fields.existsByObjectTypeIdAndFieldKey(100L, "employee_code")).willReturn(false);
-        given(fields.save(any(FieldDefinition.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(fields.saveAndFlush(any(FieldDefinition.class))).willAnswer(invocation -> invocation.getArgument(0));
 
         FieldDefinition created = service.createField(100L, command("employee_code", FieldDataType.STRING));
 
         assertThat(created.getObjectTypeId()).isEqualTo(100L);
         assertThat(created.getFieldKey()).isEqualTo("employee_code");
-        verify(fields).save(created);
+        verify(fields).saveAndFlush(created);
     }
 
     @Test
@@ -76,14 +73,39 @@ class MetadataServiceTest {
 
     @Test
     void rejectsConstraintsThatDoNotApplyToTheDeclaredType() {
-
-
         assertThatThrownBy(() -> service.createField(100L, new CreateFieldCommand(
             "start_date", "Start date", FieldDataType.DATE, false, false, false, false,
             10, null, null, null, null, null, 0)))
             .isInstanceOf(BusinessException.class)
             .hasMessageContaining("Max length");
     }
+
+    @Test
+    void rejectsDecimalMetadataOutsideV1PhysicalStorageLimits() {
+        assertThatThrownBy(() -> service.createField(100L, new CreateFieldCommand(
+            "too_wide", "Too wide", FieldDataType.DECIMAL, false, false, false, false,
+            null, 39, 10, null, null, null, 0)))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("38");
+        assertThatThrownBy(() -> service.createField(100L, new CreateFieldCommand(
+            "too_precise", "Too precise", FieldDataType.DECIMAL, false, false, false, false,
+            null, 38, 11, null, null, null, 0)))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("10");
+    }
+
+    @Test
+    void translatesADatabaseDuplicateRaceToConflict() {
+        given(fields.existsByObjectTypeIdAndFieldKey(100L, "employee_code")).willReturn(false);
+        given(fields.saveAndFlush(any(FieldDefinition.class)))
+            .willThrow(new DataIntegrityViolationException("uk_field_definition_key"));
+
+        assertThatThrownBy(() -> service.createField(100L, command("employee_code", FieldDataType.STRING)))
+            .isInstanceOf(BusinessException.class)
+            .extracting(exception -> ((BusinessException) exception).getCode())
+            .isEqualTo(409);
+    }
+
     private CreateFieldCommand command(String fieldKey, FieldDataType dataType) {
         return new CreateFieldCommand(fieldKey, "Employee code", dataType, false, true, true, false,
             32, null, null, null, null, null, 0);
