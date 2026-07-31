@@ -35,12 +35,12 @@ class PersonnelControllerTest {
         controller = new PersonnelController(personnelService, approvalService, permissionService);
         user = new SysUser();
         user.setId(7L); user.setDepartment("工程部"); user.setIsAdmin(false);
-        JwtInterceptor.CURRENT_USER.set(user);
+        JwtInterceptor.LEGACY_CURRENT_USER.set(user);
         when(permissionService.getPermittedSystems(7L, "VIEW")).thenReturn(List.of("HR"));
         when(permissionService.getPermittedSystems(7L, "EDIT")).thenReturn(List.of("HR"));
     }
 
-    @AfterEach void tearDown() { JwtInterceptor.CURRENT_USER.remove(); }
+    @AfterEach void tearDown() { JwtInterceptor.LEGACY_CURRENT_USER.remove(); }
 
     @Test
     void listRejectsMissingDepartment() {

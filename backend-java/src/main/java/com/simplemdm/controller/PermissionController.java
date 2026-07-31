@@ -17,7 +17,7 @@ public class PermissionController {
 
     @GetMapping
     public ApiResponse list(@PathVariable Long userId) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         List<SysUserPermission> perms = permService.getUserPermissions(userId);
         List<Map<String, Object>> items = new ArrayList<>();
@@ -33,7 +33,7 @@ public class PermissionController {
 
     @PostMapping
     public ApiResponse add(@PathVariable Long userId, @RequestBody PermissionDTO dto) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         String sysCode = dto.systemCode != null ? dto.systemCode : "HR";
         SysUserPermission p = permService.addPermission(userId, dto.permType, dto.scopeType, dto.scopeValue, sysCode);
@@ -42,7 +42,7 @@ public class PermissionController {
 
     @DeleteMapping("/{permId}")
     public ApiResponse remove(@PathVariable Long userId, @PathVariable Long permId) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         return ApiResponse.error(403, "删除操作需管理员审核");
     }

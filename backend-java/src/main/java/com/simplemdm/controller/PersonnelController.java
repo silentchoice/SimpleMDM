@@ -35,7 +35,7 @@ public class PersonnelController {
         if (department == null || department.isBlank()) {
             return ApiResponse.error(400, "必须选择部门");
         }
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         String systemCode = currentSystem(user, "VIEW");
         List<String> viewable = permService.getConcreteViewableDepts(user.getId(), systemCode);
         if (!viewable.contains(department)) {
@@ -50,13 +50,13 @@ public class PersonnelController {
     }
     @GetMapping("/departments")
     public ApiResponse departments() {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         String systemCode = currentSystem(user, "VIEW");
         return ApiResponse.ok(permService.getConcreteViewableDepts(user.getId(), systemCode));
     }
     @GetMapping("/{id}")
     public ApiResponse get(@PathVariable Long id) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         try {
             MdmPersonnel personnel = personnelService.requireViewablePersonnel(id, user);
             return ApiResponse.ok(personnelService.toMap(personnel));
@@ -67,7 +67,7 @@ public class PersonnelController {
     @PostMapping
     @RequirePerm("EDIT")
     public ApiResponse create(@Valid @RequestBody DynamicPersonnelDTO dto) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Objects.equals(user.getDepartment(), dto.ownerDept)) {
             return ApiResponse.error(403, "只能维护所属部门主数据");
         }
@@ -82,7 +82,7 @@ public class PersonnelController {
     @PutMapping("/{id}")
     @RequirePerm("EDIT")
     public ApiResponse update(@PathVariable Long id, @Valid @RequestBody DynamicPersonnelDTO dto) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         MdmPersonnel existing = personnelService.getPersonnel(id);
         if (existing == null) return ApiResponse.error(404, "人员不存在");
         if (!Objects.equals(user.getDepartment(), existing.getOwnerDept())

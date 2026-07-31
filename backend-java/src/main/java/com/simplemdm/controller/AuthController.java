@@ -36,7 +36,7 @@ public class AuthController {
 
     @GetMapping("/me")
     public ApiResponse me() {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (user == null) return ApiResponse.error(401, "请先登录");
 
         Map<String, Object> userMap = new HashMap<>();

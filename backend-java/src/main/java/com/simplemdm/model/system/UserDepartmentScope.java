@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "sys_user_department_scope")
+@Table(name = "sys_user_department_scope", uniqueConstraints = @UniqueConstraint(name = "uk_user_department_scope", columnNames = {"user_id", "department_id", "scope_mode"}))
 public class UserDepartmentScope {
     public enum ScopeMode { SELF, SUBTREE }
 

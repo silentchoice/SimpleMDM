@@ -26,7 +26,7 @@ public class ApprovalController {
                             @RequestParam(defaultValue = "") String status,
                             @RequestParam(defaultValue = "1") int page,
                             @RequestParam(defaultValue = "10") int pageSize) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         List<String> approverDepts = permService.getViewableDepts(user.getId());
         Page<Map<String, Object>> result = approvalService.listApprovals(user.getId(), listType, status, page, pageSize, approverDepts);
         return ApiResponse.ok(new PageResult<>(result.getContent(), result.getTotalElements(), page, pageSize));
@@ -61,7 +61,7 @@ public class ApprovalController {
 
     @PostMapping("/{id}/withdraw")
     public ApiResponse withdraw(@PathVariable Long id) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         WfApproval a = approvalService.withdraw(id, user.getId());
         if (a == null) return ApiResponse.error(400, "审批不存在、状态不是待审批、或非本人提交");
         Map<String, Object> data = new HashMap<>();

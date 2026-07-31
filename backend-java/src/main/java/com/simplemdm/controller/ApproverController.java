@@ -20,7 +20,7 @@ public class ApproverController {
 
     @GetMapping
     public ApiResponse list() {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         List<SysApproverDept> all = approverDeptRepo.findAll();
         List<Map<String, Object>> items = new ArrayList<>();
@@ -36,7 +36,7 @@ public class ApproverController {
 
     @PostMapping
     public ApiResponse assign(@RequestBody ApproverDeptDTO dto) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         List<SysApproverDept> existing = approverDeptRepo.findByUserIdAndDepartment(dto.userId, dto.department);
         if (!existing.isEmpty()) return ApiResponse.error(400, "该审批人已分配到此部门");
@@ -48,7 +48,7 @@ public class ApproverController {
 
     @DeleteMapping("/{id}")
     public ApiResponse remove(@PathVariable Long id) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         return ApiResponse.error(403, "删除操作需管理员审核");
     }

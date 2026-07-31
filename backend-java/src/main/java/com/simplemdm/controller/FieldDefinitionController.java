@@ -28,7 +28,7 @@ public class FieldDefinitionController {
     }
 
     private String getUserSystemCode() {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         List<String> systems = permService.getPermittedSystems(user.getId(), "VIEW");
         return (systems == null || systems.isEmpty()) ? "HR" : systems.get(0);
     }
@@ -39,7 +39,7 @@ public class FieldDefinitionController {
     @GetMapping
     public ApiResponse list(@RequestParam(defaultValue = "") String subType,
                             @RequestParam(defaultValue = "") String tableType) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         String dept = user.getDepartment();
         if (dept == null) return ApiResponse.error(400, "当前用户无部门");
 
@@ -62,7 +62,7 @@ public class FieldDefinitionController {
     /** List sub_types for current user's department */
     @GetMapping("/sub-types")
     public ApiResponse subTypes(@RequestParam(defaultValue = "sub") String tableType) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         String dept = user.getDepartment();
         String sysCode = getUserSystemCode();
         if (dept == null) return ApiResponse.error(400, "当前用户无部门");
@@ -85,19 +85,19 @@ public class FieldDefinitionController {
     /** Create a field definition (only for own department) */
     @PostMapping
     public ApiResponse create(@RequestBody Map<String, Object> body) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         MdmFieldDefinition definition = fieldDefinitionService.create(body, user, getUserSystemCode());
         return ApiResponse.ok("字段已创建", toMap(definition));
     }
     @PutMapping("/{id}")
     public ApiResponse update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         MdmFieldDefinition definition = fieldDefinitionService.update(
-            id, body, JwtInterceptor.CURRENT_USER.get());
+            id, body, JwtInterceptor.LEGACY_CURRENT_USER.get());
         return ApiResponse.ok("字段已更新", toMap(definition));
     }
     @DeleteMapping("/{id}")
     public ApiResponse delete(@PathVariable Long id) {
-        fieldDefinitionService.deleteSubField(id, JwtInterceptor.CURRENT_USER.get());
+        fieldDefinitionService.deleteSubField(id, JwtInterceptor.LEGACY_CURRENT_USER.get());
         return ApiResponse.ok("字段及历史数据已删除", null);
     }
     private Map<String, Object> toMap(MdmFieldDefinition f) {

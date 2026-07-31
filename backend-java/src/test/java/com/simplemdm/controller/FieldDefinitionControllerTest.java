@@ -33,10 +33,10 @@ class FieldDefinitionControllerTest {
         user.setId(1L);
         user.setDepartment("工程部");
         user.setRealName("王五");
-        JwtInterceptor.CURRENT_USER.set(user);
+        JwtInterceptor.LEGACY_CURRENT_USER.set(user);
     }
 
-    @AfterEach void tearDown() { JwtInterceptor.CURRENT_USER.remove(); }
+    @AfterEach void tearDown() { JwtInterceptor.LEGACY_CURRENT_USER.remove(); }
 
     @Test
     void createDelegatesToService() {

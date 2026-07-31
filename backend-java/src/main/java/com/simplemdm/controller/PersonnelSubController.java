@@ -38,6 +38,6 @@ public class PersonnelSubController {
     }
 
     private SysUser currentUser() {
-        return JwtInterceptor.CURRENT_USER.get();
+        return JwtInterceptor.LEGACY_CURRENT_USER.get();
     }
 }

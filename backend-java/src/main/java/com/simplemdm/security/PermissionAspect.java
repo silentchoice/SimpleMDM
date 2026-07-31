@@ -1,8 +1,9 @@
 package com.simplemdm.security;
 
 import com.simplemdm.model.SysUser;
-import com.simplemdm.model.SysUserPermission;
+import com.simplemdm.model.system.User;
 import com.simplemdm.repository.SysUserPermissionRepository;
+import com.simplemdm.service.system.AuthorizationService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -11,40 +12,64 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.List;
 
 @Aspect
 @Component
 public class PermissionAspect {
 
-    private final SysUserPermissionRepository permRepo;
+    private final AuthorizationService authorizationService;
+    private final SysUserPermissionRepository legacyPermissionRepository;
 
-    public PermissionAspect(SysUserPermissionRepository permRepo) {
-        this.permRepo = permRepo;
+    public PermissionAspect(AuthorizationService authorizationService,
+                            SysUserPermissionRepository legacyPermissionRepository) {
+        this.authorizationService = authorizationService;
+        this.legacyPermissionRepository = legacyPermissionRepository;
     }
 
     @Around("@annotation(requirePerm)")
-    public Object checkPermission(ProceedingJoinPoint pjp, RequirePerm requirePerm) throws Throwable {
-        HttpServletResponse response = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getResponse();
+    public Object checkPermission(ProceedingJoinPoint joinPoint, RequirePerm requirePerm) throws Throwable {
+        HttpServletResponse response = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes())
+            .getResponse();
 
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
-        if (user == null) {
-            response.setStatus(401);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":401,\"message\":\"请先登录\",\"data\":null}");
-            return null;
-        }
-        // System-scoped authorization is evaluated by AuthorizationService for new MDM operations.
-
-        List<SysUserPermission> perms = permRepo.findByUserIdAndPermType(user.getId(), requirePerm.value());
-        if (perms.isEmpty()) {
-            response.setStatus(403);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":403,\"message\":\"\u65e0" +
-                ("EDIT".equals(requirePerm.value()) ? "\u7f16\u8f91" : "\u67e5\u770b") + "\u6743\u9650\",\"data\":null}");
-            return null;
+        User systemUser = JwtInterceptor.CURRENT_USER.get();
+        if (systemUser != null) {
+            Long departmentId = departmentArgument(joinPoint, requirePerm.departmentArgument());
+            if (departmentId == null || !authorizationService.can(systemUser.getId(), requirePerm.value(), departmentId)) {
+                forbidden(response);
+                return null;
+            }
+            return joinPoint.proceed();
         }
 
-        return pjp.proceed();
+        SysUser legacyUser = JwtInterceptor.LEGACY_CURRENT_USER.get();
+        if (legacyUser == null) {
+            unauthorized(response);
+            return null;
+        }
+        if (legacyPermissionRepository.findByUserIdAndPermType(legacyUser.getId(), requirePerm.value()).isEmpty()) {
+            forbidden(response);
+            return null;
+        }
+        return joinPoint.proceed();
+    }
+
+    private Long departmentArgument(ProceedingJoinPoint joinPoint, int argumentIndex) {
+        if (argumentIndex < 0 || argumentIndex >= joinPoint.getArgs().length) {
+            return null;
+        }
+        Object argument = joinPoint.getArgs()[argumentIndex];
+        return argument instanceof Number number ? number.longValue() : null;
+    }
+
+    private void unauthorized(HttpServletResponse response) throws java.io.IOException {
+        response.setStatus(401);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"code\":401,\"message\":\"Unauthorized\",\"data\":null}");
+    }
+
+    private void forbidden(HttpServletResponse response) throws java.io.IOException {
+        response.setStatus(403);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"code\":403,\"message\":\"Forbidden\",\"data\":null}");
     }
 }

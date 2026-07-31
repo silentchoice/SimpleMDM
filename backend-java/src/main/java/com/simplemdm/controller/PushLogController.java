@@ -31,7 +31,7 @@ public class PushLogController {
 
     @PostMapping("/{id}/retry")
     public ApiResponse retry(@PathVariable Long id) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         SysPushLog log = pushService.retryPush(id);
         if (log == null) return ApiResponse.error(400, "推送日志不存在或状态不是失败");

@@ -73,7 +73,7 @@ public class PushApiController {
 
     @PostMapping
     public ApiResponse create(@RequestBody PushApiDTO dto) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         if (pushApiRepo.findByTargetSystem(dto.targetSystem).isPresent())
             return ApiResponse.error(400, "目标系统 " + dto.targetSystem + " 已存在");
@@ -89,7 +89,7 @@ public class PushApiController {
 
     @PutMapping("/{id}")
     public ApiResponse update(@PathVariable Long id, @RequestBody PushApiDTO dto) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         SysPushApi api = pushApiRepo.findById(id).orElse(null);
         if (api == null) return ApiResponse.error(404, "API配置不存在");
@@ -108,7 +108,7 @@ public class PushApiController {
 
     @DeleteMapping("/{id}")
     public ApiResponse delete(@PathVariable Long id) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         SysPushApi api = pushApiRepo.findById(id).orElse(null);
         if (api == null) return ApiResponse.error(404, "API配置不存在");
@@ -120,7 +120,7 @@ public class PushApiController {
 
     @PostMapping("/{id}/test")
     public ApiResponse test(@PathVariable Long id) {
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
+        SysUser user = JwtInterceptor.LEGACY_CURRENT_USER.get();
         if (!Boolean.TRUE.equals(user.getIsAdmin())) return ApiResponse.error(403, "仅管理员可操作");
         SysPushApi api = pushApiRepo.findById(id).orElse(null);
         if (api == null) return ApiResponse.error(400, "API配置不存在");
