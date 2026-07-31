@@ -40,6 +40,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -56,6 +58,8 @@ class MdmRecordControllerTest {
     private RecordValueRepository values;
     private ChildTypeRepository childTypes;
     private ChildRecordRepository childRecords;
+    private ChildFieldDefinitionRepository childFields;
+    private ChildRecordValueRepository childValues;
     private AuthorizationService authorization;
     private MockMvc mockMvc;
 
@@ -68,6 +72,8 @@ class MdmRecordControllerTest {
         values = mock(RecordValueRepository.class);
         childTypes = mock(ChildTypeRepository.class);
         childRecords = mock(ChildRecordRepository.class);
+        childFields = mock(ChildFieldDefinitionRepository.class);
+        childValues = mock(ChildRecordValueRepository.class);
         authorization = mock(AuthorizationService.class);
         mockSystemUser(7L, 10L);
         ObjectType person = ObjectType.create(10L, "person", "Person");
@@ -76,7 +82,7 @@ class MdmRecordControllerTest {
         given(recordService.create(any())).willReturn(new RecordView(42L, 10L, 100L, 10L, "EMP001", 0L));
         mockMvc = MockMvcBuilders.standaloneSetup(new MdmRecordController(
             recordService, objectTypes, records, fields, values, childTypes, childRecords,
-            mock(ChildFieldDefinitionRepository.class), mock(ChildRecordValueRepository.class), authorization
+            childFields, childValues, authorization
         )).setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -229,6 +235,50 @@ class MdmRecordControllerTest {
                     """))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value(404));
+    }
+    @Test
+    void returnsNotFoundForCrossSystemParentOnEveryChildRoute() throws Exception {
+        given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/mdm/records/42/children/phone")).andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/mdm/records/42/children/phone").contentType(APPLICATION_JSON)
+                .content("""
+                    {"data":{}}
+                    """))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(put("/api/mdm/records/42/children/phone").contentType(APPLICATION_JSON)
+                .content("""
+                    {"id":99,"version":0,"data":{}}
+                    """))
+            .andExpect(status().isNotFound());
+        verifyNoInteractions(authorization, recordService);
+    }
+
+    @Test
+    void batchAssemblesMultipleChildRecordsWithTypedDataAndVersions() throws Exception {
+        MdmRecord parent = parentRecord();
+        ChildType type = childType();
+        com.simplemdm.model.mdm.ChildRecord first = mock(com.simplemdm.model.mdm.ChildRecord.class);
+        com.simplemdm.model.mdm.ChildRecord second = mock(com.simplemdm.model.mdm.ChildRecord.class);
+        given(first.getId()).willReturn(91L); given(first.getVersion()).willReturn(2L);
+        given(second.getId()).willReturn(92L); given(second.getVersion()).willReturn(3L);
+        given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.of(parent));
+        given(authorization.can(7L, "MDM_RECORD_VIEW", 10L)).willReturn(true);
+        given(childTypes.findBySystemIdAndObjectTypeIdAndCode(10L, 100L, "phone")).willReturn(Optional.of(type));
+        given(childRecords.findBySystemIdAndRecordIdAndChildTypeId(10L, 42L, 200L)).willReturn(List.of(first, second));
+        com.simplemdm.model.mdm.ChildFieldDefinition number = mock(com.simplemdm.model.mdm.ChildFieldDefinition.class);
+        given(number.getId()).willReturn(300L); given(number.getFieldKey()).willReturn("number");
+        given(childFields.findByChildTypeId(200L)).willReturn(List.of(number));
+        com.simplemdm.model.mdm.ChildRecordValue firstValue = mock(com.simplemdm.model.mdm.ChildRecordValue.class);
+        com.simplemdm.model.mdm.ChildRecordValue secondValue = mock(com.simplemdm.model.mdm.ChildRecordValue.class);
+        given(firstValue.getChildRecordId()).willReturn(91L); given(firstValue.getFieldDefinitionId()).willReturn(300L);
+        given(secondValue.getChildRecordId()).willReturn(92L); given(secondValue.getFieldDefinitionId()).willReturn(300L);
+        given(firstValue.typedValue()).willReturn(new TypedValue("111", null, null, null, null, null, null, null));
+        given(secondValue.typedValue()).willReturn(new TypedValue("222", null, null, null, null, null, null, null));        given(childValues.findByChildRecordIdIn(List.of(91L, 92L))).willReturn(List.of(firstValue, secondValue));
+        mockMvc.perform(get("/api/mdm/records/42/children/phone")).andExpect(status().isOk()).andExpect(jsonPath("$.data[0].version").value(2)).andExpect(jsonPath("$.data[0].data.number").value("111")).andExpect(jsonPath("$.data[1].version").value(3)).andExpect(jsonPath("$.data[1].data.number").value("222"));
+        verify(childRecords).findBySystemIdAndRecordIdAndChildTypeId(10L, 42L, 200L);
+        verify(childValues).findByChildRecordIdIn(List.of(91L, 92L));
+        verify(childRecords, never()).findAll();
     }
     private MdmRecord parentRecord() {
         MdmRecord parent = mock(MdmRecord.class);
