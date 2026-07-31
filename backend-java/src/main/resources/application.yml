@@ -5,22 +5,34 @@ spring:
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/simple_mdm?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf-8
     username: root
-    password: ${SIMPLE_MDM_DB_PASSWORD:change-me}
+    password: ${SIMPLE_MDM_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+  flyway:
+    enabled: true
 
 app:
-  demo:
-    reset: false
+  bootstrap:
+    enabled: false
   jwt:
-    secret: ${SIMPLE_MDM_JWT_SECRET:change-me-in-production}
+    secret: ${SIMPLE_MDM_JWT_SECRET}
     expiration-minutes: 1440
   push:
     success-rate: 0.9
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "local | demo"
+app:
+  bootstrap:
+    # Demo/local only: creates admin with initial password 123456 (stored as BCrypt).
+    enabled: true

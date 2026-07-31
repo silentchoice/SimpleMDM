@@ -10,6 +10,9 @@
       </template>
 
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @keyup.enter="handleLogin">
+        <el-form-item label="系统编码" prop="systemCode">
+          <el-input v-model="form.systemCode" placeholder="请输入系统编码" />
+        </el-form-item>
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" placeholder="请输入用户名" :prefix-icon="User" />
         </el-form-item>
@@ -26,7 +29,7 @@
       <div style="font-size: 12px; color: #909399;">
         <p style="margin: 4px 0; font-weight: 600;">演示账号：</p>
         <el-row :gutter="8">
-          <el-col :span="8" v-for="acc in demoAccounts" :key="acc.user">
+          <el-col :span="24" v-for="acc in demoAccounts" :key="acc.user">
             <el-button size="small" text style="width: 100%;" @click="fillAccount(acc)">
               <div style="text-align: left; line-height: 1.4;">
                 <div style="font-weight: 600;">{{ acc.label }}</div>
@@ -51,16 +54,15 @@ const userStore = useUserStore()
 const formRef = ref(null)
 const loading = ref(false)
 
-const form = reactive({ username: '', password: '' })
+const form = reactive({ systemCode: 'DEFAULT', username: '', password: '' })
 const rules = {
+  systemCode: [{ required: true, message: '请输入系统编码', trigger: 'blur' }],
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
 const demoAccounts = [
-  { label: 'HR操作员', user: 'wangwu', pwd: '123456' },
-  { label: 'HR审批人', user: 'lisi', pwd: '123456' },
-  { label: '查看者', user: 'zhaoliu', pwd: '123456' },
+  { label: '系统管理员', user: 'admin', pwd: '123456' },
 ]
 
 function fillAccount(acc) {
@@ -74,8 +76,8 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    await userStore.login(form.username, form.password)
-    router.push('/dashboard')
+    await userStore.login(form.systemCode, form.username, form.password)
+    router.push('/mdm')
   } catch {
     // Error already handled by interceptor
   } finally {

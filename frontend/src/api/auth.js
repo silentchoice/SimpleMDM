@@ -1,7 +1,7 @@
 import request from '../utils/request'
 
-export function login(username, password) {
-  return request.post('/auth/login', { username, password })
+export function login(systemCode, username, password) {
+  return request.post('/auth/login', { system_code: systemCode, username, password })
 }
 
 export function getMe() {

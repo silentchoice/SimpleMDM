@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import request from '../utils/request'
+import { login as loginRequest } from '../api/auth'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
@@ -12,18 +12,26 @@ export const useUserStore = defineStore('user', () => {
   // New permission model: user object has is_admin, permissions come from permissions array
   const isAdmin = computed(() => user.value?.is_admin || false)
 
-  // Permission check getters
+  const permissionCodes = computed(() => new Set(
+    permissions.value.map(permission => permission.code || permission.permission_code)
+  ))
+
   const hasEditPermission = computed(() =>
-    isAdmin.value || permissions.value.some(p => p.perm_type === 'EDIT')
+    isAdmin.value || permissions.value.some(permission =>
+      (permission.code === 'MDM_RECORD_EDIT' || permission.permission_code === 'MDM_RECORD_EDIT') &&
+      permission.can_edit === true
+    )
   )
   const hasViewPermission = computed(() =>
-    isAdmin.value || permissions.value.some(p => p.perm_type === 'VIEW')
+    isAdmin.value || permissionCodes.value.has('MDM_RECORD_VIEW')
   )
 
   const canManageOwnDepartment = computed(() =>
-    !isAdmin.value && permissions.value.some(permission =>
-      permission.perm_type === 'EDIT' &&
-      permission.scope_value === user.value?.department
+    !isAdmin.value && user.value?.department_id != null && permissions.value.some(permission =>
+      (permission.code === 'MDM_RECORD_EDIT' || permission.permission_code === 'MDM_RECORD_EDIT') &&
+      (Array.isArray(permission.editable_department_ids)
+        ? permission.editable_department_ids.map(Number).includes(Number(user.value.department_id))
+        : permission.can_edit === true)
     )
   )
   // Backward-compatible role helpers
@@ -36,8 +44,8 @@ export const useUserStore = defineStore('user', () => {
   function isApprover() { return role.value === 'approver' }
   function isViewer() { return !hasEditPermission.value && hasViewPermission.value }
 
-  async function login(username, password) {
-    const res = await request.post('/auth/login', { username, password })
+  async function login(systemCode, username, password) {
+    const res = await loginRequest(systemCode, username, password)
     token.value = res.data.token
     user.value = res.data.user
     permissions.value = res.data.permissions || []

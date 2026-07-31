@@ -1,65 +1,74 @@
 package com.simplemdm.security;
 
-import com.simplemdm.model.SysUser;
-import com.simplemdm.repository.SysUserRepository;
+import com.simplemdm.model.system.User;
+import com.simplemdm.repository.system.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import java.io.IOException;
 import java.util.Optional;
 
 @Component
 public class JwtInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
-    private final SysUserRepository userRepo;
+    private final UserRepository systemUserRepository;
+    public static final ThreadLocal<User> CURRENT_USER = new ThreadLocal<>();
+    public static final ThreadLocal<Long> CURRENT_SYSTEM_ID = new ThreadLocal<>();
 
-    public static final ThreadLocal<SysUser> CURRENT_USER = new ThreadLocal<>();
-
-    public JwtInterceptor(JwtUtil jwtUtil, SysUserRepository userRepo) {
+    public JwtInterceptor(JwtUtil jwtUtil, UserRepository systemUserRepository) {
         this.jwtUtil = jwtUtil;
-        this.userRepo = userRepo;
+        this.systemUserRepository = systemUserRepository;
     }
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
-
-        String path = request.getRequestURI();
-        if ("/api/auth/login".equals(path)) return true;
-
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            response.setStatus(401);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":401,\"message\":\"请先登录\",\"data\":null}");
-            return false;
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
+        clearContext();
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod()) || "/api/auth/login".equals(request.getRequestURI())) {
+            return true;
         }
 
-        String token = authHeader.substring(7);
+        String authorization = request.getHeader("Authorization");
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return unauthorized(response);
+        }
+
+        String token = authorization.substring(7);
         Long userId = jwtUtil.getUserIdFromToken(token);
         if (userId == null) {
-            response.setStatus(401);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":401,\"message\":\"登录已过期，请重新登录\",\"data\":null}");
-            return false;
+            return unauthorized(response);
         }
 
-        Optional<SysUser> userOpt = userRepo.findByIdAndStatus(userId, "active");
-        if (userOpt.isEmpty()) {
-            response.setStatus(401);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":401,\"message\":\"用户不存在或已禁用\",\"data\":null}");
-            return false;
+        Long systemId = jwtUtil.getSystemIdFromToken(token);
+        if (systemId == null) {
+            return unauthorized(response);
         }
-
-        CURRENT_USER.set(userOpt.get());
+        Optional<User> user = systemUserRepository.findById(userId);
+        if (user.isEmpty() || !user.get().isActive() || !user.get().isSystemActive()
+            || !systemId.equals(user.get().getSystemId())) {
+            return unauthorized(response);
+        }
+        CURRENT_USER.set(user.get());
+        CURRENT_SYSTEM_ID.set(systemId);
         return true;
     }
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        clearContext();
+    }
+
+
+    private void clearContext() {
         CURRENT_USER.remove();
+        CURRENT_SYSTEM_ID.remove();
+    }
+    private boolean unauthorized(HttpServletResponse response) throws IOException {
+        response.setStatus(401);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"code\":401,\"message\":\"Unauthorized\",\"data\":null}");
+        return false;
     }
 }

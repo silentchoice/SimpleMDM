@@ -1,8 +1,7 @@
 package com.simplemdm.security;
 
-import com.simplemdm.model.SysUser;
-import com.simplemdm.model.SysUserPermission;
-import com.simplemdm.repository.SysUserPermissionRepository;
+import com.simplemdm.model.system.User;
+import com.simplemdm.service.system.AuthorizationService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -11,52 +10,52 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.List;
 
 @Aspect
 @Component
 public class PermissionAspect {
 
-    private final SysUserPermissionRepository permRepo;
-
-    public PermissionAspect(SysUserPermissionRepository permRepo) {
-        this.permRepo = permRepo;
+    private final AuthorizationService authorizationService;
+    public PermissionAspect(AuthorizationService authorizationService) {
+        this.authorizationService = authorizationService;
     }
 
     @Around("@annotation(requirePerm)")
-    public Object checkPermission(ProceedingJoinPoint pjp, RequirePerm requirePerm) throws Throwable {
-        HttpServletResponse response = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getResponse();
+    public Object checkPermission(ProceedingJoinPoint joinPoint, RequirePerm requirePerm) throws Throwable {
+        HttpServletResponse response = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes())
+            .getResponse();
 
-        SysUser user = JwtInterceptor.CURRENT_USER.get();
-        if (user == null) {
-            response.setStatus(401);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":401,\"message\":\"请先登录\",\"data\":null}");
+        User systemUser = JwtInterceptor.CURRENT_USER.get();
+        if (systemUser != null) {
+            Long departmentId = departmentArgument(joinPoint, requirePerm.departmentArgument());
+            if (departmentId == null || !authorizationService.can(systemUser.getId(), requirePerm.value(), departmentId)) {
+                forbidden(response);
+                return null;
+            }
+            return joinPoint.proceed();
+        }
+
+        unauthorized(response);
+        return null;
+    }
+
+    private Long departmentArgument(ProceedingJoinPoint joinPoint, int argumentIndex) {
+        if (argumentIndex < 0 || argumentIndex >= joinPoint.getArgs().length) {
             return null;
         }
+        Object argument = joinPoint.getArgs()[argumentIndex];
+        return argument instanceof Number number ? number.longValue() : null;
+    }
 
-        // Admin can bypass VIEW checks but NOT EDIT checks
-        if ("EDIT".equals(requirePerm.value()) && Boolean.TRUE.equals(user.getIsAdmin())) {
-            response.setStatus(403);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":403,\"message\":\"管理员无编辑权限\",\"data\":null}");
-            return null;
-        }
+    private void unauthorized(HttpServletResponse response) throws java.io.IOException {
+        response.setStatus(401);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"code\":401,\"message\":\"Unauthorized\",\"data\":null}");
+    }
 
-        // Admin can VIEW everything
-        if ("VIEW".equals(requirePerm.value()) && Boolean.TRUE.equals(user.getIsAdmin())) {
-            return pjp.proceed();
-        }
-
-        List<SysUserPermission> perms = permRepo.findByUserIdAndPermType(user.getId(), requirePerm.value());
-        if (perms.isEmpty()) {
-            response.setStatus(403);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":403,\"message\":\"无" +
-                ("EDIT".equals(requirePerm.value()) ? "编辑" : "查看") + "权限\",\"data\":null}");
-            return null;
-        }
-
-        return pjp.proceed();
+    private void forbidden(HttpServletResponse response) throws java.io.IOException {
+        response.setStatus(403);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"code\":403,\"message\":\"Forbidden\",\"data\":null}");
     }
 }

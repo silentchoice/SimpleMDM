@@ -1,0 +1,2 @@
+<template><el-card><template #header>Delivery logs</template><el-table :data="items"><el-table-column prop="event_id" label="Event"/><el-table-column prop="record_id" label="Record"/><el-table-column prop="status" label="Status"/><el-table-column prop="retry_count" label="Retries"/></el-table></el-card></template>
+<script setup>import{ref,onMounted}from'vue';import{listPushLogs}from'../../api/integration';const items=ref([]);onMounted(async()=>items.value=(await listPushLogs()).data||[])</script>
