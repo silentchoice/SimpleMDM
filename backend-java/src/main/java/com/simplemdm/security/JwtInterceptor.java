@@ -51,7 +51,7 @@ public class JwtInterceptor implements HandlerInterceptor {
         Long systemId = jwtUtil.getSystemIdFromToken(token);
         if (systemId != null) {
             Optional<User> user = systemUserRepository.findById(userId);
-            if (user.isEmpty() || !systemId.equals(user.get().getSystemId())) {
+            if (user.isEmpty() || !user.get().isActive() || !systemId.equals(user.get().getSystemId())) {
                 return unauthorized(response);
             }
             CURRENT_USER.set(user.get());

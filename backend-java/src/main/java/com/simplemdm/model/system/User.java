@@ -143,6 +143,9 @@ public class User {
         return departmentId;
     }
 
+    public boolean isActive() {
+        return "active".equals(status) && deletedAt == null;
+    }
     public boolean isSystemAdmin() {
         return systemAdmin;
     }
