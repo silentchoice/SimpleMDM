@@ -18,8 +18,7 @@ public class MdmMetadataController {
     @GetMapping("/object-types")
     public ApiResponse objectTypes() {
         Long systemId = SystemController.currentUser().getSystemId();
-        return ApiResponse.ok(objectTypes.findAll().stream()
-            .filter(type -> systemId.equals(type.getSystemId()))
+        return ApiResponse.ok(objectTypes.findBySystemId(systemId).stream()
             .map(type -> java.util.Map.of("id", type.getId(), "code", type.getCode(), "name", type.getName()))
             .toList());
     }
