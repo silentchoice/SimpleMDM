@@ -65,6 +65,10 @@ class DepartmentServiceTest {
         Department child = service.create(systemA.getId(), root.getId(), "CHILD", "Child");
         Department departmentInB = service.create(systemB.getId(), null, "OTHER", "Other");
 
+        assertThatThrownBy(() -> service.move(root.getId(), departmentInB.getId()))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("same system");
+
         assertThatThrownBy(() -> service.move(root.getId(), child.getId()))
             .isInstanceOf(BusinessException.class)
             .hasMessageContaining("cycle");
@@ -80,7 +84,8 @@ class DepartmentServiceTest {
         Department grandchild = service.create(systemA.getId(), child.getId(), "GRANDCHILD", "Grandchild");
         Department newRoot = service.create(systemA.getId(), null, "NEW_ROOT", "New root");
 
-        service.move(child.getId(), newRoot.getId());
+        Department movedChildBeforeReload = service.move(child.getId(), newRoot.getId());
+        assertThat(movedChildBeforeReload.getParent().getId()).isEqualTo(newRoot.getId());
         departments.flush();
         entityManager.clear();
 

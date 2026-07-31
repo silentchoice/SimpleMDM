@@ -92,6 +92,7 @@ public class Department {
     }
 
     public void relocate(Department newParent, String newPath, int newLevel) {
+        this.parent = newParent;
         this.parentId = newParent == null ? null : newParent.getId();
         this.path = newPath;
         this.level = newLevel;

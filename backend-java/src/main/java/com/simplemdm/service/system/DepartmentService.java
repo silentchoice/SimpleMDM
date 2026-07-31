@@ -38,7 +38,7 @@ public class DepartmentService {
     }
 
     @Transactional
-    public void move(Long departmentId, Long newParentId) {
+    public Department move(Long departmentId, Long newParentId) {
         Department department = requiredDepartment(departmentId);
         Department newParent = newParentId == null ? null : requiredDepartment(newParentId);
         if (newParent != null) {
@@ -53,12 +53,17 @@ public class DepartmentService {
         String newPath = newParent == null
             ? "/" + department.getId() + "/"
             : newParent.getPath() + department.getId() + "/";
+        department.relocate(newParent, newPath, department.getLevel() + levelChange);
         List<Department> descendants = departments.findByPathStartingWith(oldPath);
         for (Department descendant : descendants) {
+            if (descendant.getId().equals(department.getId())) {
+                continue;
+            }
             String suffix = descendant.getPath().substring(oldPath.length());
-            descendant.relocate(descendant.getId().equals(department.getId()) ? newParent : descendant.getParent(),
-                newPath + suffix, descendant.getLevel() + levelChange);
+            descendant.relocate(descendant.getParent(), newPath + suffix,
+                descendant.getLevel() + levelChange);
         }
+        return department;
     }
 
     private SystemEntity requiredSystem(Long systemId) {
