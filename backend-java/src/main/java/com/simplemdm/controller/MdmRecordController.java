@@ -97,12 +97,15 @@ public class MdmRecordController {
     @PutMapping("/object-types/{objectCode}/records")
     public ApiResponse update(@PathVariable String objectCode, @RequestBody CreateRecordRequest request) {
         User user = SystemController.currentUser();
-        requiredObjectType(user, objectCode);
-        if (request == null || request.id() == null || request.data() == null) {
-            throw new BusinessException(400, "Record ID and data are required");
+        ObjectType routeType = requiredObjectType(user, objectCode);
+        if (request == null || request.id() == null || request.version() == null || request.data() == null) {
+            throw new BusinessException(400, "Record ID, version, and data are required");
         }
+        MdmRecord persisted = records.findBySystemIdAndId(user.getSystemId(), request.id())
+            .orElseThrow(() -> new BusinessException(404, "Record not found"));
+        if (!routeType.getId().equals(persisted.getObjectTypeId())) throw new BusinessException(404, "Record not found");
         RecordView updated = recordService.update(request.id(), request.version(), request.data());
-        return ApiResponse.ok(response(updated, objectCode, "active", request.data()));
+        return ApiResponse.ok(response(updated, objectCode, persisted.getStatus(), request.data()));
     }
 
     @GetMapping("/records/{recordId}/children/{childCode}")
@@ -129,7 +132,7 @@ public class MdmRecordController {
     public ApiResponse createChild(@PathVariable Long recordId, @PathVariable String childCode,
                                    @RequestBody CreateRecordRequest request) {
         User user = SystemController.currentUser();
-        MdmRecord parent = records.findById(recordId)
+        MdmRecord parent = records.findBySystemIdAndId(user.getSystemId(), recordId)
             .orElseThrow(() -> new BusinessException(404, "Record not found"));
         if (!user.getSystemId().equals(parent.getSystemId())) throw new BusinessException(404, "Record not found");
         ChildType childType = requiredChildType(user, parent.getObjectTypeId(), childCode);
@@ -143,7 +146,7 @@ public class MdmRecordController {
     public ApiResponse updateChild(@PathVariable Long recordId, @PathVariable String childCode,
                                    @RequestBody CreateRecordRequest request) {
         User user = SystemController.currentUser();
-        MdmRecord parent = records.findById(recordId)
+        MdmRecord parent = records.findBySystemIdAndId(user.getSystemId(), recordId)
             .orElseThrow(() -> new BusinessException(404, "Record not found"));
         if (!user.getSystemId().equals(parent.getSystemId())
             || !authorization.can(user.getId(), "MDM_RECORD_EDIT", parent.getDepartmentId())) {

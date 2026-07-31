@@ -13,4 +13,7 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     Optional<Department> findBySystemIdAndCode(Long systemId, String code);
 
     List<Department> findByPathStartingWith(String path);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "parent")
+    List<Department> findBySystem_Id(Long systemId);
 }

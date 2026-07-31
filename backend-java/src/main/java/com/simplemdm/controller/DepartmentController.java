@@ -30,7 +30,7 @@ public class DepartmentController {
         var user = SystemController.currentUser();
         Set<Long> visible = authorization.viewableDepartmentIds(user.getId());
         Map<Long, Map<String, Object>> nodes = new LinkedHashMap<>();
-        List<Department> all = departments.findAll();
+        List<Department> all = departments.findBySystem_Id(user.getSystemId());
         for (Department department : all) {
             if (user.getSystemId().equals(department.getSystem().getId()) && visible.contains(department.getId())) {
                 Map<String, Object> node = new LinkedHashMap<>();

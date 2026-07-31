@@ -14,6 +14,11 @@ public class GlobalExceptionHandler {
             .body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
 
+    @ExceptionHandler({org.springframework.web.bind.MethodArgumentNotValidException.class,
+        org.springframework.http.converter.HttpMessageNotReadableException.class})
+    public ResponseEntity<ApiResponse> handleInvalidRequest(Exception exception) {
+        return ResponseEntity.badRequest().body(ApiResponse.error(400, "Invalid request"));
+    }
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse handleUnknown(Exception e) {

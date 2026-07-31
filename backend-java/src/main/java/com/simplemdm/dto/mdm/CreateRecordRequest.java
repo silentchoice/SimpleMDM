@@ -10,6 +10,6 @@ public record CreateRecordRequest(
     Long id,
     @JsonProperty("department_id") Long departmentId,
     @JsonProperty("record_code") String recordCode,
-    long version,
+    Long version,
     Map<String, Object> data
 ) { }

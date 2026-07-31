@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface ObjectTypeRepository extends JpaRepository<ObjectType, Long> {
     Optional<ObjectType> findBySystemIdAndCode(Long systemId, String code);
+    java.util.List<ObjectType> findBySystemId(Long systemId);
 }

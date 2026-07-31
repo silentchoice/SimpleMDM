@@ -146,7 +146,7 @@ class MdmRecordControllerTest {
     void createsAndUpdatesChildWithinPersistedParentContext() throws Exception {
         MdmRecord parent = parentRecord();
         ChildType childType = childType();
-        given(records.findById(42L)).willReturn(Optional.of(parent));
+        given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.of(parent));
         given(childTypes.findAll()).willReturn(List.of(childType));
         given(recordService.createChild(any())).willReturn(new ChildRecordView(99L, 42L, 200L, 10L, 10L, 0L));
         com.simplemdm.model.mdm.ChildRecord persistedChild = childRecord();
@@ -171,7 +171,7 @@ class MdmRecordControllerTest {
     @Test
     void rejectsChildPutWhenPersistedParentDepartmentIsNotEditable() throws Exception {
         MdmRecord parent = parentRecord();
-        given(records.findById(42L)).willReturn(Optional.of(parent));
+        given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.of(parent));
         given(authorization.can(7L, "MDM_RECORD_EDIT", 10L)).willReturn(false);
 
         mockMvc.perform(put("/api/mdm/records/42/children/phone").contentType(APPLICATION_JSON)
@@ -187,7 +187,7 @@ class MdmRecordControllerTest {
         MdmRecord parent = parentRecord();
         ChildType childType = childType();
         com.simplemdm.model.mdm.ChildRecord persistedChild = childRecord();
-        given(records.findById(42L)).willReturn(Optional.of(parent));
+        given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.of(parent));
         given(childTypes.findAll()).willReturn(List.of(childType));
         given(childRecords.findById(99L)).willReturn(Optional.of(persistedChild));
         given(authorization.can(7L, "MDM_RECORD_EDIT", 10L)).willReturn(true);
