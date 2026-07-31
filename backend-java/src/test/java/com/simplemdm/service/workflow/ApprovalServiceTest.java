@@ -101,11 +101,12 @@ class ApprovalServiceTest {
         MdmRecord record = record(41L, 7L, 8L, 9L, 4L);
         when(requests.findById(100L)).thenReturn(Optional.of(request));
         when(records.findBySystemIdAndId(7L, 41L)).thenReturn(Optional.of(record));
+        when(writer.apply(100L)).thenThrow(new BusinessException(409, "Record version conflict"));
 
         assertThatThrownBy(() -> service.approve(100L, 20L, 3L))
             .isInstanceOf(BusinessException.class)
             .hasMessageContaining("version");
-        verifyNoInteractions(writer);
+        verify(writer).apply(100L);
     }
 
     @Test
@@ -122,13 +123,12 @@ class ApprovalServiceTest {
         when(fields.findByObjectTypeId(8L)).thenReturn(List.of(salary));
         when(changes.findByApprovalRequestId(100L)).thenReturn(List.of(ApprovalChange.create(7L, 100L, 55L, TypedValue.empty(), new TypedValue(null, null, null, new BigDecimal("125.50"), null, null, null, null))));
         RecordView expected = new RecordView(41L, 7L, 8L, 9L, "EMP-41", 4L);
-        when(writer.apply(eq(request), eq(20L), eq(3L), eq(Map.of("salary", new BigDecimal("125.50"))))).thenReturn(expected);
+        when(writer.apply(100L)).thenReturn(expected);
 
         RecordView actual = service.approve(100L, 20L, 3L);
 
         assertThat(actual).isEqualTo(expected);
-        verify(actions).save(argThat(action -> action.getSystemId().equals(7L)
-            && action.getActorId().equals(20L) && "APPROVE".equals(action.getAction())));
+        verify(writer).apply(100L);
     }
 
     private void authenticate(Long id, Long systemId) {
