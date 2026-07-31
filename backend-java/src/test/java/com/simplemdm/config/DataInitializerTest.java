@@ -1,89 +1,68 @@
 package com.simplemdm.config;
 
+import com.simplemdm.model.mdm.*;
+import com.simplemdm.model.system.*;
+import com.simplemdm.repository.mdm.*;
+import com.simplemdm.repository.system.*;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
-import com.simplemdm.repository.*;
-import com.simplemdm.service.AuthService;
-import com.simplemdm.model.MdmFieldDefinition;
-import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import static org.mockito.Mockito.*;
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
+@DataJpaTest(properties={"spring.flyway.enabled=false","spring.jpa.hibernate.ddl-auto=create-drop","spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect"})
+@EntityScan(basePackageClasses={SystemEntity.class,ObjectType.class})
+@EnableJpaRepositories(basePackages={"com.simplemdm.repository.system","com.simplemdm.repository.mdm"})
+@Import(DataInitializerTest.Config.class)
 class DataInitializerTest {
-    private SysUserRepository users;
-    private MdmPersonnelRepository personnel;
-    private WfApprovalRepository approvals;
-    private SysPushLogRepository pushLogs;
-    private SysPushApiRepository pushApis;
-    private SysUserPermissionRepository permissions;
-    private SysApproverDeptRepository approvers;
-    private MdmPersonnelSubRepository subRecords;
-    private MdmFieldDefinitionRepository fieldDefinitions;
-    private DataInitializer initializer;
-
-    @BeforeEach
-    void setUp() {
-        users=mock(SysUserRepository.class); personnel=mock(MdmPersonnelRepository.class);
-        approvals=mock(WfApprovalRepository.class); pushLogs=mock(SysPushLogRepository.class);
-        pushApis=mock(SysPushApiRepository.class); permissions=mock(SysUserPermissionRepository.class);
-        approvers=mock(SysApproverDeptRepository.class); subRecords=mock(MdmPersonnelSubRepository.class);
-        fieldDefinitions=mock(MdmFieldDefinitionRepository.class);
-        initializer = new DataInitializer(users, personnel, approvals, pushLogs, pushApis,
-            permissions, approvers, subRecords, fieldDefinitions, mock(AuthService.class), false);
-    }
-    @Test
-    void demoSchemaIsCurrentWhenEveryRequiredFieldExists() {
-        for (DataInitializer.DemoField field : DataInitializer.demoFields()) {
-            when(fieldDefinitions.findBySystemCodeAndFieldKey(field.systemCode(), field.fieldKey()))
-                .thenReturn(Optional.of(new MdmFieldDefinition()));
-        }
-        assertTrue(initializer.demoSchemaIsCurrent());
-    }
-
-    @Test
-    void demoSchemaNeedsRefreshWhenARequiredFieldIsMissing() {
-        DataInitializer.DemoField first = DataInitializer.demoFields().get(0);
-        when(fieldDefinitions.findBySystemCodeAndFieldKey(first.systemCode(), first.fieldKey()))
-            .thenReturn(Optional.empty());
-        assertTrue(!initializer.demoSchemaIsCurrent());
-    }
-    @Test
-    void resetBusinessDemoDataDeletesOnlyBusinessTablesInDependencyOrder() {
-        initializer.resetBusinessDemoData();
-        org.mockito.InOrder order = inOrder(pushLogs, approvals, subRecords, personnel, fieldDefinitions);
-        order.verify(pushLogs).deleteAllInBatch();
-        order.verify(approvals).deleteAllInBatch();
-        order.verify(subRecords).deleteAllInBatch();
-        order.verify(personnel).deleteAllInBatch();
-        order.verify(fieldDefinitions).deleteAllInBatch();
-        verify(users, never()).deleteAllInBatch();
-        verify(permissions, never()).deleteAllInBatch();
-    }
-    @Test
-    void demoFieldKeysAreUniqueWithinSystem() {
-        List<DataInitializer.DemoField> fields = DataInitializer.demoFields();
-        long unique = fields.stream()
-            .map(field -> field.systemCode() + ":" + field.fieldKey())
-            .distinct()
-            .count();
-        assertEquals(fields.size(), unique);
-    }
-
-    @Test
-    void onlySubFieldsCanBeShared() {
-        assertTrue(DataInitializer.demoFields().stream()
-            .filter(DataInitializer.DemoField::shared)
-            .allMatch(field -> "sub".equals(field.tableType())));
-    }
-
-    @Test
-    void payrollFieldsRemainPrivate() {
-        assertTrue(DataInitializer.demoFields().stream()
-            .filter(field -> "payroll".equals(field.subType()))
-            .noneMatch(DataInitializer.DemoField::shared));
-    }
+ @org.springframework.boot.test.context.TestConfiguration static class Config {
+  @org.springframework.context.annotation.Bean BCryptPasswordEncoder encoder(){return new BCryptPasswordEncoder();}
+ }
+ @Autowired SystemRepository systems; @Autowired DepartmentRepository departments;
+ @Autowired UserRepository users; @Autowired ObjectTypeRepository objects;
+ @Autowired MdmRecordRepository records; @Autowired EntityManager em;
+ @Autowired BCryptPasswordEncoder encoder;
+ @Test void bootstrapIsIdempotentAndRelational() throws Exception {
+  DataInitializer it=initializer(true); it.run(); it.run(); em.flush(); em.clear();
+  SystemEntity system=systems.findByCode("DEFAULT").orElseThrow();
+  assertThat(systems.count()).isEqualTo(1);
+  assertThat(departments.findBySystem_Id(system.getId())).extracting(Department::getPath).doesNotContainNull();
+  assertThat(users.findAll()).hasSize(1).allMatch(u->u.getDepartmentId()!=null&&u.getSystemId().equals(system.getId()));
+  assertThat(records.findAll()).allMatch(r->r.getDepartmentId()!=null&&r.getSystemId().equals(system.getId()));
+  assertThat(objects.findBySystemIdAndCode(system.getId(),"person")).isPresent();
+  assertThat(count("sys_role")).isEqualTo(1); assertThat(count("sys_permission")).isGreaterThanOrEqualTo(4);
+  assertThat(count("sys_user_role")).isEqualTo(1); assertThat(count("sys_role_permission")).isGreaterThanOrEqualTo(4);
+  assertThat(count("sys_user_department_scope")).isEqualTo(1);
+  assertThat(count("mdm_field_definition")).isGreaterThanOrEqualTo(3); assertThat(count("mdm_child_type")).isEqualTo(1);
+ }
+ @Test void disabledBootstrapCreatesNothing() throws Exception {initializer(false).run();assertThat(systems.count()).isZero();}
+ @Test void bootstrapCompletesPartiallyExistingStableCodesWithoutOverwritingThem() throws Exception {
+  SystemEntity system=systems.saveAndFlush(SystemEntity.create("DEFAULT","Existing Name"));
+  Department root=departments.saveAndFlush(Department.create(system,null,"ROOT","Existing Root"));
+  root.relocate(null,"/"+root.getId()+"/",1); departments.saveAndFlush(root);
+  User admin=User.create(system,root,"admin",encoder.encode("keep-me"),"Existing Admin");
+  users.saveAndFlush(admin); String hash=password(admin.getId());
+  initializer(true).run(); em.flush(); em.clear();
+  assertThat(systems.count()).isEqualTo(1); assertThat(departments.count()).isEqualTo(3);
+  assertThat(password(admin.getId())).isEqualTo(hash); assertThat(encoder.matches("keep-me",hash)).isTrue();
+  assertThat(objects.findBySystemIdAndCode(system.getId(),"person")).isPresent();
+  assertThat(count("sys_user_role")).isEqualTo(1); assertThat(count("mdm_child_type")).isEqualTo(1);
+ }
+ @Test void restartPreservesPasswordAndBusinessRecords() throws Exception {
+  DataInitializer it=initializer(true);it.run();em.flush();
+  SystemEntity s=systems.findByCode("DEFAULT").orElseThrow(); User admin=users.findBySystemIdAndUsername(s.getId(),"admin").orElseThrow();
+  String hash=password(admin.getId()); Department root=departments.findBySystemIdAndCode(s.getId(),"ROOT").orElseThrow();
+  ObjectType person=objects.findBySystemIdAndCode(s.getId(),"person").orElseThrow();
+  records.saveAndFlush(MdmRecord.create(s.getId(),person,person.getId(),root,"EXISTING",admin.getId()));
+  it.run();em.flush();em.clear();
+  assertThat(password(admin.getId())).isEqualTo(hash);assertThat(encoder.matches("123456",hash)).isTrue();
+  assertThat(records.findAll()).extracting(MdmRecord::getRecordCode).containsExactly("EXISTING");
+ }
+ private DataInitializer initializer(boolean enabled){return new DataInitializer(em,systems,departments,users,objects,enabled,encoder);}
+ private long count(String table){return ((Number)em.createNativeQuery("select count(*) from "+table).getSingleResult()).longValue();}
+ private String password(Long id){return (String)em.createNativeQuery("select password_hash from sys_user where id=:id").setParameter("id",id).getSingleResult();}
 }

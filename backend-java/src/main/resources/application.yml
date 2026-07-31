@@ -19,10 +19,20 @@ spring:
     enabled: true
 
 app:
-  demo:
-    reset: false
+  bootstrap:
+    enabled: false
   jwt:
     secret: ${SIMPLE_MDM_JWT_SECRET}
     expiration-minutes: 1440
   push:
     success-rate: 0.9
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "local | demo"
+app:
+  bootstrap:
+    # Demo/local only: creates admin with initial password 123456 (stored as BCrypt).
+    enabled: true
