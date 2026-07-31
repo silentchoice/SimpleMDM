@@ -69,7 +69,7 @@ public class DataInitializer implements CommandLineRunner {
         seedRbac(system, root, admin);
         ObjectType person = objectTypes.findBySystemIdAndCode(system.getId(), "person")
             .orElseGet(() -> objectTypes.saveAndFlush(ObjectType.create(system, "person", "Person")));
-        if (count("select count(o) from ObjectType o where o.id=:id and o.systemId=:system and o.status='active' and o.departmentScoped=true",
+        if (count("select count(o) from ObjectType o where o.id=:id and o.systemId=:system and o.status='active' and o.departmentScoped=true and o.approvalRequired=false",
             "id",person.getId(),"system",system.getId())!=1)
             throw new IllegalStateException("Bootstrap object person conflicts with required active department-scoped semantics");
         field(person, "employee_code", "Employee Code", FieldDataType.STRING, true, true, 64, 1);
@@ -91,6 +91,11 @@ public class DataInitializer implements CommandLineRunner {
             throw new IllegalStateException("Bootstrap department " + code + " parent conflicts with expected topology");
         if (!department.getSystem().getId().equals(system.getId()))
             throw new IllegalStateException("Bootstrap department " + code + " belongs to another system");
+        String expectedPath = parent == null ? "/" + department.getId() + "/" : parent.getPath() + department.getId() + "/";
+        int expectedLevel = parent == null ? 1 : parent.getLevel() + 1;
+        if (count("select count(d) from Department d where d.id=:id and d.path=:path and d.level=:level and d.sortOrder=0",
+            "id", department.getId(), "path", expectedPath, "level", expectedLevel) != 1)
+            throw new IllegalStateException("Bootstrap department " + code + " path/level/sort conflicts with expected topology");
         requireActive("department " + code,
             "select count(d) from Department d where d.id=:id and d.status='active'", department.getId());
         return department;
@@ -105,17 +110,20 @@ public class DataInitializer implements CommandLineRunner {
             Permission permission = findOne("select p from Permission p where p.code=:code", List.of("code", code), Permission.class);
             if (permission == null) { permission = Permission.create(code, code); entityManager.persist(permission); entityManager.flush(); }
             if (!"active".equals(permission.getStatus())) throw new IllegalStateException("Bootstrap permission " + code + " must be active");
-            if (count("select count(rp) from RolePermission rp where rp.roleId=:role and rp.permissionId=:permission",
-                "role", role.getId(), "permission", permission.getId()) == 0) entityManager.persist(RolePermission.grant(role, permission));
+            long grantCount = count("select count(rp) from RolePermission rp where rp.roleId=:role and rp.permissionId=:permission",
+                "role", role.getId(), "permission", permission.getId());
+            if (grantCount == 0) entityManager.persist(RolePermission.grant(role, permission));
         }
-        if (count("select count(ur) from UserRole ur where ur.userId=:user and ur.roleId=:role",
-            "user", admin.getId(), "role", role.getId()) == 0) entityManager.persist(UserRole.assign(system, admin, role));
+        long userRoleCount = count("select count(ur) from UserRole ur where ur.userId=:user and ur.roleId=:role and ur.systemId=:system",
+            "user", admin.getId(), "role", role.getId(), "system", system.getId());
+        if (userRoleCount == 0) entityManager.persist(UserRole.assign(system, admin, role));
         long scopeCount = count("select count(s) from UserDepartmentScope s where s.userId=:user and s.departmentId=:department and s.scopeMode=:mode",
             "user", admin.getId(), "department", root.getId(), "mode", UserDepartmentScope.ScopeMode.SUBTREE);
         if (scopeCount == 0)
             entityManager.persist(UserDepartmentScope.grant(system, admin, root, UserDepartmentScope.ScopeMode.SUBTREE, true, true));
-        else if (count("select count(s) from UserDepartmentScope s where s.userId=:user and s.departmentId=:department and s.scopeMode=:mode and s.canView=true and s.canEdit=true",
-            "user", admin.getId(), "department", root.getId(), "mode", UserDepartmentScope.ScopeMode.SUBTREE) != 1)
+        else if (count("select count(s) from UserDepartmentScope s where s.userId=:user and s.departmentId=:department and s.scopeMode=:mode and s.systemId=:system and s.canView=true and s.canEdit=true",
+            "user", admin.getId(), "department", root.getId(), "mode", UserDepartmentScope.ScopeMode.SUBTREE,
+            "system", system.getId()) != 1)
             throw new IllegalStateException("Bootstrap admin scope conflicts with required view/edit subtree semantics");
     }
 
@@ -125,7 +133,13 @@ public class DataInitializer implements CommandLineRunner {
             List.of("object", objectType.getId(), "key", key), FieldDefinition.class);
         if (existing != null) {
             if (existing.getDataType()!=type || existing.isRequired()!=required || existing.isUniqueValue()!=unique
-                || !java.util.Objects.equals(existing.getMaxLength(),maxLength))
+                || !java.util.Objects.equals(existing.getMaxLength(),maxLength)
+                || count("select count(f) from FieldDefinition f where f.id=:id and f.systemId=:system and f.objectTypeId=:object"
+                    + " and f.status='active' and f.searchable=true and f.shared=false and f.sortOrder=:sort"
+                    + " and f.precision is null and f.scale is null and f.referenceObjectTypeId is null"
+                    + " and f.defaultValue is null and f.validationRule is null",
+                    "id", existing.getId(), "system", objectType.getSystemId(), "object", objectType.getId(),
+                    "sort", order) != 1)
                 throw new IllegalStateException("Bootstrap field " + key + " conflicts with required semantics");
             return;
         }
@@ -139,8 +153,10 @@ public class DataInitializer implements CommandLineRunner {
             List.of("object",objectType.getId(),"code",code),ChildType.class);
         if (existing==null)
             entityManager.persist(ChildType.create(objectType.getId(), objectType, code, name));
-        else if (!existing.getSystemId().equals(objectType.getSystemId()) || !existing.getObjectTypeId().equals(objectType.getId()))
-            throw new IllegalStateException("Bootstrap child type " + code + " conflicts with object/system");
+        else if (!existing.getSystemId().equals(objectType.getSystemId()) || !existing.getObjectTypeId().equals(objectType.getId())
+            || count("select count(c) from ChildType c where c.id=:id and c.status='active' and c.sortOrder=0",
+                "id", existing.getId()) != 1)
+            throw new IllegalStateException("Bootstrap child type " + code + " conflicts with required semantics");
     }
 
     private void requireActive(String label, String jpql, Long id) {

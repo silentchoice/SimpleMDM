@@ -87,12 +87,35 @@ class DataInitializerTest {
   assertThatThrownBy(()->initializer(true).run()).isInstanceOf(IllegalStateException.class)
    .hasMessageContaining("HR").hasMessageContaining("parent");
  }
+ @Test void conflictingStableDepartmentPathAndLevelFailFast() throws Exception {
+  initializer(true).run();em.flush();
+  em.createNativeQuery("update sys_department set path='/wrong/', level=9 where code='HR'").executeUpdate();
+  em.flush();em.clear();
+  assertThatThrownBy(()->initializer(true).run()).isInstanceOf(IllegalStateException.class)
+   .hasMessageContaining("HR").hasMessageContaining("path/level");
+ }
  @Test void conflictingStableFieldSemanticsFailsFast() throws Exception {
   initializer(true).run();em.flush();
   em.createNativeQuery("update mdm_field_definition set data_type='INTEGER' where field_key='employee_code'")
    .executeUpdate();em.flush();em.clear();
   assertThatThrownBy(()->initializer(true).run()).isInstanceOf(IllegalStateException.class)
    .hasMessageContaining("employee_code").hasMessageContaining("semantics");
+ }
+ @Test void inactiveStableFieldFailsFast() throws Exception {
+  assertFieldMutationFails("status='inactive'","employee_code");
+ }
+ @Test void unsearchableStableFieldFailsFast() throws Exception {
+  assertFieldMutationFails("searchable=false","employee_name");
+ }
+ @Test void wrongStableFieldSortOrderFailsFast() throws Exception {
+  assertFieldMutationFails("sort_order=99","work_email");
+ }
+ @Test void inactiveStableChildTypeFailsFast() throws Exception {
+  initializer(true).run();em.flush();
+  em.createNativeQuery("update mdm_child_type set status='inactive' where code='employment'").executeUpdate();
+  em.flush();em.clear();
+  assertThatThrownBy(()->initializer(true).run()).isInstanceOf(IllegalStateException.class)
+   .hasMessageContaining("employment").hasMessageContaining("semantics");
  }
  @Test void restartPreservesPasswordAndBusinessRecords() throws Exception {
   DataInitializer it=initializer(true);it.run();em.flush();
@@ -105,6 +128,13 @@ class DataInitializerTest {
   assertThat(records.findAll()).extracting(MdmRecord::getRecordCode).containsExactly("EXISTING");
  }
  private DataInitializer initializer(boolean enabled){return new DataInitializer(em,systems,departments,users,objects,coordinator,enabled,encoder);}
+ private void assertFieldMutationFails(String assignment,String key) throws Exception {
+  initializer(true).run();em.flush();
+  em.createNativeQuery("update mdm_field_definition set "+assignment+" where field_key=:key")
+   .setParameter("key",key).executeUpdate();em.flush();em.clear();
+  assertThatThrownBy(()->initializer(true).run()).isInstanceOf(IllegalStateException.class)
+   .hasMessageContaining(key).hasMessageContaining("semantics");
+ }
  private long count(String table){return ((Number)em.createNativeQuery("select count(*) from "+table).getSingleResult()).longValue();}
  private String password(Long id){return (String)em.createNativeQuery("select password_hash from sys_user where id=:id").setParameter("id",id).getSingleResult();}
 }
