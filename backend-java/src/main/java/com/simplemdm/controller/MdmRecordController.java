@@ -5,6 +5,7 @@ import com.simplemdm.dto.mdm.CreateRecordRequest;
 import com.simplemdm.dto.mdm.RecordResponse;
 import com.simplemdm.exception.BusinessException;
 import com.simplemdm.model.mdm.ChildType;
+import com.simplemdm.model.mdm.ChildFieldDefinition;
 import com.simplemdm.model.mdm.FieldDefinition;
 import com.simplemdm.model.mdm.MdmRecord;
 import com.simplemdm.model.mdm.ObjectType;
@@ -107,20 +108,23 @@ public class MdmRecordController {
     @GetMapping("/records/{recordId}/children/{childCode}")
     public ApiResponse children(@PathVariable Long recordId, @PathVariable String childCode) {
         User user = SystemController.currentUser();
-        MdmRecord parent = records.findById(recordId)
+        MdmRecord parent = records.findBySystemIdAndId(user.getSystemId(), recordId)
             .orElseThrow(() -> new BusinessException(404, "Record not found"));
-        if (!user.getSystemId().equals(parent.getSystemId()) || !authorization.can(user.getId(), "MDM_RECORD_VIEW", parent.getDepartmentId())) {
-            throw new BusinessException(403, "User is not authorized to view this department");
+        if (!authorization.can(user.getId(), "MDM_RECORD_VIEW", parent.getDepartmentId())) throw new BusinessException(403, "User is not authorized to view this department");
+        ChildType childType = childTypes.findBySystemIdAndObjectTypeIdAndCode(user.getSystemId(), parent.getObjectTypeId(), childCode)
+            .orElseThrow(() -> new BusinessException(404, "Child type not found"));
+        List<com.simplemdm.model.mdm.ChildRecord> children = childRecords.findBySystemIdAndRecordIdAndChildTypeId(user.getSystemId(), recordId, childType.getId());
+        Map<Long, ChildFieldDefinition> definitions = childFields.findByChildTypeId(childType.getId()).stream()
+            .collect(Collectors.toMap(ChildFieldDefinition::getId, Function.identity()));
+        Map<Long, Map<String,Object>> data = new HashMap<>();
+        for (var child : children) data.put(child.getId(), new HashMap<>());
+        for (var value : childValues.findByChildRecordIdIn(children.stream().map(c -> c.getId()).toList())) {
+            ChildFieldDefinition field = definitions.get(value.getFieldDefinitionId());
+            if (field != null) data.get(value.getChildRecordId()).put(field.getFieldKey(), untyped(value.typedValue()));
         }
-        ChildType childType = requiredChildType(user, parent.getObjectTypeId(), childCode);
-        List<Map<String, Object>> result = childRecords.findAll().stream()
-            .filter(child -> recordId.equals(child.getRecordId()) && childType.getId().equals(child.getChildTypeId()))
-            .map(child -> Map.<String, Object>of("id", child.getId(), "parent_record_id", child.getRecordId(),
-                "child_type", childCode, "department_id", parent.getDepartmentId(), "data", Map.of()))
-            .toList();
-        return ApiResponse.ok(result);
+        return ApiResponse.ok(children.stream().map(child -> Map.<String,Object>of("id", child.getId(), "parent_record_id", recordId,
+            "child_type", childCode, "department_id", parent.getDepartmentId(), "version", child.getVersion(), "data", data.get(child.getId()))).toList());
     }
-
     @PostMapping("/records/{recordId}/children/{childCode}")
     public ApiResponse createChild(@PathVariable Long recordId, @PathVariable String childCode,
                                    @RequestBody CreateRecordRequest request) {
