@@ -86,6 +86,7 @@ public class FieldDefinition {
     public String getFieldKey() { return fieldKey; }
     public FieldDataType getDataType() { return dataType; }
     public boolean isRequired() { return required; }
+    public boolean isUniqueValue() { return uniqueValue; }
     public Integer getMaxLength() { return maxLength; }
     public Integer getPrecision() { return precision; }
     public Integer getScale() { return scale; }
