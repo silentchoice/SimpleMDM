@@ -23,6 +23,14 @@
           <el-icon><UserFilled /></el-icon>
           <span>部门主数据</span>
         </el-menu-item>
+        <el-menu-item index="/mdm">
+          <el-icon><Grid /></el-icon>
+          <span>通用主数据</span>
+        </el-menu-item>
+        <el-menu-item index="/mdm-metadata">
+          <el-icon><SetUp /></el-icon>
+          <span>元数据管理</span>
+        </el-menu-item>
         <el-menu-item index="/approvals">
           <el-icon><DocumentChecked /></el-icon>
           <span>审批中心</span>
@@ -100,6 +108,8 @@ const pendingCount = ref(0)
 const activeMenu = computed(() => {
   const p = route.path
   if (p.startsWith('/personnel')) return '/personnel'
+  if (p.startsWith('/mdm-metadata')) return '/mdm-metadata'
+  if (p.startsWith('/mdm')) return '/mdm'
   if (p.startsWith('/approvals')) return '/approvals'
   if (p.startsWith('/push-logs')) return '/push-logs'
   return p

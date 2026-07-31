@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface FieldDefinitionRepository extends JpaRepository<FieldDefinition, Long> {
     boolean existsByObjectTypeIdAndFieldKey(Long objectTypeId, String fieldKey);
     java.util.List<FieldDefinition> findByObjectTypeId(Long objectTypeId);
+    java.util.List<FieldDefinition> findBySystemIdAndObjectTypeIdIn(Long systemId, java.util.Collection<Long> objectTypeIds);
 }

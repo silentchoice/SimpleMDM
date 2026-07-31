@@ -84,11 +84,18 @@ public class FieldDefinition {
     public Long getSystemId() { return systemId; }
     public Long getObjectTypeId() { return objectTypeId; }
     public String getFieldKey() { return fieldKey; }
+    public String getFieldName() { return fieldName; }
     public FieldDataType getDataType() { return dataType; }
     public boolean isRequired() { return required; }
     public boolean isUniqueValue() { return uniqueValue; }
+    public boolean isSearchable() { return searchable; }
+    public boolean isShared() { return shared; }
     public Integer getMaxLength() { return maxLength; }
     public Integer getPrecision() { return precision; }
     public Integer getScale() { return scale; }
     public Long getReferenceObjectTypeId() { return referenceObjectTypeId; }
+    public String getDefaultValue() { return defaultValue; }
+    public String getValidationRule() { return validationRule; }
+    public int getSortOrder() { return sortOrder; }
+    public String getStatus() { return status; }
 }

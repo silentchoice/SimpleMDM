@@ -14,6 +14,30 @@ const routes = [
     redirect: '/dashboard',
     children: [
       {
+        path: 'mdm',
+        name: 'MdmList',
+        component: () => import('../views/mdm/List.vue'),
+        meta: { title: '通用主数据' },
+      },
+      {
+        path: 'mdm/create',
+        name: 'MdmCreate',
+        component: () => import('../views/mdm/Form.vue'),
+        meta: { title: '新增主数据', mode: 'create' },
+      },
+      {
+        path: 'mdm/:id/edit',
+        name: 'MdmEdit',
+        component: () => import('../views/mdm/Form.vue'),
+        meta: { title: '编辑主数据', mode: 'edit' },
+      },
+      {
+        path: 'mdm-metadata',
+        name: 'MdmMetadata',
+        component: () => import('../views/mdm/MetadataManager.vue'),
+        meta: { title: '元数据管理' },
+      },
+      {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('../views/Dashboard.vue'),
