@@ -43,4 +43,5 @@ public class ChildType {
     public Long getId() { return id; }
     public Long getSystemId() { return systemId; }
     public Long getObjectTypeId() { return objectTypeId; }
+    public String getCode() { return code; }
 }

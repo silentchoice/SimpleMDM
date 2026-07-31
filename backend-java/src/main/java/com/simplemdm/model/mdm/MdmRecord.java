@@ -39,5 +39,6 @@ public class MdmRecord {
     public Long getObjectTypeId() { return objectTypeId; }
     public Long getDepartmentId() { return departmentId; }
     public String getRecordCode() { return recordCode; }
+    public String getStatus() { return status; }
     public long getVersion() { return version == null ? 0L : version; }
 }

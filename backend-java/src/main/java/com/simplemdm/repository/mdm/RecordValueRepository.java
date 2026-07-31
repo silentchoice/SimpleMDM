@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface RecordValueRepository extends JpaRepository<RecordValue, Long> {
     List<RecordValue> findByRecordId(Long recordId);
+    List<RecordValue> findByRecordIdIn(java.util.Collection<Long> recordIds);
     List<RecordValue> findByFieldDefinitionId(Long fieldDefinitionId);
     Optional<RecordValue> findByRecordIdAndFieldDefinitionId(Long recordId, Long fieldDefinitionId);
 }
