@@ -36,6 +36,12 @@ class ApprovalServiceSecurityTest {
         verifyNoInteractions(f.requests);
     }
 
+    @Test
+    void nullCommandIsBadRequest() {
+        Fixture f = new Fixture(12L);
+        assertThatThrownBy(() -> f.service.submit(null, 12L)).isInstanceOf(BusinessException.class);
+    }
+
     private static class Fixture {
         final ApprovalRequestRepository requests=mock(ApprovalRequestRepository.class);
         final ApprovalService service;

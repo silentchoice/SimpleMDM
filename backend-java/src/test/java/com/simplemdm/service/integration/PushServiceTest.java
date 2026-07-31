@@ -38,14 +38,6 @@ class PushServiceTest {
         service.publishRecordChanged(41L);
 
         verify(subscriptions).findActiveForEvent(7L, 8L, "RECORD_CHANGED");
-        ArgumentCaptor<PushLog> captor = ArgumentCaptor.forClass(PushLog.class);
-        verify(logs).save(captor.capture());
-        PushLog log = captor.getValue();
-        assertThat(log.getSystemId()).isEqualTo(7L);
-        assertThat(log.getSubscriptionId()).isEqualTo(901L);
-        assertThat(log.getRecordId()).isEqualTo(41L);
-        assertThat(log.getEventId()).isEqualTo("record:41:version:3");
-        assertThat(log.getRequestSnapshot()).hasSizeLessThanOrEqualTo(160);
-        assertThat(log.getRequestSnapshot()).contains("\"record_id\":41");
+        verify(logs).insertPendingIfAbsent(eq(7L), eq(901L), eq(41L), eq("record:41:version:3"), argThat(snapshot -> snapshot.length() <= 160 && snapshot.contains("\"record_id\":41")));
     }
 }

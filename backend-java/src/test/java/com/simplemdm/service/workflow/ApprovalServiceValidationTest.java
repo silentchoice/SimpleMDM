@@ -37,9 +37,9 @@ class ApprovalServiceValidationTest {
         when(f.requests.findById(100L)).thenReturn(Optional.of(request));when(f.records.findBySystemIdAndId(7L,41L)).thenReturn(Optional.of(record));
         when(f.assignments.existsActiveAssignment(7L,8L,9L,20L)).thenReturn(true);when(f.authorization.can(20L,"APPROVAL_REVIEW",9L)).thenReturn(true);
         when(f.fields.findByObjectTypeId(8L)).thenReturn(List.of(reference));when(f.changes.findByApprovalRequestId(100L)).thenReturn(List.of(change));
-        when(f.writer.apply(eq(20L),eq(41L),eq(3L),anyMap())).thenReturn(new RecordView(41L,7L,8L,9L,"EMP",4L));
+        when(f.writer.apply(eq(request),eq(20L),eq(3L),anyMap())).thenReturn(new RecordView(41L,7L,8L,9L,"EMP",4L));
         f.service.approve(100L,20L,3L);
-        verify(f.writer).apply(20L,41L,3L,Map.of("manager",new TypedValueConverter.ReferenceValue(77L,10L,7L)));
+        verify(f.writer).apply(request,20L,3L,Map.of("manager",new TypedValueConverter.ReferenceValue(77L,10L,7L)));
     }
 
     private static class Fixture {

@@ -1,13 +1,7 @@
 package com.simplemdm.service.mdm;
-
-import org.springframework.stereotype.Component;
-import java.util.Map;
-
-@Component
-final class RecordServiceApprovedWriter implements ApprovedRecordWriter {
-    private final RecordService records;
-    RecordServiceApprovedWriter(RecordService records) { this.records = records; }
-    public RecordView apply(Long actorId, Long recordId, long expectedVersion, Map<String, Object> data) {
-        return records.applyApprovedUpdate(actorId, recordId, expectedVersion, data);
-    }
+import com.simplemdm.exception.BusinessException;import com.simplemdm.model.mdm.MdmRecord;import com.simplemdm.model.workflow.ApprovalRequest;import com.simplemdm.repository.mdm.MdmRecordRepository;import com.simplemdm.repository.workflow.ApproverAssignmentRepository;import com.simplemdm.service.system.AuthorizationService;import org.springframework.stereotype.Component;import java.util.Map;
+@Component final class RecordServiceApprovedWriter implements ApprovedRecordWriter {
+ private final RecordService service;private final CurrentUserProvider current;private final ApproverAssignmentRepository assignments;private final AuthorizationService authorization;private final MdmRecordRepository records;
+ RecordServiceApprovedWriter(RecordService service,CurrentUserProvider current,ApproverAssignmentRepository assignments,AuthorizationService authorization,MdmRecordRepository records){this.service=service;this.current=current;this.assignments=assignments;this.authorization=authorization;this.records=records;}
+ public RecordView apply(ApprovalRequest request,Long actor,long expectedVersion,Map<String,Object> data){Long authenticated=current.currentSystemUserId().orElseThrow(()->new BusinessException(401,"No authenticated system user"));if(!authenticated.equals(actor))throw new BusinessException(403,"Approval actor is not authenticated");MdmRecord record=records.findBySystemIdAndId(request.getSystemId(),request.getRecordId()).orElseThrow(()->new BusinessException(404,"Record not found"));if(!record.getObjectTypeId().equals(request.getObjectTypeId())||!record.getDepartmentId().equals(request.getDepartmentId()))throw new BusinessException(409,"Approval target mismatch");if(!assignments.existsActiveAssignment(request.getSystemId(),request.getObjectTypeId(),request.getDepartmentId(),actor)||!authorization.can(actor,"APPROVAL_REVIEW",request.getDepartmentId()))throw new BusinessException(403,"Approval capability denied");return service.applyApprovedUpdate(actor,record.getId(),expectedVersion,data);}
 }

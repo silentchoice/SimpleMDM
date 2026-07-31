@@ -122,7 +122,7 @@ class ApprovalServiceTest {
         when(fields.findByObjectTypeId(8L)).thenReturn(List.of(salary));
         when(changes.findByApprovalRequestId(100L)).thenReturn(List.of(ApprovalChange.create(7L, 100L, 55L, TypedValue.empty(), new TypedValue(null, null, null, new BigDecimal("125.50"), null, null, null, null))));
         RecordView expected = new RecordView(41L, 7L, 8L, 9L, "EMP-41", 4L);
-        when(writer.apply(20L, 41L, 3L, Map.of("salary", new BigDecimal("125.50")))).thenReturn(expected);
+        when(writer.apply(eq(request), eq(20L), eq(3L), eq(Map.of("salary", new BigDecimal("125.50"))))).thenReturn(expected);
 
         RecordView actual = service.approve(100L, 20L, 3L);
 

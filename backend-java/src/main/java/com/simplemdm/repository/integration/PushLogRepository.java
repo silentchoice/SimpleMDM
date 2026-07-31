@@ -1,2 +1,9 @@
-package com.simplemdm.repository.integration; import com.simplemdm.model.integration.PushLog; import org.springframework.data.jpa.repository.JpaRepository;
-public interface PushLogRepository extends JpaRepository<PushLog,Long>{ boolean existsBySubscriptionIdAndEventId(Long subscriptionId,String eventId); }
+package com.simplemdm.repository.integration;
+import com.simplemdm.model.integration.PushLog;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
+public interface PushLogRepository extends JpaRepository<PushLog,Long>{
+ @Modifying
+ @Query(value="INSERT IGNORE INTO sys_push_log(system_id,subscription_id,record_id,event_id,status,retry_count,request_snapshot,created_at) VALUES (:systemId,:subscriptionId,:recordId,:eventId,'pending',0,:snapshot,CURRENT_TIMESTAMP)",nativeQuery=true)
+ int insertPendingIfAbsent(@Param("systemId")Long systemId,@Param("subscriptionId")Long subscriptionId,@Param("recordId")Long recordId,@Param("eventId")String eventId,@Param("snapshot")String snapshot);
+}
