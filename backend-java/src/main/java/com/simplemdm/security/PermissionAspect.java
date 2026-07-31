@@ -34,26 +34,14 @@ public class PermissionAspect {
             response.getWriter().write("{\"code\":401,\"message\":\"请先登录\",\"data\":null}");
             return null;
         }
-
-        // Admin can bypass VIEW checks but NOT EDIT checks
-        if ("EDIT".equals(requirePerm.value()) && Boolean.TRUE.equals(user.getIsAdmin())) {
-            response.setStatus(403);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":403,\"message\":\"管理员无编辑权限\",\"data\":null}");
-            return null;
-        }
-
-        // Admin can VIEW everything
-        if ("VIEW".equals(requirePerm.value()) && Boolean.TRUE.equals(user.getIsAdmin())) {
-            return pjp.proceed();
-        }
+        // System-scoped authorization is evaluated by AuthorizationService for new MDM operations.
 
         List<SysUserPermission> perms = permRepo.findByUserIdAndPermType(user.getId(), requirePerm.value());
         if (perms.isEmpty()) {
             response.setStatus(403);
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":403,\"message\":\"无" +
-                ("EDIT".equals(requirePerm.value()) ? "编辑" : "查看") + "权限\",\"data\":null}");
+            response.getWriter().write("{\"code\":403,\"message\":\"\u65e0" +
+                ("EDIT".equals(requirePerm.value()) ? "\u7f16\u8f91" : "\u67e5\u770b") + "\u6743\u9650\",\"data\":null}");
             return null;
         }
 

@@ -135,6 +135,22 @@ public class User {
         return system;
     }
 
+    public Long getSystemId() {
+        return system.getId();
+    }
+
+    public Long getDepartmentId() {
+        return departmentId;
+    }
+
+    public boolean isSystemAdmin() {
+        return systemAdmin;
+    }
+
+    public void makeSystemAdmin() {
+        systemAdmin = true;
+    }
+
     public Department getDepartment() {
         return department;
     }

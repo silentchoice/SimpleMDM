@@ -1,6 +1,8 @@
 package com.simplemdm.security;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtBuilder;
+import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -22,23 +24,38 @@ public class JwtUtil {
     }
 
     public String createToken(Long userId) {
+        return createToken(userId, null);
+    }
+
+    public String createToken(Long userId, Long systemId) {
         Date now = new Date();
-        return Jwts.builder()
-                .subject(String.valueOf(userId))
+        JwtBuilder builder = Jwts.builder()
+                .claim("user_id", userId)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMs))
-                .signWith(key)
-                .compact();
+                .signWith(key);
+        if (systemId != null) {
+            builder.claim("system_id", systemId);
+        }
+        return builder.compact();
     }
 
     public Long getUserIdFromToken(String token) {
+        return claim(token, "user_id");
+    }
+
+    public Long getSystemIdFromToken(String token) {
+        return claim(token, "system_id");
+    }
+
+    private Long claim(String token, String claimName) {
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(key)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            return Long.parseLong(claims.getSubject());
+            return claims.get(claimName, Long.class);
         } catch (Exception e) {
             return null;
         }

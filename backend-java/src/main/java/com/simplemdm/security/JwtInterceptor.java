@@ -16,6 +16,7 @@ public class JwtInterceptor implements HandlerInterceptor {
     private final SysUserRepository userRepo;
 
     public static final ThreadLocal<SysUser> CURRENT_USER = new ThreadLocal<>();
+    public static final ThreadLocal<Long> CURRENT_SYSTEM_ID = new ThreadLocal<>();
 
     public JwtInterceptor(JwtUtil jwtUtil, SysUserRepository userRepo) {
         this.jwtUtil = jwtUtil;
@@ -55,11 +56,13 @@ public class JwtInterceptor implements HandlerInterceptor {
         }
 
         CURRENT_USER.set(userOpt.get());
+        CURRENT_SYSTEM_ID.set(jwtUtil.getSystemIdFromToken(token));
         return true;
     }
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
         CURRENT_USER.remove();
+        CURRENT_SYSTEM_ID.remove();
     }
 }
