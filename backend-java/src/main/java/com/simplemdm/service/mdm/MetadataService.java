@@ -67,6 +67,9 @@ public class MetadataService {
         if (command.maxLength() != null && command.dataType() != FieldDataType.STRING && command.dataType() != FieldDataType.TEXT) {
             throw new BusinessException(400, "Max length applies only to string or text fields");
         }
+        if (command.dataType() == FieldDataType.DECIMAL && (command.precision() == null) != (command.scale() == null)) {
+            throw new BusinessException(400, "Decimal precision and scale must be configured together");
+        }
         if ((command.precision() != null || command.scale() != null) && command.dataType() != FieldDataType.DECIMAL) {
             throw new BusinessException(400, "Precision and scale apply only to decimal fields");
         }

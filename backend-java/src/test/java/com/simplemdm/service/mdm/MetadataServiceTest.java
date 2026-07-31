@@ -106,6 +106,31 @@ class MetadataServiceTest {
             .isEqualTo(409);
     }
 
+    @Test
+    void requiresDecimalPrecisionAndScaleToBeConfiguredTogether() {
+        assertThatThrownBy(() -> service.createField(100L, new CreateFieldCommand(
+            "precision_only", "Precision only", FieldDataType.DECIMAL, false, false, false, false,
+            null, 5, null, null, null, null, 0)))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("together");
+        assertThatThrownBy(() -> service.createField(100L, new CreateFieldCommand(
+            "scale_only", "Scale only", FieldDataType.DECIMAL, false, false, false, false,
+            null, null, 2, null, null, null, 0)))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("together");
+    }
+
+    @Test
+    void permitsDecimalDefinitionsWithBothDimensionsAbsentOrPresent() {
+        given(fields.saveAndFlush(any(FieldDefinition.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.createField(100L, new CreateFieldCommand(
+            "default_decimal", "Default decimal", FieldDataType.DECIMAL, false, false, false, false,
+            null, null, null, null, null, null, 0))).isNotNull();
+        assertThat(service.createField(100L, new CreateFieldCommand(
+            "configured_decimal", "Configured decimal", FieldDataType.DECIMAL, false, false, false, false,
+            null, 5, 2, null, null, null, 0))).isNotNull();
+    }
     private CreateFieldCommand command(String fieldKey, FieldDataType dataType) {
         return new CreateFieldCommand(fieldKey, "Employee code", dataType, false, true, true, false,
             32, null, null, null, null, null, 0);

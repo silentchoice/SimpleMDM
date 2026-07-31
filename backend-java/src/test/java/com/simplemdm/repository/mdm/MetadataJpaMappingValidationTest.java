@@ -5,6 +5,7 @@ import com.simplemdm.model.mdm.ChildType;
 import com.simplemdm.model.mdm.FieldDefinition;
 import com.simplemdm.model.mdm.ObjectType;
 import com.simplemdm.model.system.SystemEntity;
+import jakarta.persistence.Column;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.flywaydb.core.Flyway;
@@ -19,6 +20,17 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class MetadataJpaMappingValidationTest {
+
+    @Test
+    void marksEveryV1RequiredFieldDefinitionColumnNonNull() throws Exception {
+        for (String fieldName : new String[]{
+            "systemId", "objectTypeId", "fieldKey", "fieldName", "dataType", "required", "uniqueValue",
+            "searchable", "shared", "sortOrder", "status", "createdAt", "updatedAt", "version"
+        }) {
+            Column column = FieldDefinition.class.getDeclaredField(fieldName).getAnnotation(Column.class);
+            assertThat(column.nullable()).as(fieldName).isFalse();
+        }
+    }
 
     @Test
     void validatesMetadataMappingsAndConstructsRepositoriesAgainstV1() {

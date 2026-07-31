@@ -13,21 +13,21 @@ import java.time.LocalDateTime;
 public class FieldDefinition {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
-    @Column(name = "system_id") private Long systemId;
-    @Column(name = "object_type_id") private Long objectTypeId;
+    @Column(name = "system_id", nullable = false) private Long systemId;
+    @Column(name = "object_type_id", nullable = false) private Long objectTypeId;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumns(value = {
         @JoinColumn(name = "system_id", referencedColumnName = "system_id", insertable = false, updatable = false),
         @JoinColumn(name = "object_type_id", referencedColumnName = "id", insertable = false, updatable = false)
     }, foreignKey = @ForeignKey(name = "fk_field_object_system"))
     private ObjectType objectType;
-    @Column(name = "field_key", length = 64) private String fieldKey;
-    @Column(name = "field_name", length = 128) private String fieldName;
-    @Enumerated(EnumType.STRING) @Column(name = "data_type", length = 16) private FieldDataType dataType;
+    @Column(name = "field_key", nullable = false, length = 64) private String fieldKey;
+    @Column(name = "field_name", nullable = false, length = 128) private String fieldName;
+    @Enumerated(EnumType.STRING) @Column(name = "data_type", nullable = false, length = 16) private FieldDataType dataType;
     @Column(nullable = false) private boolean required;
-    @Column(name = "unique_value") private boolean uniqueValue;
-    @Column private boolean searchable;
-    @Column private boolean shared;
+    @Column(name = "unique_value", nullable = false) private boolean uniqueValue;
+    @Column(nullable = false) private boolean searchable;
+    @Column(nullable = false) private boolean shared;
     @Column(name = "max_length") private Integer maxLength;
     @Column(name = "precision_value") private Integer precision;
     @Column(name = "scale_value") private Integer scale;
@@ -40,13 +40,13 @@ public class FieldDefinition {
     private ObjectType referenceObjectType;
     @Column(name = "default_value", length = 2048) private String defaultValue;
     @Column(name = "validation_rule", length = 2048) private String validationRule;
-    @Column(name = "sort_order") private int sortOrder;
-    @Column(length = 32) private String status;
-    @Column(name = "created_at") private LocalDateTime createdAt;
+    @Column(name = "sort_order", nullable = false) private int sortOrder;
+    @Column(nullable = false, length = 32) private String status;
+    @Column(name = "created_at", nullable = false) private LocalDateTime createdAt;
     @Column(name = "created_by") private Long createdBy;
-    @Column(name = "updated_at") private LocalDateTime updatedAt;
+    @Column(name = "updated_at", nullable = false) private LocalDateTime updatedAt;
     @Column(name = "updated_by") private Long updatedBy;
-    @Version @Column private Long version;
+    @Version @Column(nullable = false) private Long version;
 
     protected FieldDefinition() { }
 
