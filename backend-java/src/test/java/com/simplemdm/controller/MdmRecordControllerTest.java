@@ -201,6 +201,35 @@ class MdmRecordControllerTest {
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.code").value(409));
     }
+    @Test
+    void rejectsMissingOrNullVersionAndMalformedJsonAsBadRequest() throws Exception {
+        mockMvc.perform(put("/api/mdm/object-types/person/records").contentType(APPLICATION_JSON)
+                .content("""
+                    {"id":42,"data":{}}
+                    """))
+            .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/mdm/object-types/person/records").contentType(APPLICATION_JSON)
+                .content("""
+                    {"id":42,"version":null,"data":{}}
+                    """))
+            .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/mdm/object-types/person/records").contentType(APPLICATION_JSON)
+                .content("{"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void hidesRecordWhenMainPutRouteObjectTypeDoesNotMatchPersistedRecord() throws Exception {
+        MdmRecord otherType = mock(MdmRecord.class);
+        given(otherType.getObjectTypeId()).willReturn(999L);
+        given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.of(otherType));
+        mockMvc.perform(put("/api/mdm/object-types/person/records").contentType(APPLICATION_JSON)
+                .content("""
+                    {"id":42,"version":0,"data":{}}
+                    """))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value(404));
+    }
     private MdmRecord parentRecord() {
         MdmRecord parent = mock(MdmRecord.class);
         given(parent.getSystemId()).willReturn(10L);

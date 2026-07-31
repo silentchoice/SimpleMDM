@@ -26,6 +26,7 @@ import com.simplemdm.service.mdm.CreateRecordCommand;
 import com.simplemdm.service.mdm.RecordService;
 import com.simplemdm.service.mdm.RecordView;
 import com.simplemdm.service.system.AuthorizationService;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -85,7 +86,7 @@ public class MdmRecordController {
     }
 
     @PostMapping("/object-types/{objectCode}/records")
-    public ApiResponse create(@PathVariable String objectCode, @RequestBody CreateRecordRequest request) {
+    public ApiResponse create(@PathVariable String objectCode, @Validated(CreateRecordRequest.Create.class) @RequestBody CreateRecordRequest request) {
         User user = SystemController.currentUser();
         ObjectType objectType = requiredObjectType(user, objectCode);
         requireCreateRequest(request);
@@ -95,7 +96,7 @@ public class MdmRecordController {
     }
 
     @PutMapping("/object-types/{objectCode}/records")
-    public ApiResponse update(@PathVariable String objectCode, @RequestBody CreateRecordRequest request) {
+    public ApiResponse update(@PathVariable String objectCode, @Validated(CreateRecordRequest.Update.class) @RequestBody CreateRecordRequest request) {
         User user = SystemController.currentUser();
         ObjectType routeType = requiredObjectType(user, objectCode);
         if (request == null || request.id() == null || request.version() == null || request.data() == null) {
