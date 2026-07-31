@@ -16,6 +16,8 @@ vi.mock('../../api/mdm', () => ({
 describe('generic MDM form', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    route.meta = { mode: 'create' }
+    route.params = {}
     setActivePinia(createPinia())
     localStorage.setItem('permissions', JSON.stringify([{ code: 'MDM_RECORD_EDIT', can_edit: true }]))
     listObjectTypes.mockResolvedValue({ data: [{ code: 'person', fields: [
@@ -62,5 +64,28 @@ describe('generic MDM form', () => {
     await wrapper.get('[data-test="save"]').trigger('click')
     await flushPromises()
     expect(updateRecord).toHaveBeenCalledWith('person', expect.objectContaining({ id: 12, version: 3 }))
+  })
+
+  it('disables saving and shows an error when metadata loading fails', async () => {
+    listObjectTypes.mockRejectedValue(new Error('metadata offline'))
+    const wrapper = mount(Form, { global: { plugins: [ElementPlus, createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('metadata offline')
+    expect(wrapper.get('[data-test="save"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('guards duplicate saves and exposes save failure', async () => {
+    let rejectSave
+    createRecord.mockReturnValue(new Promise((_resolve, reject) => { rejectSave = reject }))
+    const wrapper = mount(Form, { global: { plugins: [ElementPlus, createPinia()] } })
+    await flushPromises()
+    wrapper.vm.form.record_code = 'P003'
+    wrapper.vm.form.data.name = '失败记录'
+    const first = wrapper.vm.save()
+    wrapper.vm.save()
+    expect(createRecord).toHaveBeenCalledTimes(1)
+    rejectSave(new Error('save offline'))
+    await first
+    expect(wrapper.text()).toContain('save offline')
   })
 })

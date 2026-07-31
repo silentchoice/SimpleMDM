@@ -3,7 +3,7 @@
     <el-option label="是" :value="true" /><el-option label="否" :value="false" />
   </el-select>
   <el-input-number v-else-if="type === 'INTEGER'" :model-value="numberValue" :precision="0" @update:model-value="update" />
-  <el-input-number v-else-if="type === 'DECIMAL'" :model-value="numberValue" :precision="field.scale_value ?? 2" @update:model-value="update" />
+  <el-input v-else-if="type === 'DECIMAL'" :model-value="modelValue" inputmode="decimal" @update:model-value="update" />
   <el-date-picker v-else-if="type === 'DATE'" :model-value="modelValue" type="date" value-format="YYYY-MM-DD" @update:model-value="update" />
   <el-select v-else-if="type === 'REFERENCE'" :model-value="modelValue" filterable clearable @update:model-value="update">
     <el-option v-for="option in options" :key="option.id" :label="option.label || option.record_code || option.id" :value="option.id" />
