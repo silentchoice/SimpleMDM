@@ -61,7 +61,7 @@ public class RecordService {
     public RecordView create(CreateRecordCommand command) { return createAs(authenticatedSystemUser(), command); }
 
     @Transactional
-    public RecordView createAs(Long userId, CreateRecordCommand command) {
+    RecordView createAs(Long userId, CreateRecordCommand command) {
         validateCommand(command);
         ObjectType objectType = objectTypes.findById(command.objectTypeId())
             .orElseThrow(() -> new BusinessException(404, "Object type not found"));
@@ -89,7 +89,7 @@ public class RecordService {
     }
 
     @Transactional
-    public RecordView updateAs(Long userId, Long id, long version, Map<String, Object> data) {
+    RecordView updateAs(Long userId, Long id, long version, Map<String, Object> data) {
         if (id == null || data == null) throw new BusinessException(400, "Record ID and data are required");
         MdmRecord record = records.findById(id).orElseThrow(() -> new BusinessException(404, "Record not found"));
         authorize(userId, record.getDepartmentId());
@@ -122,7 +122,7 @@ public class RecordService {
     }
 
     @Transactional
-    public ChildRecordView createChildAs(Long userId, CreateChildRecordCommand command) {
+    ChildRecordView createChildAs(Long userId, CreateChildRecordCommand command) {
         if (command == null || command.parentRecordId() == null || command.childTypeId() == null || command.data() == null) {
             throw new BusinessException(400, "Parent record, child type, and data are required");
         }
@@ -144,9 +144,19 @@ public class RecordService {
                 new CreateFieldCommand(field.getFieldKey(), field.getFieldKey(), field.getDataType(), field.isRequired(),
                     field.isUniqueValue(), false, false, field.getMaxLength(), field.getPrecision(), field.getScale(),
                     field.getReferenceObjectTypeId(), null, null, 0), null);
-            typed.put(field, converter.convert(validationField, command.data().get(field.getFieldKey())));
+            Object raw = command.data().get(field.getFieldKey());
+            TypedValue value = converter.convert(validationField, raw);
+            validateChildReference(field, raw);
+            typed.put(field, value);
         }
         if (!keys.containsAll(command.data().keySet())) throw new BusinessException(400, "Unknown child field key");
+        for (Map.Entry<ChildFieldDefinition, TypedValue> entry : typed.entrySet()) {
+            if (entry.getKey().isUniqueValue() && entry.getValue().nonNullValueCount() > 0
+                && Optional.ofNullable(childValues.findByFieldDefinitionId(entry.getKey().getId())).orElse(List.of()).stream()
+                    .anyMatch(existing -> existing.typedValue().equals(entry.getValue()))) {
+                throw new BusinessException(409, "Duplicate value for unique child field");
+            }
+        }
         ChildRecord child = childRecords.saveAndFlush(ChildRecord.create(parent, childType, 0, userId));
         childValues.saveAll(typed.entrySet().stream()
             .map(entry -> ChildRecordValue.create(child, entry.getKey(), entry.getValue(), userId)).toList());
@@ -181,7 +191,7 @@ public class RecordService {
             .anyMatch(existing -> existing.typedValue().equals(value));
     }
 
-    private Long recordId(RecordValue ignored) { return null; }
+    private Long recordId(RecordValue value) { return value.getRecordId(); }
     private boolean isUnique(FieldDefinition field) {
         try { java.lang.reflect.Field uniqueValue = FieldDefinition.class.getDeclaredField("uniqueValue"); uniqueValue.setAccessible(true); return Boolean.TRUE.equals(uniqueValue.get(field)); }
         catch (ReflectiveOperationException exception) { throw new IllegalStateException("Field definition mapping is incomplete", exception); }
@@ -197,6 +207,17 @@ public class RecordService {
         }
     }
 
+    private void validateChildReference(ChildFieldDefinition field, Object raw) {
+        if (field.getDataType() != FieldDataType.REFERENCE || raw == null || raw instanceof String text && text.isBlank()) return;
+        TypedValueConverter.ReferenceValue reference = raw instanceof TypedValueConverter.ReferenceValue value ? value
+            : throwBadReference();
+        MdmRecord target = records.findById(reference.recordId())
+            .orElseThrow(() -> new BusinessException(404, "Referenced record not found"));
+        if (!field.getSystemId().equals(target.getSystemId())
+            || !field.getReferenceObjectTypeId().equals(target.getObjectTypeId())) {
+            throw new BusinessException(400, "Referenced record must match the field system and object type");
+        }
+    }
     private TypedValueConverter.ReferenceValue throwBadReference() { throw new BusinessException(400, "Value does not match field data type"); }
     private Map<String, FieldDefinition> index(List<FieldDefinition> definitions) {
         Map<String, FieldDefinition> result = new HashMap<>();

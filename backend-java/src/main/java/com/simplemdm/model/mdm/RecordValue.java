@@ -38,6 +38,7 @@ public class RecordValue {
     }
     @PrePersist void onCreate() { LocalDateTime now = LocalDateTime.now(); createdAt = now; updatedAt = now; }
     @PreUpdate void onUpdate() { updatedAt = LocalDateTime.now(); }
+    public Long getRecordId() { return recordId; }
     public Long getFieldDefinitionId() { return fieldDefinitionId; }
     public int nonNullValueCount() { return typedValue().nonNullValueCount(); }
     public TypedValue typedValue() { return new TypedValue(stringValue, textValue, integerValue, decimalValue, booleanValue, dateValue, datetimeValue, referenceRecordId); }

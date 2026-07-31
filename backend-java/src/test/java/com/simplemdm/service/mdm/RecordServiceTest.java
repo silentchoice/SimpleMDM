@@ -236,6 +236,88 @@ class RecordServiceTest {
         verify(childValues, never()).saveAll(any());
     }
 
+    @Test
+    void updatingAnUnchangedUniqueValueOnTheSameRecordSucceeds() {
+        FieldDefinition code = uniqueField("employee_code", FieldDataType.STRING);
+        ReflectionTestUtils.setField(code, "id", 301L);
+        MdmRecord existing = parentRecord();
+        ReflectionTestUtils.setField(existing, "version", 4L);
+        RecordValue value = RecordValue.create(existing, code,
+            new com.simplemdm.model.mdm.TypedValue("E-001", null, null, null, null, null, null, null), 7L);
+        given(records.findById(900L)).willReturn(Optional.of(existing));
+        given(fields.findByObjectTypeId(100L)).willReturn(List.of(code));
+        given(values.findByFieldDefinitionId(301L)).willReturn(List.of(value));
+        given(values.findByRecordIdAndFieldDefinitionId(900L, 301L)).willReturn(Optional.of(value));
+
+        service.updateAs(7L, 900L, 4L, Map.of("employee_code", "E-001"));
+
+        verify(values).saveAll(any());
+    }
+
+    @Test
+    void updatingAUniqueValueAlreadyOwnedByAnotherRecordIsRejectedBeforeChanges() {
+        FieldDefinition code = uniqueField("employee_code", FieldDataType.STRING);
+        ReflectionTestUtils.setField(code, "id", 301L);
+        MdmRecord existing = parentRecord();
+        ReflectionTestUtils.setField(existing, "version", 4L);
+        MdmRecord other = MdmRecord.create(10L, person, 100L, department, "P-2", 7L);
+        ReflectionTestUtils.setField(other, "id", 901L);
+        RecordValue otherValue = RecordValue.create(other, code,
+            new com.simplemdm.model.mdm.TypedValue("E-001", null, null, null, null, null, null, null), 7L);
+        given(records.findById(900L)).willReturn(Optional.of(existing));
+        given(fields.findByObjectTypeId(100L)).willReturn(List.of(code));
+        given(values.findByFieldDefinitionId(301L)).willReturn(List.of(otherValue));
+
+        assertThatThrownBy(() -> service.updateAs(7L, 900L, 4L, Map.of("employee_code", "E-001")))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("Duplicate");
+
+        verify(values, never()).saveAll(any());
+    }
+
+    @Test
+    void childWriteRejectsDuplicateUniqueValueBeforePersisting() {
+        MdmRecord parent = parentRecord();
+        ChildType childType = childType(person);
+        ChildFieldDefinition number = childField(childType, "number", FieldDataType.STRING, true, true, null);
+        ReflectionTestUtils.setField(number, "id", 302L);
+        ChildRecord otherChild = ChildRecord.create(parent, childType, 0, 7L);
+        ReflectionTestUtils.setField(otherChild, "id", 902L);
+        ChildRecordValue otherValue = ChildRecordValue.create(otherChild, number,
+            new com.simplemdm.model.mdm.TypedValue("123", null, null, null, null, null, null, null), 7L);
+        given(records.findById(900L)).willReturn(Optional.of(parent));
+        given(childTypes.findById(200L)).willReturn(Optional.of(childType));
+        given(childFields.findByChildTypeId(200L)).willReturn(List.of(number));
+        given(childValues.findByFieldDefinitionId(302L)).willReturn(List.of(otherValue));
+
+        assertThatThrownBy(() -> service.createChildAs(7L, new CreateChildRecordCommand(900L, 200L, Map.of("number", "123"))))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("Duplicate");
+
+        verify(childRecords, never()).saveAndFlush(any());
+        verify(childValues, never()).saveAll(any());
+    }
+
+    @Test
+    void childWriteRejectsReferenceToWrongObjectTypeBeforePersisting() {
+        MdmRecord parent = parentRecord();
+        ChildType childType = childType(person);
+        ChildFieldDefinition reference = childField(childType, "manager", FieldDataType.REFERENCE, true, false, 999L);
+        MdmRecord wrongTarget = MdmRecord.create(10L, person, 888L, department, "P-2", 7L);
+        ReflectionTestUtils.setField(wrongTarget, "id", 777L);
+        given(records.findById(900L)).willReturn(Optional.of(parent));
+        given(records.findById(777L)).willReturn(Optional.of(wrongTarget));
+        given(childTypes.findById(200L)).willReturn(Optional.of(childType));
+        given(childFields.findByChildTypeId(200L)).willReturn(List.of(reference));
+
+        assertThatThrownBy(() -> service.createChildAs(7L, new CreateChildRecordCommand(900L, 200L,
+            Map.of("manager", new TypedValueConverter.ReferenceValue(777L, 999L, 10L)))))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("Referenced record");
+
+        verify(childRecords, never()).saveAndFlush(any());
+        verify(childValues, never()).saveAll(any());
+    }
     private MdmRecord parentRecord() {
         MdmRecord parent = MdmRecord.create(10L, person, 100L, department, "P-1", 7L);
         ReflectionTestUtils.setField(parent, "id", 900L);
@@ -252,6 +334,16 @@ class RecordServiceTest {
             "employee_code", "E-001", "age", 35, "active", true));
     }
 
+    private FieldDefinition uniqueField(String key, FieldDataType type) {
+        return FieldDefinition.create(100L, person, new CreateFieldCommand(key, key, type, true,
+            true, false, false, 64, null, null, null, null, null, 0), null);
+    }
+
+    private ChildFieldDefinition childField(ChildType childType, String key, FieldDataType type, boolean required,
+                                            boolean unique, Long referenceObjectTypeId) {
+        return ChildFieldDefinition.create(200L, childType, new CreateFieldCommand(key, key, type, required,
+            unique, false, false, 64, null, null, referenceObjectTypeId, null, null, 0), null);
+    }
     private FieldDefinition field(String key, FieldDataType type, boolean required) {
         return FieldDefinition.create(100L, person, new CreateFieldCommand(key, key, type, required,
             false, false, false, 64, null, null, null, null, null, 0), null);

@@ -35,6 +35,8 @@ public class ChildRecordValue {
     public static ChildRecordValue create(ChildRecord child, ChildFieldDefinition field, TypedValue value, Long actorId) {
         return new ChildRecordValue(child, field, value, actorId);
     }
+    public Long getChildRecordId() { return childRecordId; }
+    public TypedValue typedValue() { return new TypedValue(stringValue, textValue, integerValue, decimalValue, booleanValue, dateValue, datetimeValue, referenceRecordId); }
     public int nonNullValueCount() {
         return new TypedValue(stringValue, textValue, integerValue, decimalValue, booleanValue, dateValue, datetimeValue, referenceRecordId).nonNullValueCount();
     }

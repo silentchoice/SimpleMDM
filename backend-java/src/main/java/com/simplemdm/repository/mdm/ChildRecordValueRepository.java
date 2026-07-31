@@ -3,4 +3,6 @@ package com.simplemdm.repository.mdm;
 import com.simplemdm.model.mdm.ChildRecordValue;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface ChildRecordValueRepository extends JpaRepository<ChildRecordValue, Long> { }
+public interface ChildRecordValueRepository extends JpaRepository<ChildRecordValue, Long> {
+    java.util.List<ChildRecordValue> findByFieldDefinitionId(Long fieldDefinitionId);
+}
