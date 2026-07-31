@@ -1,0 +1,140 @@
+package com.simplemdm.service.workflow;
+
+import com.simplemdm.exception.BusinessException;
+import com.simplemdm.model.mdm.FieldDefinition;
+import com.simplemdm.model.mdm.MdmRecord;
+import com.simplemdm.model.mdm.RecordValue;
+import com.simplemdm.model.mdm.TypedValue;
+import com.simplemdm.model.workflow.ApprovalChange;
+import com.simplemdm.model.workflow.ApprovalRequest;
+import com.simplemdm.repository.mdm.FieldDefinitionRepository;
+import com.simplemdm.repository.mdm.MdmRecordRepository;
+import com.simplemdm.repository.mdm.RecordValueRepository;
+import com.simplemdm.repository.workflow.ApprovalActionRepository;
+import com.simplemdm.repository.workflow.ApprovalChangeRepository;
+import com.simplemdm.repository.workflow.ApprovalRequestRepository;
+import com.simplemdm.repository.workflow.ApproverAssignmentRepository;
+import com.simplemdm.service.mdm.RecordService;
+import com.simplemdm.service.mdm.RecordView;
+import com.simplemdm.service.mdm.UpdateRecordCommand;
+import com.simplemdm.service.system.AuthorizationService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+class ApprovalServiceTest {
+    private final ApprovalRequestRepository requests = mock(ApprovalRequestRepository.class);
+    private final ApprovalChangeRepository changes = mock(ApprovalChangeRepository.class);
+    private final ApprovalActionRepository actions = mock(ApprovalActionRepository.class);
+    private final ApproverAssignmentRepository assignments = mock(ApproverAssignmentRepository.class);
+    private final MdmRecordRepository records = mock(MdmRecordRepository.class);
+    private final RecordValueRepository values = mock(RecordValueRepository.class);
+    private final FieldDefinitionRepository fields = mock(FieldDefinitionRepository.class);
+    private final AuthorizationService authorization = mock(AuthorizationService.class);
+    private final RecordService recordService = mock(RecordService.class);
+    private ApprovalService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new ApprovalService(requests, changes, actions, assignments, records, values, fields,
+            authorization, recordService);
+    }
+
+    @Test
+    void submitStoresOneRelationalTypedChangePerChangedField() {
+        MdmRecord record = record(41L, 7L, 8L, 9L, 3L);
+        FieldDefinition salary = field(55L, "salary");
+        RecordValue oldSalary = mock(RecordValue.class);
+        when(oldSalary.getFieldDefinitionId()).thenReturn(55L);
+        when(oldSalary.typedValue()).thenReturn(new TypedValue(null, null, null,
+            new BigDecimal("100.00"), null, null, null, null));
+        when(records.findBySystemIdAndId(7L, 41L)).thenReturn(Optional.of(record));
+        when(fields.findByObjectTypeId(8L)).thenReturn(List.of(salary));
+        when(values.findByRecordId(41L)).thenReturn(List.of(oldSalary));
+        AtomicLong ids = new AtomicLong(100);
+        when(requests.save(any())).thenAnswer(invocation -> {
+            ApprovalRequest request = invocation.getArgument(0);
+            ReflectionTestUtils.setField(request, "id", ids.getAndIncrement());
+            return request;
+        });
+        when(changes.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Long requestId = service.submit(new UpdateRecordCommand(
+            7L, 8L, 41L, 9L, 3L, Map.of("salary", new BigDecimal("125.50"))), 12L);
+
+        ArgumentCaptor<List<ApprovalChange>> captor = ArgumentCaptor.forClass(List.class);
+        verify(changes).saveAll(captor.capture());
+        assertThat(requestId).isEqualTo(100L);
+        assertThat(captor.getValue()).singleElement().satisfies(change -> {
+            assertThat(change.getFieldDefinitionId()).isEqualTo(55L);
+            assertThat(change.oldValue().decimalValue()).isEqualByComparingTo("100.00");
+            assertThat(change.newValue().decimalValue()).isEqualByComparingTo("125.50");
+        });
+    }
+
+    @Test
+    void approveRejectsStaleRecordVersionBeforeApplyingChanges() {
+        ApprovalRequest request = ApprovalRequest.pending(7L, 8L, 41L, 9L, 12L, 3L);
+        ReflectionTestUtils.setField(request, "id", 100L);
+        MdmRecord record = record(41L, 7L, 8L, 9L, 4L);
+        when(requests.findById(100L)).thenReturn(Optional.of(request));
+        when(records.findBySystemIdAndId(7L, 41L)).thenReturn(Optional.of(record));
+
+        assertThatThrownBy(() -> service.approve(100L, 20L, 3L))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("version");
+        verifyNoInteractions(recordService);
+    }
+
+    @Test
+    void approveRequiresActiveAssignmentPermissionAndMatchingSystemBeforeUpdate() {
+        ApprovalRequest request = ApprovalRequest.pending(7L, 8L, 41L, 9L, 12L, 3L);
+        ReflectionTestUtils.setField(request, "id", 100L);
+        MdmRecord record = record(41L, 7L, 8L, 9L, 3L);
+        when(requests.findById(100L)).thenReturn(Optional.of(request));
+        when(records.findBySystemIdAndId(7L, 41L)).thenReturn(Optional.of(record));
+        when(assignments.existsActiveAssignment(7L, 8L, 9L, 20L)).thenReturn(true);
+        when(authorization.can(20L, "APPROVAL_REVIEW", 9L)).thenReturn(true);
+        when(changes.findByApprovalRequestId(100L)).thenReturn(List.of());
+        RecordView expected = new RecordView(41L, 7L, 8L, 9L, "EMP-41", 4L);
+        when(recordService.update(41L, 3L, Map.of())).thenReturn(expected);
+
+        RecordView actual = service.approve(100L, 20L, 3L);
+
+        assertThat(actual).isEqualTo(expected);
+        verify(actions).save(argThat(action -> action.getSystemId().equals(7L)
+            && action.getActorId().equals(20L) && "APPROVE".equals(action.getAction())));
+    }
+
+    private static MdmRecord record(Long id, Long system, Long type, Long department, Long version) {
+        MdmRecord record = mock(MdmRecord.class);
+        when(record.getId()).thenReturn(id);
+        when(record.getSystemId()).thenReturn(system);
+        when(record.getObjectTypeId()).thenReturn(type);
+        when(record.getDepartmentId()).thenReturn(department);
+        when(record.getVersion()).thenReturn(version);
+        return record;
+    }
+
+    private static FieldDefinition field(Long id, String key) {
+        FieldDefinition field = mock(FieldDefinition.class);
+        when(field.getId()).thenReturn(id);
+        when(field.getFieldKey()).thenReturn(key);
+        when(field.getDataType()).thenReturn(com.simplemdm.model.mdm.FieldDataType.DECIMAL);
+        return field;
+    }
+}
+
+

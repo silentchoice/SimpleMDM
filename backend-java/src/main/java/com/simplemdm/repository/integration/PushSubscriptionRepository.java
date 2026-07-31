@@ -1,0 +1,6 @@
+package com.simplemdm.repository.integration;
+import com.simplemdm.model.integration.PushSubscription; import org.springframework.data.jpa.repository.*; import org.springframework.data.repository.query.Param; import java.util.List;
+public interface PushSubscriptionRepository extends JpaRepository<PushSubscription,Long>{
+ @Query("select s from PushSubscription s where s.systemId=:s and (s.objectTypeId=:o or s.objectTypeId is null) and s.eventType=:e and s.status='active'")
+ List<PushSubscription> findActiveForEvent(@Param("s")Long systemId,@Param("o")Long objectTypeId,@Param("e")String eventType);
+}
