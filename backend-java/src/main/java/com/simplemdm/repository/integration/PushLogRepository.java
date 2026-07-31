@@ -1,2 +1,2 @@
 package com.simplemdm.repository.integration; import com.simplemdm.model.integration.PushLog; import org.springframework.data.jpa.repository.JpaRepository;
-public interface PushLogRepository extends JpaRepository<PushLog,Long>{}
+public interface PushLogRepository extends JpaRepository<PushLog,Long>{ boolean existsBySubscriptionIdAndEventId(Long subscriptionId,String eventId); }

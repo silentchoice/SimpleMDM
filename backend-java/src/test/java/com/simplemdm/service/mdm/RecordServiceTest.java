@@ -237,6 +237,24 @@ class RecordServiceTest {
     }
 
     @Test
+    void approvedWriterAppliesValidatedUpdateWithoutRequiringEditPermissionAgain() {
+        FieldDefinition code = uniqueField("employee_code", FieldDataType.STRING);
+        ReflectionTestUtils.setField(code, "id", 301L);
+        MdmRecord existing = parentRecord();
+        ReflectionTestUtils.setField(existing, "version", 4L);
+        RecordValue value = RecordValue.create(existing, code,
+            new com.simplemdm.model.mdm.TypedValue("E-001", null, null, null, null, null, null, null), 7L);
+        given(records.findById(900L)).willReturn(Optional.of(existing));
+        given(fields.findByObjectTypeId(100L)).willReturn(List.of(code));
+        given(values.findByFieldDefinitionId(301L)).willReturn(List.of(value));
+        given(values.findByRecordIdAndFieldDefinitionId(900L, 301L)).willReturn(Optional.of(value));
+
+        service.applyApprovedUpdate(20L, 900L, 4L, Map.of("employee_code", "E-002"));
+
+        verify(authorization, never()).can(20L, "MDM_RECORD_EDIT", 51L);
+        verify(values).saveAll(any());
+    }
+    @Test
     void updatingAnUnchangedUniqueValueOnTheSameRecordSucceeds() {
         FieldDefinition code = uniqueField("employee_code", FieldDataType.STRING);
         ReflectionTestUtils.setField(code, "id", 301L);

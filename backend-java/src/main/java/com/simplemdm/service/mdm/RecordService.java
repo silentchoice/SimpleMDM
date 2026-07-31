@@ -90,9 +90,18 @@ public class RecordService {
 
     @Transactional
     RecordView updateAs(Long userId, Long id, long version, Map<String, Object> data) {
+        return updateValidated(userId, id, version, data, true);
+    }
+
+    RecordView applyApprovedUpdate(Long actorId, Long id, long version, Map<String, Object> data) {
+        return updateValidated(actorId, id, version, data, false);
+    }
+
+    private RecordView updateValidated(Long userId, Long id, long version, Map<String, Object> data,
+                                       boolean requireEditPermission) {
         if (id == null || data == null) throw new BusinessException(400, "Record ID and data are required");
         MdmRecord record = records.findById(id).orElseThrow(() -> new BusinessException(404, "Record not found"));
-        authorize(userId, record.getDepartmentId());
+        if (requireEditPermission) authorize(userId, record.getDepartmentId());
         if (record.getVersion() != version) throw new BusinessException(409, "Record version is stale");
 
         List<FieldDefinition> definitions = fields.findByObjectTypeId(record.getObjectTypeId());

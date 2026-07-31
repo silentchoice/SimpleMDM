@@ -10,11 +10,15 @@ import com.simplemdm.model.workflow.ApprovalRequest;
 import com.simplemdm.repository.mdm.FieldDefinitionRepository;
 import com.simplemdm.repository.mdm.MdmRecordRepository;
 import com.simplemdm.repository.mdm.RecordValueRepository;
+import com.simplemdm.repository.system.UserRepository;
+import com.simplemdm.model.system.User;
 import com.simplemdm.repository.workflow.ApprovalActionRepository;
 import com.simplemdm.repository.workflow.ApprovalChangeRepository;
 import com.simplemdm.repository.workflow.ApprovalRequestRepository;
 import com.simplemdm.repository.workflow.ApproverAssignmentRepository;
-import com.simplemdm.service.mdm.RecordService;
+import com.simplemdm.service.mdm.ApprovedRecordWriter;
+import com.simplemdm.service.mdm.CurrentUserProvider;
+import com.simplemdm.service.mdm.TypedValueConverter;
 import com.simplemdm.service.mdm.RecordView;
 import com.simplemdm.service.mdm.UpdateRecordCommand;
 import com.simplemdm.service.system.AuthorizationService;
@@ -43,17 +47,22 @@ class ApprovalServiceTest {
     private final RecordValueRepository values = mock(RecordValueRepository.class);
     private final FieldDefinitionRepository fields = mock(FieldDefinitionRepository.class);
     private final AuthorizationService authorization = mock(AuthorizationService.class);
-    private final RecordService recordService = mock(RecordService.class);
+    private final ApprovedRecordWriter writer = mock(ApprovedRecordWriter.class);
+    private final CurrentUserProvider currentUser = mock(CurrentUserProvider.class);
+    private final UserRepository users = mock(UserRepository.class);
+    private final TypedValueConverter converter = new TypedValueConverter();
     private ApprovalService service;
 
     @BeforeEach
     void setUp() {
         service = new ApprovalService(requests, changes, actions, assignments, records, values, fields,
-            authorization, recordService);
+            authorization, writer, converter, currentUser, users);
     }
 
     @Test
     void submitStoresOneRelationalTypedChangePerChangedField() {
+        authenticate(12L, 7L);
+        when(authorization.can(12L, "MDM_RECORD_EDIT", 9L)).thenReturn(true);
         MdmRecord record = record(41L, 7L, 8L, 9L, 3L);
         FieldDefinition salary = field(55L, "salary");
         RecordValue oldSalary = mock(RecordValue.class);
@@ -86,6 +95,7 @@ class ApprovalServiceTest {
 
     @Test
     void approveRejectsStaleRecordVersionBeforeApplyingChanges() {
+        authenticate(20L, 7L);
         ApprovalRequest request = ApprovalRequest.pending(7L, 8L, 41L, 9L, 12L, 3L);
         ReflectionTestUtils.setField(request, "id", 100L);
         MdmRecord record = record(41L, 7L, 8L, 9L, 4L);
@@ -95,11 +105,12 @@ class ApprovalServiceTest {
         assertThatThrownBy(() -> service.approve(100L, 20L, 3L))
             .isInstanceOf(BusinessException.class)
             .hasMessageContaining("version");
-        verifyNoInteractions(recordService);
+        verifyNoInteractions(writer);
     }
 
     @Test
     void approveRequiresActiveAssignmentPermissionAndMatchingSystemBeforeUpdate() {
+        authenticate(20L, 7L);
         ApprovalRequest request = ApprovalRequest.pending(7L, 8L, 41L, 9L, 12L, 3L);
         ReflectionTestUtils.setField(request, "id", 100L);
         MdmRecord record = record(41L, 7L, 8L, 9L, 3L);
@@ -107,9 +118,11 @@ class ApprovalServiceTest {
         when(records.findBySystemIdAndId(7L, 41L)).thenReturn(Optional.of(record));
         when(assignments.existsActiveAssignment(7L, 8L, 9L, 20L)).thenReturn(true);
         when(authorization.can(20L, "APPROVAL_REVIEW", 9L)).thenReturn(true);
-        when(changes.findByApprovalRequestId(100L)).thenReturn(List.of());
+        FieldDefinition salary = field(55L, "salary");
+        when(fields.findByObjectTypeId(8L)).thenReturn(List.of(salary));
+        when(changes.findByApprovalRequestId(100L)).thenReturn(List.of(ApprovalChange.create(7L, 100L, 55L, TypedValue.empty(), new TypedValue(null, null, null, new BigDecimal("125.50"), null, null, null, null))));
         RecordView expected = new RecordView(41L, 7L, 8L, 9L, "EMP-41", 4L);
-        when(recordService.update(41L, 3L, Map.of())).thenReturn(expected);
+        when(writer.apply(20L, 41L, 3L, Map.of("salary", new BigDecimal("125.50")))).thenReturn(expected);
 
         RecordView actual = service.approve(100L, 20L, 3L);
 
@@ -118,6 +131,13 @@ class ApprovalServiceTest {
             && action.getActorId().equals(20L) && "APPROVE".equals(action.getAction())));
     }
 
+    private void authenticate(Long id, Long systemId) {
+        when(currentUser.currentSystemUserId()).thenReturn(Optional.of(id));
+        User user = mock(User.class);
+        when(user.isActive()).thenReturn(true);
+        when(user.getSystemId()).thenReturn(systemId);
+        when(users.findById(id)).thenReturn(Optional.of(user));
+    }
     private static MdmRecord record(Long id, Long system, Long type, Long department, Long version) {
         MdmRecord record = mock(MdmRecord.class);
         when(record.getId()).thenReturn(id);
@@ -133,6 +153,8 @@ class ApprovalServiceTest {
         when(field.getId()).thenReturn(id);
         when(field.getFieldKey()).thenReturn(key);
         when(field.getDataType()).thenReturn(com.simplemdm.model.mdm.FieldDataType.DECIMAL);
+        when(field.getPrecision()).thenReturn(10);
+        when(field.getScale()).thenReturn(2);
         return field;
     }
 }
