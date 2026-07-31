@@ -147,6 +147,9 @@ public class MdmRecordController {
     public ApiResponse updateChild(@PathVariable Long recordId, @PathVariable String childCode,
                                    @RequestBody CreateRecordRequest request) {
         User user = SystemController.currentUser();
+        if (request == null || request.id() == null || request.version() == null || request.data() == null) {
+            throw new BusinessException(400, "Child record ID, version, and data are required");
+        }
         MdmRecord parent = records.findBySystemIdAndId(user.getSystemId(), recordId)
             .orElseThrow(() -> new BusinessException(404, "Record not found"));
         if (!user.getSystemId().equals(parent.getSystemId())
@@ -191,10 +194,8 @@ public class MdmRecordController {
     }
 
     private ChildType requiredChildType(User user, Long objectTypeId, String childCode) {
-        return childTypes.findAll().stream()
-            .filter(type -> user.getSystemId().equals(type.getSystemId()) && objectTypeId.equals(type.getObjectTypeId())
-                && childCode.equals(type.getCode()))
-            .findFirst().orElseThrow(() -> new BusinessException(404, "Child type not found"));
+        return childTypes.findBySystemIdAndObjectTypeIdAndCode(user.getSystemId(), objectTypeId, childCode)
+            .orElseThrow(() -> new BusinessException(404, "Child type not found"));
     }
 
     private void requireCreateRequest(CreateRecordRequest request) {

@@ -153,7 +153,7 @@ class MdmRecordControllerTest {
         MdmRecord parent = parentRecord();
         ChildType childType = childType();
         given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.of(parent));
-        given(childTypes.findAll()).willReturn(List.of(childType));
+        given(childTypes.findBySystemIdAndObjectTypeIdAndCode(10L, 100L, "phone")).willReturn(Optional.of(childType));
         given(recordService.createChild(any())).willReturn(new ChildRecordView(99L, 42L, 200L, 10L, 10L, 0L));
         com.simplemdm.model.mdm.ChildRecord persistedChild = childRecord();
         given(childRecords.findById(99L)).willReturn(Optional.of(persistedChild));
@@ -194,7 +194,7 @@ class MdmRecordControllerTest {
         ChildType childType = childType();
         com.simplemdm.model.mdm.ChildRecord persistedChild = childRecord();
         given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.of(parent));
-        given(childTypes.findAll()).willReturn(List.of(childType));
+        given(childTypes.findBySystemIdAndObjectTypeIdAndCode(10L, 100L, "phone")).willReturn(Optional.of(childType));
         given(childRecords.findById(99L)).willReturn(Optional.of(persistedChild));
         given(authorization.can(7L, "MDM_RECORD_EDIT", 10L)).willReturn(true);
         given(recordService.updateChild(eq(99L), eq(0L), any()))
@@ -279,6 +279,22 @@ class MdmRecordControllerTest {
         verify(childRecords).findBySystemIdAndRecordIdAndChildTypeId(10L, 42L, 200L);
         verify(childValues).findByChildRecordIdIn(List.of(91L, 92L));
         verify(childRecords, never()).findAll();
+    }
+    @Test
+    void rejectsChildPutWhenVersionIsMissingOrNull() throws Exception {
+        MdmRecord parent = parentRecord();
+        given(records.findBySystemIdAndId(10L, 42L)).willReturn(Optional.of(parent));
+        mockMvc.perform(put("/api/mdm/records/42/children/phone").contentType(APPLICATION_JSON)
+                .content("""
+                    {"id":99,"data":{}}
+                    """))
+            .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/mdm/records/42/children/phone").contentType(APPLICATION_JSON)
+                .content("""
+                    {"id":99,"version":null,"data":{}}
+                    """))
+            .andExpect(status().isBadRequest());
+        verifyNoInteractions(authorization, recordService);
     }
     private MdmRecord parentRecord() {
         MdmRecord parent = mock(MdmRecord.class);
