@@ -1,84 +1,44 @@
-# SimpleMDM — 主数据管理平台 Demo
+# SimpleMDM
 
-SimpleMDM is a lightweight Master Data Management platform for enterprise personnel data governance.
-This demo demonstrates the core workflow: data entry → approval → push to downstream systems.
+SimpleMDM 是基于关系模型的通用主数据管理平台。对象类型、字段定义、主记录、子记录、审批变更和推送日志均使用关系表保存；部门和业务系统关联使用稳定外键。
 
-## Quick Start
+## 技术栈
 
-### Prerequisites
-- Python 3.10+
-- Node.js 18+
+- Java 17、Spring Boot 3.3、Spring Data JPA
+- Flyway、MySQL 8
+- Vue 3、Pinia、Element Plus、Vite
 
-### One-Click Launch (Windows)
+## 本地启动
+
+准备 MySQL 8，并设置 `SIMPLE_MDM_DB_PASSWORD` 与至少 32 字符的 `SIMPLE_MDM_JWT_SECRET`。
+
+```powershell
+cd backend-java
+.\mvnw.cmd spring-boot:run
 ```
-start.bat
-```
 
-### Manual Launch
+Flyway 从空库执行 `db/migration/V1__relational_generic_mdm.sql`；Hibernate 使用 `ddl-auto=validate`，不会在运行时建表。仅本地需要演示数据时设置 `SIMPLE_MDM_DEMO_BOOTSTRAP=true`，初始化器按稳定代码幂等写入。
 
-**Backend:**
-```bash
-cd backend
-pip install -r requirements.txt
-python run.py
-```
-The API server starts at http://localhost:18001
-Swagger docs at http://localhost:18001/docs
-
-**Frontend:**
-```bash
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
-The frontend starts at http://localhost:5173
 
-## Demo Accounts
+## 验证
 
-| Username | Password | Role | Description |
-|---|---|---|---|
-| wangwu | 123456 | HR Operator | Creates and edits personnel data |
-| lisi | 123456 | HR Approver | Reviews and approves/rejects changes |
-| zhaoliu | 123456 | Viewer | Read-only access for downstream system owners |
+```powershell
+cd backend-java
+.\mvnw.cmd test
 
-## Demo Script
-
-1. Login as `wangwu` (operator) — browse personnel list
-2. Edit Zhang San's record: change department from 工程部 to 产品部, position from 高级工程师 to 产品经理
-3. Submit for approval — review the change diff dialog
-4. Logout, login as `lisi` (approver) — check pending approvals
-5. View change comparison, enter comment, click Approve
-6. Check push logs — verify data was pushed to CRM and MES systems
-7. Logout, login as `zhaoliu` (viewer) — verify data is updated, no edit permissions
-
-## Tech Stack
-
-- **Backend**: Java 17 + Spring Boot 3.3 + Spring Data JPA
-- **Frontend**: Vue 3 + Element Plus + Vite
-- **Auth**: JWT token-based
-
-## Project Structure
-
-```
-simple-mdm/
-├── backend/           # FastAPI application
-│   ├── app/
-│   │   ├── api/       # Route handlers
-│   │   ├── models/    # SQLAlchemy models
-│   │   ├── schemas/   # Pydantic schemas
-│   │   └── services/  # Business logic
-│   └── run.py
-├── frontend/          # Vue 3 + Vite application
-│   └── src/
-│       ├── views/     # Page components
-│       ├── layout/    # Main layout
-│       ├── stores/    # Pinia state
-│       └── api/       # Axios request modules
-└── start.bat          # Windows one-click launcher
+cd ..\frontend
+npm test
+npm run build
 ```
 
-## Database
+## 目录
 
-The Java demo uses MySQL 8.0 and rebuilds its schema and seed data whenever
-the backend starts. Master and sub-table business fields are defined at
-runtime and stored as JSON using immutable `field_key` identifiers.
+- `backend-java/`：关系化通用 MDM、系统与部门、RBAC、审批和集成服务
+- `frontend/`：元数据驱动的通用 MDM 工作台
+
+数据库密码、JWT 密钥、本地数据库文件和内部工作记录不得提交到 Git。

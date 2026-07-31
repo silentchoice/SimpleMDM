@@ -15,14 +15,6 @@
         router
         style="border-right: none;"
       >
-        <el-menu-item index="/dashboard">
-          <el-icon><HomeFilled /></el-icon>
-          <span>仪表盘</span>
-        </el-menu-item>
-        <el-menu-item index="/personnel">
-          <el-icon><UserFilled /></el-icon>
-          <span>部门主数据</span>
-        </el-menu-item>
         <el-menu-item index="/mdm">
           <el-icon><Grid /></el-icon>
           <span>通用主数据</span>
@@ -30,23 +22,6 @@
         <el-menu-item index="/mdm-metadata">
           <el-icon><SetUp /></el-icon>
           <span>元数据管理</span>
-        </el-menu-item>
-        <el-menu-item index="/approvals">
-          <el-icon><DocumentChecked /></el-icon>
-          <span>审批中心</span>
-          <el-badge v-if="pendingCount > 0" :value="pendingCount" style="margin-left: 8px;" />
-        </el-menu-item>
-        <el-menu-item index="/push-apis">
-          <el-icon><Setting /></el-icon>
-          <span>推送API管理</span>
-        </el-menu-item>
-        <el-menu-item index="/push-logs">
-          <el-icon><Connection /></el-icon>
-          <span>推送日志</span>
-        </el-menu-item>
-        <el-menu-item index="/dept-fields">
-          <el-icon><EditPen /></el-icon>
-          <span>字段定义</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -60,7 +35,7 @@
             <Expand v-else />
           </el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/mdm' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item v-if="route.meta.title">{{ route.meta.title }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -92,7 +67,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useAppStore } from '../stores/app'
@@ -103,15 +78,11 @@ const router = useRouter()
 const userStore = useUserStore()
 const appStore = useAppStore()
 
-const pendingCount = ref(0)
 
 const activeMenu = computed(() => {
   const p = route.path
-  if (p.startsWith('/personnel')) return '/personnel'
   if (p.startsWith('/mdm-metadata')) return '/mdm-metadata'
   if (p.startsWith('/mdm')) return '/mdm'
-  if (p.startsWith('/approvals')) return '/approvals'
-  if (p.startsWith('/push-logs')) return '/push-logs'
   return p
 })
 

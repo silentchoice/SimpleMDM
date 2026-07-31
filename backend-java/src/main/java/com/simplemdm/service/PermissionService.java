@@ -2,8 +2,8 @@ package com.simplemdm.service;
 
 import com.simplemdm.model.SysUserPermission;
 import com.simplemdm.repository.SysUserPermissionRepository;
-import com.simplemdm.repository.MdmFieldDefinitionRepository;
-import com.simplemdm.repository.MdmPersonnelRepository;
+import com.simplemdm.repository.system.DepartmentRepository;
+import com.simplemdm.repository.system.SystemRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -12,15 +12,15 @@ import java.util.*;
 public class PermissionService {
 
     private final SysUserPermissionRepository permRepo;
-    private final MdmFieldDefinitionRepository fieldRepository;
-    private final MdmPersonnelRepository personnelRepository;
+    private final SystemRepository systemRepository;
+    private final DepartmentRepository departmentRepository;
 
     public PermissionService(SysUserPermissionRepository permRepo,
-                             MdmFieldDefinitionRepository fieldRepository,
-                             MdmPersonnelRepository personnelRepository) {
+                             SystemRepository systemRepository,
+                             DepartmentRepository departmentRepository) {
         this.permRepo = permRepo;
-        this.fieldRepository = fieldRepository;
-        this.personnelRepository = personnelRepository;
+        this.systemRepository = systemRepository;
+        this.departmentRepository = departmentRepository;
     }
 
     /** Get all departments the user can VIEW */
@@ -43,11 +43,13 @@ public class PermissionService {
     public List<String> getConcreteViewableDepts(Long userId, String systemCode) {
         List<String> scoped = getViewableDepts(userId);
         if (scoped != null) return scoped.stream().distinct().sorted().toList();
-        LinkedHashSet<String> all = new LinkedHashSet<>(
-            fieldRepository.findDistinctDepartmentsBySystemCode(systemCode));
-        all.remove("ALL");
-        all.addAll(personnelRepository.findDistinctOwnerDepartmentsBySystemCode(systemCode));
-        return all.stream().sorted().toList();
+        return systemRepository.findByCode(systemCode)
+            .map(system -> departmentRepository.findBySystem_Id(system.getId()).stream()
+                .map(department -> department.getName())
+                .distinct()
+                .sorted()
+                .toList())
+            .orElseGet(List::of);
     }
     /** Get all departments the user can EDIT */
     public List<String> getEditableDepts(Long userId) {
