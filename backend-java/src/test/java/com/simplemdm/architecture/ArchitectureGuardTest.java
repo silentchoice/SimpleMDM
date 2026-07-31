@@ -27,6 +27,26 @@ class ArchitectureGuardTest {
         }
     }
 
+    @Test
+    void noLegacyFrontendRoutesOrImportsRemain() throws IOException {
+        Path frontend = Path.of("..", "frontend", "src");
+        try (var files = Files.walk(frontend)) {
+            List<String> violations = files.filter(Files::isRegularFile)
+                .filter(path -> !path.toString().endsWith(".spec.js"))
+                .flatMap(path -> {
+                    try {
+                        String source = Files.readString(path);
+                        return List.of("/personnel", "views/personnel", "dept-fields", "api/personnel",
+                            "api/deptFields", "router.push('/dashboard')").stream()
+                            .filter(source::contains).map(term -> path + " -> " + term);
+                    } catch (IOException exception) {
+                        throw new IllegalStateException(exception);
+                    }
+                }).toList();
+            assertThat(violations).as("legacy frontend routes/imports").isEmpty();
+        }
+    }
+
     private static List<String> violations(Path path) {
         try {
             String source = Files.readString(path);
@@ -37,7 +57,11 @@ class ArchitectureGuardTest {
                     "DynamicFieldService",
                     "owner_dept",
                     "mdm_personnel",
-                    "dynamic_data")
+                    "dynamic_data",
+                    "com.simplemdm.model.MdmFieldDefinition",
+                    "PersonnelController",
+                    "MdmPersonnelRepository",
+                    "DynamicPersonnelDTO")
                 .stream()
                 .filter(source::contains)
                 .map(term -> path + " -> " + term)

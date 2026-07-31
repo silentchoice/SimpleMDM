@@ -17,7 +17,7 @@ cd backend-java
 .\mvnw.cmd spring-boot:run
 ```
 
-Flyway 从空库执行 `db/migration/V1__relational_generic_mdm.sql`；Hibernate 使用 `ddl-auto=validate`，不会在运行时建表。仅本地需要演示数据时设置 `SIMPLE_MDM_DEMO_BOOTSTRAP=true`，初始化器按稳定代码幂等写入。
+Flyway 从空库执行 `db/migration/V1__relational_generic_mdm.sql`；Hibernate 使用 `ddl-auto=validate`，不会在运行时建表。仅本地需要演示数据时设置 `APP_BOOTSTRAP_ENABLED=true` 鎴?`SPRING_PROFILES_ACTIVE=demo`，初始化器按稳定代码幂等写入。
 
 ```powershell
 cd frontend

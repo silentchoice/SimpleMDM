@@ -35,6 +35,6 @@ public class ApprovalRequest {
 
     public Long getId(){return id;} public Long getSystemId(){return systemId;} public Long getObjectTypeId(){return objectTypeId;}
     public Long getRecordId(){return recordId;} public Long getDepartmentId(){return departmentId;}
-    public Long getExpectedVersion(){return expectedVersion;} public String getStatus(){return status;}
+    public Long getExpectedVersion(){return expectedVersion;} public Long getRequestedBy(){return requestedBy;} public String getStatus(){return status;}
 }
 

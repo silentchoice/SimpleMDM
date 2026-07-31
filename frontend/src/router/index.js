@@ -31,6 +31,10 @@ const routes = [
         component: () => import('../views/mdm/Form.vue'),
         meta: { title: '编辑主数据', mode: 'edit' },
       },
+      { path: 'workflow/approvals', component: () => import('../views/workflow/List.vue'), meta: { title: '瀹℃壒涓績' } },
+      { path: 'workflow/approvals/:id', component: () => import('../views/workflow/Detail.vue'), meta: { title: '瀹℃壒璇︽儏' } },
+      { path: 'integration', component: () => import('../views/integration/Manager.vue'), meta: { title: '闆嗘垚绠＄悊' } },
+      { path: 'integration/logs', component: () => import('../views/integration/Logs.vue'), meta: { title: 'Generic' } },
       {
         path: 'mdm-metadata',
         name: 'MdmMetadata',

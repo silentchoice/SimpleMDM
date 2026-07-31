@@ -75,7 +75,7 @@ async function handleLogin() {
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
-    router.push('/dashboard')
+    router.push('/mdm')
   } catch {
     // Error already handled by interceptor
   } finally {

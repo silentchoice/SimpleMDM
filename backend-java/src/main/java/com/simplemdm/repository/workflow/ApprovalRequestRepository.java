@@ -1,2 +1,1 @@
-package com.simplemdm.repository.workflow; import com.simplemdm.model.workflow.ApprovalRequest; import org.springframework.data.jpa.repository.JpaRepository;
-public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest,Long>{}
+package com.simplemdm.repository.workflow; import com.simplemdm.model.workflow.ApprovalRequest; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest,Long>{List<ApprovalRequest> findBySystemIdOrderByIdDesc(Long systemId);Optional<ApprovalRequest> findBySystemIdAndId(Long systemId,Long id);}

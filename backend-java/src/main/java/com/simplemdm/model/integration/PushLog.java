@@ -10,5 +10,5 @@ public class PushLog {
  @Column(name="created_at",nullable=false) private LocalDateTime createdAt;
  protected PushLog(){} public static PushLog pending(Long system,Long subscription,Long record,String event,String snapshot){PushLog l=new PushLog();l.systemId=system;l.subscriptionId=subscription;l.recordId=record;l.eventId=event;l.requestSnapshot=snapshot;l.status="pending";l.retryCount=0;return l;}
  @PrePersist void create(){createdAt=LocalDateTime.now();}
- public Long getSystemId(){return systemId;}public Long getSubscriptionId(){return subscriptionId;}public Long getRecordId(){return recordId;}public String getEventId(){return eventId;}public String getRequestSnapshot(){return requestSnapshot;}
+ public Long getId(){return id;}public String getStatus(){return status;}public Integer getRetryCount(){return retryCount;} public Long getSystemId(){return systemId;}public Long getSubscriptionId(){return subscriptionId;}public Long getRecordId(){return recordId;}public String getEventId(){return eventId;}public String getRequestSnapshot(){return requestSnapshot;}
 }
