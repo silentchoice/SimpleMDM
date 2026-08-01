@@ -1,0 +1,12 @@
+import request from '../utils/request'
+export const listEndpoints=()=>request.get('/integration/endpoints')
+export const createEndpoint=data=>request.post('/integration/endpoints',data)
+export const updateEndpoint=(id,data)=>request.patch(`/integration/endpoints/${id}`,data)
+export const updateEndpointSchedule=(id,data)=>request.patch(`/integration/endpoints/${id}/schedule`,data)
+export const listSubscriptions=()=>request.get('/integration/subscriptions')
+export const createSubscription=data=>request.post('/integration/subscriptions',data)
+export const listPushLogs=()=>request.get('/integration/logs')
+export const getPushLog=id=>request.get(`/integration/logs/${id}`)
+export const distributeRecord=(recordId,data={})=>request.post(`/integration/records/${recordId}/distribute`,data)
+export const retryPushLog=(logId,data={})=>request.post(`/integration/logs/${logId}/retry`,data)
+export const cancelPushLog=(logId,data={})=>request.post(`/integration/logs/${logId}/cancel`,data)

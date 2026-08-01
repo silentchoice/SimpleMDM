@@ -1,0 +1,44 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+}
+
+body {
+  background: #f0f2f5;
+}
+
+/* Dashboard stat cards */
+.stat-card {
+  text-align: center;
+  padding: 8px 0;
+}
+
+/* Change diff highlight */
+.diff-changed {
+  background-color: #fdf6ec !important;
+}
+
+.diff-changed td {
+  color: #e6a23c !important;
+  font-weight: 600 !important;
+}
+
+/* Page header */
+.page-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.page-header h2 {
+  font-size: 18px;
+  color: #303133;
+  font-weight: 600;
+}

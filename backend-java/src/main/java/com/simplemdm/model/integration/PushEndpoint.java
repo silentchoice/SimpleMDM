@@ -1,0 +1,15 @@
+package com.simplemdm.model.integration;
+import jakarta.persistence.*; import java.time.LocalDateTime;
+@Entity @Table(name="sys_push_endpoint")
+public class PushEndpoint {
+ @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id; @Column(name="system_id",nullable=false) private Long systemId;
+ @Column(nullable=false,length=64) private String code; @Column(nullable=false,length=128) private String name; @Column(name="endpoint_url",nullable=false,length=2048) private String endpointUrl;
+ @Column(name="authentication_type",nullable=false,length=32) private String authenticationType; @Column(name="encrypted_credentials",length=4096) private String encryptedCredentials;
+ @Column(nullable=false,length=32) private String status; @Column(name="created_at",nullable=false) private LocalDateTime createdAt; @Column(name="updated_at",nullable=false) private LocalDateTime updatedAt; @Version private Long version;
+ @Column(name="schedule_enabled",nullable=false) private boolean scheduleEnabled;
+ @Column(name="schedule_cron",length=128) private String scheduleCron;
+ @Column(name="schedule_timezone",length=64) private String scheduleTimezone;
+ @Column(name="schedule_next_at") private LocalDateTime scheduleNextAt;
+ @Column(name="schedule_last_at") private LocalDateTime scheduleLastAt;
+ protected PushEndpoint(){} public static PushEndpoint create(Long system,String code,String name,String url,String auth){return create(system,code,name,url,auth,null);} public static PushEndpoint create(Long system,String code,String name,String url,String auth,String credentials){PushEndpoint e=new PushEndpoint();e.systemId=system;e.code=code;e.name=name;e.endpointUrl=url;e.authenticationType=auth==null?"NONE":auth;e.encryptedCredentials=credentials;e.status="active";return e;} @PrePersist void create(){createdAt=LocalDateTime.now();updatedAt=createdAt;} @PreUpdate void updateTimestamp(){updatedAt=LocalDateTime.now();} public void apply(String name,String url,String auth,String credentials){this.name=name;this.endpointUrl=url;this.authenticationType=auth;this.encryptedCredentials=credentials;} public void applySchedule(boolean enabled,String cron,String timezone,LocalDateTime nextAt){scheduleEnabled=enabled;scheduleCron=enabled?cron:null;scheduleTimezone=enabled?timezone:null;scheduleNextAt=enabled?nextAt:null;if(!enabled)scheduleLastAt=null;} public Long getId(){return id;}public Long getSystemId(){return systemId;}public String getCode(){return code;}public String getName(){return name;}public String getEndpointUrl(){return endpointUrl;}public String getAuthenticationType(){return authenticationType;}public String getEncryptedCredentials(){return encryptedCredentials;}public boolean hasCredentials(){return encryptedCredentials!=null&&!encryptedCredentials.isBlank();}public String getStatus(){return status;}public boolean isScheduleEnabled(){return scheduleEnabled;}public String getScheduleCron(){return scheduleCron;}public String getScheduleTimezone(){return scheduleTimezone;}public LocalDateTime getScheduleNextAt(){return scheduleNextAt;}public LocalDateTime getScheduleLastAt(){return scheduleLastAt;}
+}
