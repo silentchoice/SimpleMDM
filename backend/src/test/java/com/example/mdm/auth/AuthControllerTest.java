@@ -31,6 +31,9 @@ class AuthControllerTest {
   @MockBean
   private JwtService jwtService;
 
+  @MockBean
+  private TokenRevocationStore tokenRevocationStore;
+
   @Test
   void validCredentialsReturnTokenUserRolesDepartmentAndRequestId() throws Exception {
     var principal = new UserPrincipal(7L, "alice", "Alice", new DepartmentPrincipal(3L, "SALES", "Sales"),

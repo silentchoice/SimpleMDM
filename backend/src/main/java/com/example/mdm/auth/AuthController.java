@@ -5,6 +5,7 @@ import com.example.mdm.common.api.RequestId;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +21,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
   private final AuthenticationService authenticationService;
   private final JwtService jwtService;
+  private final TokenRevocationStore tokenRevocationStore;
 
-  public AuthController(AuthenticationService authenticationService, JwtService jwtService) {
+  public AuthController(AuthenticationService authenticationService, JwtService jwtService,
+      TokenRevocationStore tokenRevocationStore) {
     this.authenticationService = authenticationService;
     this.jwtService = jwtService;
+    this.tokenRevocationStore = tokenRevocationStore;
   }
 
   @PostMapping("/login")
@@ -34,6 +38,9 @@ public class AuthController {
 
   @PostMapping("/logout")
   public ApiResponse<Void> logout(HttpServletRequest request) {
+    String authorization = request.getHeader("Authorization");
+    JwtService.ParsedToken token = jwtService.parseToken(authorization.substring("Bearer ".length()));
+    tokenRevocationStore.revoke(token.jti(), Duration.between(java.time.Instant.now(), token.expiresAt()));
     return ApiResponse.success(null, requestId(request));
   }
 

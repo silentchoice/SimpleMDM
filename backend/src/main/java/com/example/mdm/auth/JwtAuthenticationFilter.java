@@ -12,9 +12,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 class JwtAuthenticationFilter extends OncePerRequestFilter {
   private final JwtService jwtService;
+  private final TokenRevocationStore tokenRevocationStore;
 
-  JwtAuthenticationFilter(JwtService jwtService) {
+  JwtAuthenticationFilter(JwtService jwtService, TokenRevocationStore tokenRevocationStore) {
     this.jwtService = jwtService;
+    this.tokenRevocationStore = tokenRevocationStore;
   }
 
   @Override
@@ -23,7 +25,13 @@ class JwtAuthenticationFilter extends OncePerRequestFilter {
     String authorization = request.getHeader("Authorization");
     if (authorization != null && authorization.startsWith("Bearer ")) {
       try {
-        UserPrincipal principal = jwtService.parse(authorization.substring(7));
+        JwtService.ParsedToken parsedToken = jwtService.parseToken(authorization.substring(7));
+        if (tokenRevocationStore.isRevoked(parsedToken.jti())) {
+          SecurityContextHolder.clearContext();
+          filterChain.doFilter(request, response);
+          return;
+        }
+        UserPrincipal principal = parsedToken.principal();
         var authorities = principal.roles().stream()
             .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name())).toList();
         SecurityContextHolder.getContext().setAuthentication(

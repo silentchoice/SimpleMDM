@@ -4,9 +4,14 @@ import com.example.mdm.common.api.ApiResponse;
 import com.example.mdm.common.api.RequestId;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -31,6 +36,26 @@ public class GlobalExceptionHandler {
         .body(ApiResponse.failure(400, "Invalid request", requestId(request)));
   }
 
+  @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+  public ResponseEntity<ApiResponse<Void>> handleNotFound(HttpServletRequest request) {
+    return failure(404, "Not found", request);
+  }
+
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(HttpServletRequest request) {
+    return failure(405, "Method not allowed", request);
+  }
+
+  @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+  public ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(HttpServletRequest request) {
+    return failure(415, "Unsupported media type", request);
+  }
+
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ApiResponse<Void>> handleAccessDenied(HttpServletRequest request) {
+    return failure(403, "Forbidden", request);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(HttpServletRequest request) {
     return ResponseEntity.internalServerError()
@@ -40,5 +65,9 @@ public class GlobalExceptionHandler {
   private String requestId(HttpServletRequest request) {
     Object requestId = request.getAttribute(RequestId.ATTRIBUTE);
     return requestId == null ? null : requestId.toString();
+  }
+
+  private ResponseEntity<ApiResponse<Void>> failure(int status, String message, HttpServletRequest request) {
+    return ResponseEntity.status(status).body(ApiResponse.failure(status, message, requestId(request)));
   }
 }
