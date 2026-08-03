@@ -2,9 +2,9 @@ spring:
   application:
     name: mdm
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:tc:mysql:8.0.36:///mdm}
-    username: ${SPRING_DATASOURCE_USERNAME:test}
-    password: ${SPRING_DATASOURCE_PASSWORD:test}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:${MYSQL_PORT:3306}/${MYSQL_DATABASE:mdm}}
+    username: ${SPRING_DATASOURCE_USERNAME:${MYSQL_USER:mdm}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${MYSQL_PASSWORD}}
   flyway:
     enabled: true
     locations: classpath:db/migration
