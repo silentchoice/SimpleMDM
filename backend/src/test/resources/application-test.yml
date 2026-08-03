@@ -3,3 +3,8 @@ spring:
     url: jdbc:tc:mysql:8.0.36:///mdm
     username: test
     password: test
+
+app:
+  jwt:
+    secret: test-only-secret-that-is-at-least-32-bytes
+    expiration-seconds: 60
