@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: mdm
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:tc:mysql:8.0.36:///mdm}
+    username: ${SPRING_DATASOURCE_USERNAME:test}
+    password: ${SPRING_DATASOURCE_PASSWORD:test}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
