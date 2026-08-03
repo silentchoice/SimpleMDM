@@ -1,22 +1,16 @@
-# MDM MVP Design
+# MDM 最小可行产品设计规范
 
-**Date:** 2026-08-03
+**日期：** 2026-08-03
 
-## Goal
+## 一、目标与范围
 
-Build a runnable master-data-management MVP covering authentication and RBAC, departments, metadata-driven master/sub records, approval, cross-department field filtering, edit locks, and scheduled HTTP synchronization.
+构建一个可运行的主数据管理系统最小可行产品，覆盖身份认证与角色权限、部门管理、元数据驱动的主表与子表数据、审批、跨部门字段过滤、编辑锁和定时 HTTP 数据同步。
 
-## Scope
+首期技术栈包括 Vue 3、TypeScript、Vite、Element Plus、Java 17、Spring Boot 3.x、MyBatis-Plus、MySQL 8.0、Redis、JWT 和 Docker Compose。同步支持 REST、API Key 或 Basic Auth、cron 调度、执行日志及重试管理。RabbitMQ、Kafka、Elasticsearch、邮件通知、OAuth2、增量同步游标和共享模板暂缓。
 
-The first release includes Vue 3 + TypeScript + Vite + Element Plus, Java 17 + Spring Boot 3.x + MyBatis-Plus, MySQL 8.0, Redis, JWT authentication, Docker Compose, REST synchronization with API Key or Basic Auth, cron scheduling, execution logs, and retry management.
+## 二、系统架构
 
-RabbitMQ, Kafka, Elasticsearch, email, OAuth2, incremental-sync cursors, and reusable sharing templates are explicitly deferred.
-
-## Architecture
-
-Use a modular monolith. The backend is one Spring Boot deployment split into `auth`, `system`, `metadata`, `record`, `approval`, `sync`, and `common` packages with explicit service interfaces. The frontend is a separate Vue application. MySQL is the source of truth; Redis provides edit locks and synchronization mutual exclusion.
-
-Repository layout:
+采用模块化单体架构。后端作为一个 Spring Boot 应用部署，内部划分为 `auth`、`system`、`metadata`、`record`、`approval`、`sync` 和 `common` 模块，并通过明确的服务接口协作；前端为独立 Vue 应用。MySQL 是业务数据的唯一事实来源，Redis 用于编辑锁和同步任务互斥。
 
 ```text
 codex/
@@ -27,58 +21,58 @@ codex/
 └─ docker-compose.yml
 ```
 
-## Modules
+## 三、模块职责
 
-- `auth`: login, logout, JWT parsing, current-user context, menu permissions.
-- `system`: departments, users, four fixed roles, role assignment, enable/disable operations.
-- `metadata`: master types, department assignment, master fields, sub types, sub fields, and field-schema validation.
-- `record`: drafts, approved records, history, edit locks, dynamic-value validation, and visibility filtering.
-- `approval`: immutable before/after snapshots, submission, approval, rejection, and atomic application of approved changes.
-- `sync`: approved synchronization configurations, manual execution, dynamic cron registration, HTTP delivery, logs, retries, and stop controls.
-- `common`: response envelope, exception mapping, error codes, auditing, security helpers, and JSON utilities.
+- `auth`：登录、退出、JWT 解析、当前用户上下文和菜单权限。
+- `system`：部门、用户、固定角色、角色分配及启用或禁用操作。
+- `metadata`：主表类型、部门分配、主表字段、子表类型、子表字段和字段结构校验。
+- `record`：草稿、已审批数据、历史版本、编辑锁、动态字段值校验和可见性过滤。
+- `approval`：不可变的变更前后快照、提交、通过、拒绝及审批通过后的原子生效。
+- `sync`：已审批同步配置、手动执行、动态 cron 注册、HTTP 推送、日志、重试和停止控制。
+- `common`：统一响应、异常映射、错误码、审计、安全工具和 JSON 工具。
 
-## Authorization
+## 四、身份认证与授权
 
-The fixed roles are `SUPER_ADMIN`, `DEPT_APPROVER`, `DEPT_EDITOR`, and `DEPT_VIEWER`. Authorization combines role and department checks at the service boundary; frontend menu filtering is presentation only.
+系统固定使用 `SUPER_ADMIN`、`DEPT_APPROVER`、`DEPT_EDITOR` 和 `DEPT_VIEWER` 四种角色。服务层同时校验角色权限和部门数据权限；前端菜单过滤只负责展示，不能代替后端鉴权。
 
-Editors modify data and sync configurations belonging to their department. Approvers act only on submissions from their department. Super administrators manage system configuration and may inspect or stop work across departments. Cross-department master records expose all approved fields; cross-department sub records expose only fields whose effective `share_config` value is true. Filtering occurs on the backend before serialization.
+编辑人员只能修改本部门数据及同步配置；审批人员只能处理本部门提交的任务；超级管理员负责系统配置，并可跨部门检查或停止任务。跨部门查看主表记录时返回全部已审批字段；跨部门查看子表记录时只返回有效 `share_config` 为 `true` 的字段。过滤必须在后端序列化响应前完成。
 
-## Metadata and Records
+## 五、元数据与业务记录
 
-Business records use fixed indexed columns plus JSON extension fields. Metadata defines field code, label, type, required flag, options, order, and the sub-field default sharing flag. The backend validates unknown fields, required values, field types, and select-like option membership.
+业务记录采用固定索引列加 JSON 扩展字段。元数据定义字段编码、显示名称、类型、是否必填、选项、排序号及子表字段的默认共享标志。后端统一校验未知字段、必填值、字段类型和选择类字段的选项范围。
 
-Pending changes never overwrite approved data. Editors save drafts and submit immutable before/after snapshots. Approval atomically applies the snapshot, increments the version, writes history, and releases the lock. Rejection retains the draft and rejection reason while leaving the approved version unchanged. Only approved, non-deleted data is eligible for synchronization.
+待审批修改不得覆盖当前已生效数据。编辑人员保存草稿后提交不可变的变更前后快照。审批通过时，在同一事务中应用快照、递增版本、写入历史并释放编辑锁；审批拒绝时保留草稿和拒绝原因，已审批版本保持不变。只有已审批且未删除的数据可以同步。
 
-Edit locks expire after 30 minutes. Redis is authoritative for active lock ownership; MySQL records lock audit data. Conflicting locks or optimistic-version mismatches return HTTP 409.
+编辑锁有效期为 30 分钟。Redis 判断当前锁所有权，MySQL 保存锁操作审计。锁冲突或乐观锁版本冲突均返回 HTTP 409。
 
-## Synchronization
+## 六、定时同步
 
-Synchronization configurations support manual or cron schedules, `FULL`, `BATCH`, or `SINGLE` selection, REST delivery, and API Key or Basic Auth. Credentials are encrypted at rest using an environment-provided application key and are never returned by read APIs.
+同步配置支持手动或 cron 调度，支持 `FULL`、`BATCH` 和 `SINGLE` 模式，使用 REST 推送，并支持 API Key 或 Basic Auth。认证凭据使用环境变量提供的应用密钥加密保存，读取接口不得返回凭据明文或密文。
 
-Only approved `ACTIVE` configurations are scheduled. The scheduler registers and replaces cron tasks when configuration state changes. A Redis lock prevents concurrent execution of the same configuration. Each run creates a stable snapshot containing approved master records and their visible associated sub records.
+只有审批通过且状态为 `ACTIVE` 的配置才能被调度。配置状态变化时动态注册、替换或注销 cron 任务。Redis 锁防止同一配置并发执行。每次执行生成稳定快照，仅包含已审批主表记录及其关联的可同步子表记录。
 
-Failed HTTP delivery enters a persistent retry queue. Retry delays are 1 minute, 2 minutes, 5 minutes, 60 minutes, and 60 minutes, for at most five retry attempts. Success, terminal failure, and operator stop are persisted. Department editors may stop retries for their own department; super administrators may stop any retry.
+HTTP 推送失败后进入持久化重试队列。五次重试的等待时间依次为 1、2、5、60、60 分钟，最多重试五次。成功、最终失败和人工停止状态均持久化。部门编辑人员可停止本部门重试，超级管理员可停止任意重试。
 
-## API and Errors
+## 七、接口与错误处理
 
-Retain the source design's `/api/auth`, `/api/user`, `/api/role`, `/api/master-type`, `/api/master-field`, `/api/sub-type`, `/api/sub-field`, `/api/master-record`, `/api/sub-record`, `/api/approval`, `/api/sync-config`, `/api/sync-log`, and `/api/sync-retry` families. Add department, edit-lock, field-schema, and cron-validation endpoints.
+保留原设计中的 `/api/auth`、`/api/user`、`/api/role`、`/api/master-type`、`/api/master-field`、`/api/sub-type`、`/api/sub-field`、`/api/master-record`、`/api/sub-record`、`/api/approval`、`/api/sync-config`、`/api/sync-log` 和 `/api/sync-retry` 接口族，并补充部门、编辑锁、字段结构查询和 cron 校验接口。
 
-Responses use `{ code, message, data, requestId }`. Invalid input returns 400, missing authentication 401, forbidden access 403, missing resources 404, conflicts 409, and unexpected server errors 500. Logs include `requestId`, actor, department, operation, and business identifier without secrets.
+响应统一采用 `{ code, message, data, requestId }`。参数错误返回 400，未登录返回 401，无权限返回 403，资源不存在返回 404，冲突返回 409，未预期错误返回 500。日志记录 `requestId`、操作者、部门、操作名称和业务标识，但不得记录密码、令牌或同步凭据。
 
-## Frontend
+## 八、前端设计
 
-The initial UI contains login, system management, metadata configuration, master-data list and dynamic forms, approval center with snapshot differences, synchronization configuration, synchronization logs, and retry queue. Dynamic components are selected from an allowlisted field-type map. The client displays backend validation errors but does not duplicate authorization decisions.
+首期页面包含登录、系统管理、元数据配置、主数据列表与动态表单、带快照差异展示的审批中心、同步配置、同步日志和重试队列。动态组件只能从允许的字段类型映射表中选择。前端展示后端校验错误，但不重复实现后端授权决策。
 
-## Deployment
+## 九、部署
 
-Docker Compose starts MySQL 8.0, Redis, backend, and frontend with health checks. Local Maven and npm startup remain supported. Initial administrator credentials and the credential-encryption key come from environment variables; no default plaintext password is committed.
+Docker Compose 启动 MySQL 8.0、Redis、后端和前端，并配置健康检查。同时支持 Maven 和 npm 本地启动。初始管理员凭据及同步凭据加密密钥通过环境变量提供，仓库不得提交默认明文密码。
 
-## Testing and Acceptance
+## 十、测试与验收
 
-Backend tests use JUnit 5, Spring Boot Test, and Testcontainers for MySQL and Redis. Frontend tests use Vitest and Vue Test Utils. Tests cover role/department authorization, metadata validation, approval transactions, history, locks, cross-department filtering, cron lifecycle, HTTP authentication, retry transitions, and secret masking.
+后端使用 JUnit 5、Spring Boot Test 和 Testcontainers 测试 MySQL 与 Redis；前端使用 Vitest 和 Vue Test Utils。测试覆盖角色与部门授权、元数据校验、审批事务、历史版本、编辑锁、跨部门过滤、cron 生命周期、HTTP 认证、重试状态和敏感凭据隐藏。
 
-An integration test proves the primary flow: create draft, submit, approve, trigger scheduled synchronization, receive a successful target response, and query the resulting log. A failure-path test proves five retries and terminal failure. Docker Compose health checks must pass, backend and frontend test suites must pass, and production builds must complete.
+集成测试必须验证主链路：创建草稿、提交审批、审批通过、触发定时同步、目标接口成功响应及查询同步日志。失败链路必须验证五次重试后进入最终失败。前后端测试、生产构建及 Docker Compose 健康检查均须通过。
 
-## Delivery Order
+## 十一、实施顺序
 
-Implement a vertical foundation first (project setup, database migration, authentication, and system entities), then metadata, records and visibility, approval and locks, synchronization, frontend workflows, and full-stack verification. Every behavioral change follows red-green-refactor testing.
+先完成项目骨架、数据库迁移、身份认证和系统实体；随后依次实现元数据、业务记录与数据可见性、审批与编辑锁、定时同步、前端流程和全栈验证。所有行为变更均采用红—绿—重构的测试驱动开发流程。
