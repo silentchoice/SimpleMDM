@@ -20,12 +20,21 @@ CALL validate_department_master_type_assignments();
 DROP PROCEDURE validate_department_master_type_assignments;
 
 ALTER TABLE master_fields
+  ADD INDEX idx_master_fields_master_type (master_type_id);
+
+ALTER TABLE master_fields
   ADD COLUMN department_id BIGINT NULL AFTER master_type_id,
   DROP INDEX uk_master_fields_type_code;
 
 ALTER TABLE sub_types
+  ADD INDEX idx_sub_types_master_type (master_type_id);
+
+ALTER TABLE sub_types
   ADD COLUMN department_id BIGINT NULL AFTER master_type_id,
   DROP INDEX uk_sub_types_master_code;
+
+ALTER TABLE sub_fields
+  ADD INDEX idx_sub_fields_sub_type (sub_type_id);
 
 ALTER TABLE sub_fields
   ADD COLUMN department_id BIGINT NULL AFTER sub_type_id,
@@ -63,22 +72,21 @@ SELECT draft.master_type_id, draft.department_id
 FROM master_record_drafts draft
 JOIN metadata_source_master_types source ON source.master_type_id = draft.master_type_id;
 
+CREATE TEMPORARY TABLE metadata_unscoped_master_types AS
+SELECT source.master_type_id
+FROM metadata_source_master_types source
+LEFT JOIN metadata_department_scope scoped ON scoped.master_type_id = source.master_type_id
+WHERE scoped.master_type_id IS NULL;
+
 INSERT INTO departments (code, name, status)
 SELECT '__LEGACY_METADATA_MIGRATION__', 'Legacy Metadata Migration', 'INACTIVE'
-WHERE EXISTS (
-  SELECT 1
-  FROM metadata_source_master_types source
-  LEFT JOIN metadata_department_scope scoped ON scoped.master_type_id = source.master_type_id
-  WHERE scoped.master_type_id IS NULL
-)
+WHERE EXISTS (SELECT 1 FROM metadata_unscoped_master_types)
 ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id);
 
 INSERT INTO metadata_department_scope (master_type_id, department_id)
 SELECT source.master_type_id, legacy_department.id
-FROM metadata_source_master_types source
-JOIN departments legacy_department ON legacy_department.code = '__LEGACY_METADATA_MIGRATION__'
-LEFT JOIN metadata_department_scope scoped ON scoped.master_type_id = source.master_type_id
-WHERE scoped.master_type_id IS NULL;
+FROM metadata_unscoped_master_types source
+JOIN departments legacy_department ON legacy_department.code = '__LEGACY_METADATA_MIGRATION__';
 
 INSERT INTO department_master_types (department_id, master_type_id, status)
 SELECT scoped.department_id, scoped.master_type_id, 'INACTIVE'
@@ -97,13 +105,15 @@ SELECT * FROM sub_types;
 CREATE TEMPORARY TABLE metadata_sub_field_source AS
 SELECT * FROM sub_fields;
 
+CREATE TEMPORARY TABLE metadata_retained_department_scope AS
+SELECT master_type_id, MIN(department_id) AS department_id
+FROM metadata_department_scope
+GROUP BY master_type_id;
+
 UPDATE master_fields field_definition
-JOIN (
-  SELECT master_type_id, MIN(department_id) AS department_id
-  FROM metadata_department_scope
-  GROUP BY master_type_id
-) scoped ON scoped.master_type_id = field_definition.master_type_id
-SET field_definition.department_id = scoped.department_id;
+JOIN metadata_retained_department_scope retained
+  ON retained.master_type_id = field_definition.master_type_id
+SET field_definition.department_id = retained.department_id;
 
 INSERT INTO master_fields (master_type_id, department_id, code, display_name, field_type, required_flag,
     options, sort_order, status, created_at, updated_at)
@@ -111,31 +121,20 @@ SELECT source.master_type_id, scoped.department_id, source.code, source.display_
     source.required_flag, source.options, source.sort_order, source.status, source.created_at, source.updated_at
 FROM metadata_master_field_source source
 JOIN metadata_department_scope scoped ON scoped.master_type_id = source.master_type_id
-JOIN (
-  SELECT master_type_id, MIN(department_id) AS department_id
-  FROM metadata_department_scope
-  GROUP BY master_type_id
-) retained ON retained.master_type_id = source.master_type_id
+JOIN metadata_retained_department_scope retained ON retained.master_type_id = source.master_type_id
 WHERE scoped.department_id <> retained.department_id;
 
 UPDATE sub_types subtype_definition
-JOIN (
-  SELECT master_type_id, MIN(department_id) AS department_id
-  FROM metadata_department_scope
-  GROUP BY master_type_id
-) scoped ON scoped.master_type_id = subtype_definition.master_type_id
-SET subtype_definition.department_id = scoped.department_id;
+JOIN metadata_retained_department_scope retained
+  ON retained.master_type_id = subtype_definition.master_type_id
+SET subtype_definition.department_id = retained.department_id;
 
 INSERT INTO sub_types (master_type_id, department_id, code, name, status, created_at, updated_at)
 SELECT source.master_type_id, scoped.department_id, source.code, source.name, source.status,
     source.created_at, source.updated_at
 FROM metadata_sub_type_source source
 JOIN metadata_department_scope scoped ON scoped.master_type_id = source.master_type_id
-JOIN (
-  SELECT master_type_id, MIN(department_id) AS department_id
-  FROM metadata_department_scope
-  GROUP BY master_type_id
-) retained ON retained.master_type_id = source.master_type_id
+JOIN metadata_retained_department_scope retained ON retained.master_type_id = source.master_type_id
 WHERE scoped.department_id <> retained.department_id;
 
 UPDATE sub_fields field_definition
