@@ -46,9 +46,14 @@ class AuthSecurityRegressionTest {
   @MockBean
   private AuthenticationService authenticationService;
 
+  @MockBean
+  private AccountStateRepository accountStateRepository;
+
   @BeforeEach
   void resetRevocationStore() {
     tokenRevocationStore.failReads = false;
+    org.mockito.Mockito.when(accountStateRepository.findActive(7L))
+        .thenReturn(new AccountState(7L, null, List.of(Role.DEPT_VIEWER)));
   }
 
   @Test
@@ -113,6 +118,17 @@ class AuthSecurityRegressionTest {
         .andExpect(jsonPath("$.code").value(500))
         .andExpect(jsonPath("$.message").value("Internal server error"))
         .andExpect(jsonPath("$.requestId").value("req-redis-failure"));
+  }
+
+  @Test
+  void roleRevocationInvalidatesAnAlreadyIssuedToken() throws Exception {
+    String token = jwtService.issue(principal());
+    org.mockito.Mockito.when(accountStateRepository.findActive(7L))
+        .thenReturn(new AccountState(7L, null, List.of()));
+
+    mockMvc.perform(get("/api/auth/menu").header("Authorization", "Bearer " + token))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value(401));
   }
 
   private UserPrincipal principal() {

@@ -31,6 +31,7 @@ class JdbcAuthenticationService implements AuthenticationService {
           LEFT JOIN user_roles ur ON ur.user_id = u.id
           LEFT JOIN roles r ON r.id = ur.role_id AND r.status = 'ACTIVE'
          WHERE u.username = :username AND u.status = 'ACTIVE'
+           AND (u.department_id IS NULL OR d.id IS NOT NULL)
         """, Map.of("username", username), (rs, rowNumber) -> new UserRow(
         rs.getLong("user_id"), rs.getString("username"), rs.getString("password_hash"),
         rs.getString("display_name"), (Long) rs.getObject("department_id"),

@@ -24,7 +24,8 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 public class SecurityConfig {
   @Bean
   SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService,
-      TokenRevocationStore tokenRevocationStore, ObjectMapper objectMapper) throws Exception {
+      TokenRevocationStore tokenRevocationStore, ObjectMapper objectMapper,
+      AccountStateRepository accountStates) throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .exceptionHandling(exceptions -> exceptions
@@ -34,7 +35,7 @@ public class SecurityConfig {
             .requestMatchers("/api/auth/login").permitAll()
             .anyRequest().authenticated())
         .addFilterBefore(new RequestIdFilter(), SecurityContextHolderFilter.class)
-        .addFilterAfter(new JwtAuthenticationFilter(jwtService, tokenRevocationStore, objectMapper),
+        .addFilterAfter(new JwtAuthenticationFilter(jwtService, tokenRevocationStore, objectMapper, accountStates),
             SecurityContextHolderFilter.class);
     return http.build();
   }

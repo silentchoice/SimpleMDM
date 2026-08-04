@@ -23,6 +23,14 @@ import org.springframework.test.web.servlet.MockMvc;
     "app.jwt.expiration-seconds=60"
 })
 class RoleProtectedEndpointTest {
+  @org.springframework.boot.test.mock.mockito.MockBean
+  private AccountStateRepository accountStateRepository;
+
+  @org.junit.jupiter.api.BeforeEach
+  void currentAccountState() {
+    org.mockito.Mockito.when(accountStateRepository.findActive(7L))
+        .thenReturn(new AccountState(7L, null, java.util.List.of(Role.DEPT_VIEWER)));
+  }
   @Autowired
   private MockMvc mockMvc;
 

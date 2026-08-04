@@ -15,6 +15,8 @@ import com.example.mdm.auth.TokenRevocationStore;
 import com.example.mdm.auth.UserPrincipal;
 import com.example.mdm.auth.DepartmentPrincipal;
 import com.example.mdm.auth.SecurityConfig;
+import com.example.mdm.auth.AccountState;
+import com.example.mdm.auth.AccountStateRepository;
 import com.example.mdm.common.api.RequestId;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
@@ -58,6 +60,15 @@ class ErrorProtocolTest {
 
   @MockBean
   private AuthenticationService authenticationService;
+
+  @MockBean
+  private AccountStateRepository accountStateRepository;
+
+  @org.junit.jupiter.api.BeforeEach
+  void currentAccountState() {
+    org.mockito.Mockito.when(accountStateRepository.findActive(7L))
+        .thenReturn(new AccountState(7L, null, List.of(Role.DEPT_VIEWER)));
+  }
 
   @AfterEach
   void clearSecurityContext() {

@@ -8,6 +8,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -21,12 +23,14 @@ class JwtAuthenticationFilter extends OncePerRequestFilter {
   private final JwtService jwtService;
   private final TokenRevocationStore tokenRevocationStore;
   private final ObjectMapper objectMapper;
+  private final AccountStateRepository accountStates;
 
   JwtAuthenticationFilter(JwtService jwtService, TokenRevocationStore tokenRevocationStore,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper, AccountStateRepository accountStates) {
     this.jwtService = jwtService;
     this.tokenRevocationStore = tokenRevocationStore;
     this.objectMapper = objectMapper;
+    this.accountStates = accountStates;
   }
 
   @Override
@@ -48,9 +52,19 @@ class JwtAuthenticationFilter extends OncePerRequestFilter {
           filterChain.doFilter(request, response);
           return;
         }
+        UserPrincipal tokenPrincipal = parsedToken.principal();
+        AccountState current = accountStates.findActive(tokenPrincipal.id());
+        Long tokenDepartment = tokenPrincipal.department() == null ? null : tokenPrincipal.department().id();
+        if (current == null || !Objects.equals(current.departmentId(), tokenDepartment)
+            || !new HashSet<>(current.roles()).equals(new HashSet<>(tokenPrincipal.roles()))) {
+          SecurityContextHolder.clearContext();
+          filterChain.doFilter(request, response);
+          return;
+        }
       } catch (RuntimeException exception) {
         Object requestId = request.getAttribute(RequestId.ATTRIBUTE);
-        log.error("Token revocation lookup failed requestId={}", requestId, exception);
+        log.error("Authentication state lookup failed requestId={} exceptionType={}", requestId,
+            exception.getClass().getName());
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(),
