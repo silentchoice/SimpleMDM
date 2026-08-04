@@ -1,0 +1,53 @@
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createAppRouter } from './index'
+import { useAuthStore } from '../stores/auth'
+import { menuForRoles } from './menu'
+import type { Session } from '../types'
+
+const editorSession: Session = {
+  accessToken: 'token',
+  user: { id: 2, username: 'editor', displayName: 'Editor' },
+  roles: ['DEPT_EDITOR'],
+  department: { id: 3, code: 'OPS', name: 'Operations' }
+}
+
+describe('authenticated router and menu', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  it('redirects an unauthenticated user to login with their intended destination', async () => {
+    const router = createAppRouter()
+    await router.push('/metadata/active')
+    await router.isReady()
+
+    expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/metadata/active')
+  })
+
+  it('redirects an authenticated visitor away from login', async () => {
+    useAuthStore().setSession(editorSession)
+    const router = createAppRouter()
+    await router.push('/login')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/')
+  })
+
+  it('sends a user without a route role to forbidden', async () => {
+    useAuthStore().setSession(editorSession)
+    const router = createAppRouter()
+    await router.push('/system/users')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/forbidden')
+  })
+
+  it('includes active verification and change submission in the editor menu', () => {
+    const labels = menuForRoles(['DEPT_EDITOR']).map((item) => item.label)
+
+    expect(labels).toContain('Active Metadata')
+    expect(labels).toContain('Submit Change')
+  })
+})
