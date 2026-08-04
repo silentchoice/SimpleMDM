@@ -1,3 +1,24 @@
+DROP PROCEDURE IF EXISTS validate_department_master_type_assignments;
+
+DELIMITER $$
+CREATE PROCEDURE validate_department_master_type_assignments()
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM department_master_types
+    WHERE status = 'ACTIVE'
+    GROUP BY department_id
+    HAVING COUNT(*) > 1
+  ) THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Resolve the active template conflict for each department before retrying V3';
+  END IF;
+END$$
+DELIMITER ;
+
+CALL validate_department_master_type_assignments();
+DROP PROCEDURE validate_department_master_type_assignments;
+
 ALTER TABLE master_fields
   ADD COLUMN department_id BIGINT NULL AFTER master_type_id,
   DROP INDEX uk_master_fields_type_code;
@@ -66,17 +87,6 @@ LEFT JOIN department_master_types assignment
   ON assignment.department_id = scoped.department_id
   AND assignment.master_type_id = scoped.master_type_id
 WHERE assignment.department_id IS NULL;
-
-UPDATE department_master_types assignment
-JOIN (
-  SELECT department_id, MIN(master_type_id) AS retained_master_type_id
-  FROM department_master_types
-  WHERE status = 'ACTIVE'
-  GROUP BY department_id
-) retained ON retained.department_id = assignment.department_id
-SET assignment.status = 'INACTIVE'
-WHERE assignment.status = 'ACTIVE'
-  AND assignment.master_type_id <> retained.retained_master_type_id;
 
 CREATE TEMPORARY TABLE metadata_master_field_source AS
 SELECT * FROM master_fields;
