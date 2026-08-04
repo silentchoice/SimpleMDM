@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.mdm.common.error.BusinessException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,24 @@ class FieldStructureValidatorTest {
     String code = "choice";
     assertBadRequest(code,
         () -> validator.validate(field(code, FieldType.valueOf(type), List.of("A", "A"))));
+  }
+
+  @Test
+  void rejectsNullSelectionOptionAsFieldSpecificBadRequest() {
+    String code = "choice";
+    List<String> options = new ArrayList<>();
+    options.add("A");
+    options.add(null);
+
+    assertBadRequest(code,
+        () -> validator.validate(field(code, FieldType.SELECT, options)));
+  }
+
+  @Test
+  void rejectsNullFieldTypeAsFieldSpecificBadRequest() {
+    String code = "value";
+
+    assertBadRequest(code, () -> validator.validate(field(code, null, List.of())));
   }
 
   @ParameterizedTest

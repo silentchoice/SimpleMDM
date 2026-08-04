@@ -5,18 +5,21 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 @Component
 public class FieldValueValidator {
   public void validate(List<FieldDefinition> definitions, Map<String, Object> values) {
-    Map<String, FieldDefinition> fields = definitions.stream()
-        .filter(field -> field.status() == MetadataStatus.ACTIVE)
-        .collect(Collectors.toMap(FieldDefinition::code, Function.identity()));
+    Map<String, FieldDefinition> fields = new LinkedHashMap<>();
+    for (FieldDefinition field : definitions) {
+      if (field.status() != MetadataStatus.ACTIVE) continue;
+      if (fields.putIfAbsent(field.code(), field) != null) {
+        throw BusinessException.badRequest("Duplicate field definition: " + field.code());
+      }
+    }
     for (String code : values.keySet()) {
       if (!fields.containsKey(code)) throw BusinessException.badRequest("Unknown field: " + code);
     }

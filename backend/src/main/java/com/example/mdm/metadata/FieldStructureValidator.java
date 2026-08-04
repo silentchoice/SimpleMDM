@@ -15,6 +15,9 @@ public class FieldStructureValidator {
     if (code == null || !CODE_PATTERN.matcher(code).matches()) {
       throw invalid(code, "invalid code");
     }
+    if (definition.fieldType() == null) {
+      throw invalid(code, "field type is required");
+    }
 
     if (!definition.supportsOptions()) {
       if (!definition.options().isEmpty()) {
@@ -28,7 +31,7 @@ public class FieldStructureValidator {
     }
     Set<String> unique = new HashSet<>();
     for (String option : definition.options()) {
-      if (option.isBlank()) {
+      if (option == null || option.isBlank()) {
         throw invalid(code, "selection options must not be blank");
       }
       if (!unique.add(option)) {

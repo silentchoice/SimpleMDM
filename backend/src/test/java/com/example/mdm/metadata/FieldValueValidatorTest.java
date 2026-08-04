@@ -27,6 +27,22 @@ class FieldValueValidatorTest {
         Map.of("unknown", "value")));
   }
 
+  @Test
+  void rejectsDuplicateActiveDefinitionCodes() {
+    FieldDefinition first = field("name", FieldType.TEXT, false, List.of());
+    FieldDefinition duplicate = new FieldDefinition(2L, 2L, "name", "duplicate",
+        FieldType.TEXT, false, List.of(), false, 1, MetadataStatus.ACTIVE);
+
+    assertBadRequest("name",
+        () -> validator.validate(List.of(first, duplicate), Map.of("name", "value")));
+  }
+
+  @Test
+  void rejectsAbsentRequiredKey() {
+    assertBadRequest("name", () -> validator.validate(
+        List.of(field("name", FieldType.TEXT, true, List.of())), Map.of()));
+  }
+
   @ParameterizedTest(name = "rejects missing required value [{0}]")
   @MethodSource("emptyRequiredValues")
   void rejectsEmptyRequiredValues(Object value) {
