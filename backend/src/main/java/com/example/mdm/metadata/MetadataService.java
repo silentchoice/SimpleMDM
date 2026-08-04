@@ -6,12 +6,17 @@ import com.example.mdm.auth.UserPrincipal;
 import com.example.mdm.common.error.BusinessException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MetadataService {
@@ -42,27 +47,30 @@ public class MetadataService {
     repository.assignDepartment(departmentId, masterTypeId);
   }
 
+  @Transactional
   public long submitMasterFields(List<FieldDefinition> fields) {
     var actor = editor();
     var submitted = immutableNonEmpty(fields, "Master fields are required");
     long templateId = commonFieldOwner(submitted);
-    repository.requireAssignment(actor.department().id(), templateId);
+    repository.lockTemplateAssignment(actor.department().id(), templateId);
     submitted.forEach(fieldValidator::validate);
     validateFieldList(submitted);
     var before = repository.findMasterFields(actor.department().id(), templateId);
     return submit(actor, templateId, "MASTER_FIELDS", templateId, before, submitted);
   }
 
+  @Transactional
   public long submitSubTypes(List<SubType> types) {
     var actor = editor();
     var submitted = immutableNonEmpty(types, "Sub types are required");
     long templateId = commonTemplate(submitted);
-    repository.requireAssignment(actor.department().id(), templateId);
+    repository.lockTemplateAssignment(actor.department().id(), templateId);
     validateSubTypes(submitted);
     var before = repository.findSubTypes(actor.department().id(), templateId);
     return submit(actor, templateId, "SUB_TYPES", templateId, before, submitted);
   }
 
+  @Transactional
   public long submitSubFields(long subTypeId, List<FieldDefinition> fields) {
     var actor = editor();
     var submitted = immutableNonEmpty(fields, "Sub fields are required");
@@ -70,7 +78,12 @@ public class MetadataService {
       throw BusinessException.badRequest("Sub field owner does not match sub type");
     }
     long templateId = approvals.requireSubTypeTemplate(actor.department().id(), subTypeId);
-    repository.requireAssignment(actor.department().id(), templateId);
+    repository.lockTemplateAssignment(actor.department().id(), templateId);
+    long lockedTemplateId = approvals.requireSubTypeTemplate(actor.department().id(), subTypeId);
+    if (lockedTemplateId != templateId) {
+      throw new BusinessException(org.springframework.http.HttpStatus.CONFLICT,
+          "Metadata changed during submission");
+    }
     submitted.forEach(fieldValidator::validate);
     validateFieldList(submitted);
     var before = repository.findSubFields(actor.department().id(), subTypeId);
@@ -88,12 +101,23 @@ public class MetadataService {
 
   private long submit(UserPrincipal actor, long templateId, String kind, long entityId,
       List<?> before, List<?> after) {
+    String baseFingerprint = fingerprint(before);
     var beforeEnvelope = new SnapshotEnvelope(SNAPSHOT_SCHEMA_VERSION, actor.department().id(),
-        templateId, kind, List.copyOf(before));
+        templateId, kind, baseFingerprint, List.copyOf(before));
     var afterEnvelope = new SnapshotEnvelope(SNAPSHOT_SCHEMA_VERSION, actor.department().id(),
-        templateId, kind, List.copyOf(after));
+        templateId, kind, baseFingerprint, List.copyOf(after));
     return approvals.submit(new MetadataChangeRequest(actor.department().id(), actor.id(), kind,
         entityId, serialize(beforeEnvelope), serialize(afterEnvelope)));
+  }
+
+  private String fingerprint(List<?> definitions) {
+    try {
+      byte[] canonical = json.writeValueAsString(List.copyOf(definitions))
+          .getBytes(StandardCharsets.UTF_8);
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical));
+    } catch (JsonProcessingException | NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("Unable to fingerprint metadata snapshot", exception);
+    }
   }
 
   private String serialize(SnapshotEnvelope envelope) {
@@ -168,20 +192,20 @@ public class MetadataService {
 
   public List<FieldDefinition> masterFields(long id) {
     var actor = departmentReader();
-    repository.requireAssignment(actor.department().id(), id);
+    repository.requireTemplateAccess(actor.department().id(), id);
     return repository.findMasterFields(actor.department().id(), id);
   }
 
   public List<SubType> subTypes(long id) {
     var actor = departmentReader();
-    repository.requireAssignment(actor.department().id(), id);
+    repository.requireTemplateAccess(actor.department().id(), id);
     return repository.findSubTypes(actor.department().id(), id);
   }
 
   public List<FieldDefinition> subFields(long id) {
     var actor = departmentReader();
     long templateId = approvals.requireSubTypeTemplate(actor.department().id(), id);
-    repository.requireAssignment(actor.department().id(), templateId);
+    repository.requireTemplateAccess(actor.department().id(), templateId);
     return repository.findSubFields(actor.department().id(), id);
   }
 
@@ -194,18 +218,18 @@ public class MetadataService {
     return actor;
   }
 
-  @Deprecated public FieldDefinition createMasterField(FieldDefinition field) {
+  @Deprecated @Transactional public FieldDefinition createMasterField(FieldDefinition field) {
     submitMasterFields(List.of(field));
     return field;
   }
 
-  @Deprecated public SubType createSubType(long masterTypeId, String code, String name) {
+  @Deprecated @Transactional public SubType createSubType(long masterTypeId, String code, String name) {
     var type = new SubType(0, masterTypeId, normalize(code), name.trim(), MetadataStatus.ACTIVE);
     submitSubTypes(List.of(type));
     return type;
   }
 
-  @Deprecated public FieldDefinition createSubField(FieldDefinition field) {
+  @Deprecated @Transactional public FieldDefinition createSubField(FieldDefinition field) {
     submitSubFields(field.ownerTypeId(), List.of(field));
     return field;
   }
@@ -213,5 +237,5 @@ public class MetadataService {
   private String normalize(String code) { return code.trim().toUpperCase(Locale.ROOT); }
 
   private record SnapshotEnvelope(int schemaVersion, long departmentId, long templateId,
-      String entityKind, List<?> orderedDefinitions) {}
+      String entityKind, String baseFingerprint, List<?> orderedDefinitions) {}
 }

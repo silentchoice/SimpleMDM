@@ -6,6 +6,14 @@ public interface MetadataRepository {
   MasterType createMasterType(String code, String name, long actorId);
   void assignDepartment(long departmentId, long masterTypeId);
   void requireAssignment(long departmentId, long masterTypeId);
+  void requireTemplateAccess(long departmentId, long masterTypeId);
+
+  /**
+   * Locks the active department/template assignment. Submission and approval must hold this same
+   * row lock while reading or replacing ACTIVE definitions so approval can compare its literal
+   * base snapshot without a stale-write race.
+   */
+  void lockTemplateAssignment(long departmentId, long masterTypeId);
   FieldDefinition createMasterField(long departmentId, FieldDefinition field);
   SubType createSubType(long departmentId, long masterTypeId, String code, String name);
   FieldDefinition createSubField(long departmentId, FieldDefinition field);

@@ -47,6 +47,25 @@ class JdbcMetadataRepository implements MetadataRepository {
         Map.of("department",departmentId,"type",masterTypeId),Integer.class);
     if (assignments==null || assignments==0) throw BusinessException.notFound("Master type assignment");
   }
+  @Override public void requireTemplateAccess(long departmentId,long masterTypeId) {
+    Integer assignments=jdbc.queryForObject("SELECT COUNT(*) FROM department_master_types "
+        +"WHERE department_id=:department AND master_type_id=:type AND status='ACTIVE'",
+        Map.of("department",departmentId,"type",masterTypeId),Integer.class);
+    if (assignments!=null && assignments>0) return;
+    rejectForeignOrMissingTemplate(masterTypeId);
+  }
+  @Override public void lockTemplateAssignment(long departmentId,long masterTypeId) {
+    var assignments=jdbc.query("SELECT master_type_id FROM department_master_types "
+            +"WHERE department_id=:department AND master_type_id=:type AND status='ACTIVE' FOR UPDATE",
+        Map.of("department",departmentId,"type",masterTypeId),(rs,n)->rs.getLong("master_type_id"));
+    if (assignments.isEmpty()) rejectForeignOrMissingTemplate(masterTypeId);
+  }
+  private void rejectForeignOrMissingTemplate(long masterTypeId) {
+    Integer templates=jdbc.queryForObject("SELECT COUNT(*) FROM master_types WHERE id=:type AND status='ACTIVE'",
+        Map.of("type",masterTypeId),Integer.class);
+    if (templates!=null && templates>0) throw BusinessException.forbidden();
+    throw BusinessException.notFound("Master type");
+  }
   @Override public FieldDefinition createMasterField(long departmentId,FieldDefinition field) {
     requireAssignment(departmentId,field.ownerTypeId());
     return createField(departmentId,"master_fields","master_type_id",field);

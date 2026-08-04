@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,8 +19,10 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 
 class MetadataServiceTest {
   private final MetadataRepository metadata = Mockito.mock(MetadataRepository.class);
@@ -44,7 +47,7 @@ class MetadataServiceTest {
     assertThat(service.submitMasterFields(after)).isEqualTo(99L);
 
     verify(authorization).requireDepartment(7L);
-    verify(metadata).requireAssignment(7L, 41L);
+    verify(metadata).lockTemplateAssignment(7L, 41L);
     var request = ArgumentCaptor.forClass(MetadataChangeRequest.class);
     verify(approvals).submit(request.capture());
     assertThat(request.getValue().departmentId()).isEqualTo(7L);
@@ -55,6 +58,41 @@ class MetadataServiceTest {
     assertEnvelope(request.getValue().afterSnapshot(), 7L, 41L, "MASTER_FIELDS", "new");
     verify(metadata, never()).createMasterField(any(Long.class), any());
     assertThat(metadata.findMasterFields(7L, 41L)).containsExactlyElementsOf(before);
+  }
+
+  @Test void submissionLocksAssignmentBeforeReadingActiveAndInsertingTask() {
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
+    var fields = List.of(field(0, 41, "new", 1));
+
+    service.submitMasterFields(fields);
+
+    InOrder order = Mockito.inOrder(metadata, approvals);
+    order.verify(metadata).lockTemplateAssignment(7L, 41L);
+    order.verify(metadata).findMasterFields(7L, 41L);
+    order.verify(approvals).submit(any());
+  }
+
+  @Test void everySubmissionBoundaryIsTransactional() throws Exception {
+    assertThat(MetadataService.class.getMethod("submitMasterFields", List.class)
+        .isAnnotationPresent(Transactional.class)).isTrue();
+    assertThat(MetadataService.class.getMethod("submitSubTypes", List.class)
+        .isAnnotationPresent(Transactional.class)).isTrue();
+    assertThat(MetadataService.class.getMethod("submitSubFields", long.class, List.class)
+        .isAnnotationPresent(Transactional.class)).isTrue();
+  }
+
+  @Test void existingUnassignedTemplateIsForbiddenButMissingTemplateIsNotFound() {
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
+    Mockito.doThrow(BusinessException.forbidden()).when(metadata).lockTemplateAssignment(7L, 88L);
+    Mockito.doThrow(BusinessException.notFound("Master type"))
+        .when(metadata).lockTemplateAssignment(7L, 404L);
+
+    assertThatThrownBy(() -> service.submitMasterFields(List.of(field(0, 88, "new", 1))))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN));
+    assertThatThrownBy(() -> service.submitMasterFields(List.of(field(0, 404, "new", 1))))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND));
   }
 
   @Test void submissionRequiresDepartmentEditorRole() {
@@ -78,13 +116,13 @@ class MetadataServiceTest {
 
   @Test void submissionRejectsTemplateNotAssignedToEditorsDepartment() {
     when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
-    Mockito.doThrow(BusinessException.notFound("Master type assignment"))
-        .when(metadata).requireAssignment(7L, 88L);
+    Mockito.doThrow(BusinessException.forbidden())
+        .when(metadata).lockTemplateAssignment(7L, 88L);
 
     assertThatThrownBy(() -> service.submitSubTypes(List.of(
         new SubType(0L, 88L, "local", "Local", MetadataStatus.ACTIVE))))
         .isInstanceOfSatisfying(BusinessException.class,
-            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND));
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN));
     verify(approvals, never()).submit(any());
   }
 
@@ -163,6 +201,7 @@ class MetadataServiceTest {
 
     assertThat(service.submitSubFields(55L, after)).isEqualTo(3L);
 
+    verify(approvals, times(2)).requireSubTypeTemplate(7L, 55L);
     verify(metadata, never()).createSubField(anyLong(), any());
     assertThat(metadata.findSubFields(7L, 55L)).containsExactlyElementsOf(before);
   }
@@ -194,7 +233,7 @@ class MetadataServiceTest {
     assertThat(service.masterFields(41L)).containsExactlyElementsOf(fields);
 
     verify(authorization).requireDepartment(7L);
-    verify(metadata).requireAssignment(7L, 41L);
+    verify(metadata).requireTemplateAccess(7L, 41L);
     verify(metadata, never()).findMasterFields(41L);
   }
 
@@ -205,6 +244,7 @@ class MetadataServiceTest {
     assertThat(tree.get("departmentId").asLong()).isEqualTo(departmentId);
     assertThat(tree.get("templateId").asLong()).isEqualTo(templateId);
     assertThat(tree.get("entityKind").asText()).isEqualTo(kind);
+    assertThat(tree.get("baseFingerprint").asText()).matches("[0-9a-f]{64}");
     assertThat(tree.get("orderedDefinitions").get(0).get("code").asText()).isEqualTo(expectedCode);
     assertThat(value).doesNotContain("username", "roles", "credentials", "Editor");
   }
