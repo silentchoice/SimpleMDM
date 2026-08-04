@@ -97,7 +97,7 @@ class JdbcMetadataRepository implements MetadataRepository {
   }
   @Override public List<SubType> findSubTypes(long departmentId,long masterTypeId) {
     return jdbc.query("SELECT id,master_type_id,code,name,status FROM sub_types WHERE department_id=:department "
-        +"AND master_type_id=:id ORDER BY id",Map.of("department",departmentId,"id",masterTypeId),(rs,n)->
+        +"AND master_type_id=:id AND status='ACTIVE' ORDER BY id",Map.of("department",departmentId,"id",masterTypeId),(rs,n)->
         new SubType(rs.getLong("id"),rs.getLong("master_type_id"),rs.getString("code"),rs.getString("name"),MetadataStatus.valueOf(rs.getString("status"))));
   }
   @Override public List<FieldDefinition> findSubFields(long departmentId,long subTypeId) {

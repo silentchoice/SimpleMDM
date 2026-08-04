@@ -9,8 +9,10 @@ import static org.mockito.Mockito.when;
 
 import com.example.mdm.common.error.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -25,14 +27,37 @@ class MetadataRepositoryContractTest {
   @Test
   void mapsSecondActiveAssignmentForDepartmentToConflict() {
     var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
-    when(jdbc.update(contains("INSERT INTO department_master_types"), anyMap()))
-        .thenThrow(new DuplicateKeyException("duplicate active assignment"));
+    Set<Long> activeDepartmentIds = new HashSet<>();
+    when(jdbc.update(contains("INSERT INTO department_master_types"), anyMap())).thenAnswer(invocation -> {
+      Map<String, Object> parameters = invocation.getArgument(1);
+      if (!activeDepartmentIds.add((Long) parameters.get("department"))) {
+        throw new DuplicateKeyException("duplicate active assignment");
+      }
+      return 1;
+    });
     var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());
 
-    assertThatThrownBy(() -> repository.assignDepartment(7L, 19L))
+    repository.assignDepartment(7L, 19L);
+
+    assertThatThrownBy(() -> repository.assignDepartment(7L, 20L))
         .isInstanceOf(BusinessException.class)
         .extracting(error -> ((BusinessException) error).status(), Throwable::getMessage)
         .containsExactly(HttpStatus.CONFLICT, "Metadata conflict");
+  }
+
+  @Test
+  void readsOnlyActiveSubTypesWithinDepartment() {
+    var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
+    when(jdbc.<SubType>query(contains("FROM sub_types"), anyMap(),
+        org.mockito.ArgumentMatchers.<RowMapper<SubType>>any())).thenReturn(List.of());
+    var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());
+
+    repository.findSubTypes(7L, 19L);
+
+    var sql = ArgumentCaptor.forClass(String.class);
+    org.mockito.Mockito.verify(jdbc).query(sql.capture(), anyMap(),
+        org.mockito.ArgumentMatchers.<RowMapper<SubType>>any());
+    assertThat(sql.getValue()).contains("status='ACTIVE'");
   }
 
   @Test
