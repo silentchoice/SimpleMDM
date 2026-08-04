@@ -119,7 +119,7 @@ public class MetadataApprovalApplicationService {
     Set<Integer> orders = new HashSet<>();
     for (var field : definitions) {
       if (field.ownerTypeId() != ownerId || field.status() != MetadataStatus.ACTIVE
-          || !codes.add(field.code().toLowerCase(Locale.ROOT)) || field.sortOrder() < 0
+          || field.code() == null || !codes.add(field.code().toLowerCase(Locale.ROOT)) || field.sortOrder() < 0
           || !orders.add(field.sortOrder())) throw badSnapshot();
       try { fieldValidator.validate(field); } catch (RuntimeException invalid) { throw badSnapshot(); }
     }

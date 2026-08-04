@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.mdm.common.error.BusinessException;
@@ -95,6 +96,60 @@ class MetadataRepositoryContractTest {
     org.mockito.Mockito.verify(jdbc).update(contains("INSERT INTO master_fields"), parameters.capture(),
         any(GeneratedKeyHolder.class));
     assertThat(parameters.getValue().getValue("department")).isEqualTo(7L);
+  }
+
+  @Test void subtypeReplacementUpdatesRetainedIdentityAndInsertsOnlyNewCodes() {
+    var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
+    var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());
+    when(jdbc.<SubType>query(contains("FROM sub_types"), anyMap(), any(RowMapper.class)))
+        .thenReturn(List.of(new SubType(55, 19, "retained", "Old", MetadataStatus.ACTIVE)));
+    when(jdbc.update(contains("UPDATE sub_types"), anyMap())).thenReturn(1);
+    when(jdbc.update(contains("INSERT INTO sub_types"), any(MapSqlParameterSource.class),
+        any(GeneratedKeyHolder.class))).thenReturn(1);
+
+    repository.replaceSubTypes(7, 19, List.of(
+        new SubType(55, 19, "retained", "New", MetadataStatus.ACTIVE),
+        new SubType(0, 19, "added", "Added", MetadataStatus.ACTIVE)));
+
+    verify(jdbc).update(contains("UPDATE sub_types"), anyMap());
+    verify(jdbc).update(contains("INSERT INTO sub_types"), any(MapSqlParameterSource.class),
+        any(GeneratedKeyHolder.class));
+    org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never())
+        .update(contains("DELETE FROM sub_types"), anyMap());
+  }
+
+  @Test void removingReferencedSubtypeReturnsStableConflict() {
+    var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
+    var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());
+    when(jdbc.<SubType>query(contains("FROM sub_types"), anyMap(), any(RowMapper.class)))
+        .thenReturn(List.of(new SubType(55, 19, "removed", "Removed", MetadataStatus.ACTIVE)));
+    when(jdbc.queryForObject(contains("approval_tasks"), anyMap(),
+        org.mockito.ArgumentMatchers.eq(Integer.class))).thenReturn(1);
+
+    assertThatThrownBy(() -> repository.replaceSubTypes(7, 19, List.of(
+        new SubType(0, 19, "new", "New", MetadataStatus.ACTIVE))))
+        .isInstanceOfSatisfying(BusinessException.class,
+            error -> assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT));
+    org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never())
+        .update(contains("DELETE FROM sub_types"), anyMap());
+  }
+
+  @Test void subtypeDeleteConstraintFailureReturnsStableConflict() {
+    var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
+    var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());
+    when(jdbc.<SubType>query(contains("FROM sub_types"), anyMap(), any(RowMapper.class)))
+        .thenReturn(List.of(new SubType(55, 19, "removed", "Removed", MetadataStatus.ACTIVE)));
+    when(jdbc.queryForObject(contains("approval_tasks"), anyMap(),
+        org.mockito.ArgumentMatchers.eq(Integer.class))).thenReturn(0);
+    when(jdbc.update(contains("DELETE FROM sub_types"), anyMap()))
+        .thenThrow(new DataIntegrityViolationException("referenced"));
+
+    assertThatThrownBy(() -> repository.replaceSubTypes(7, 19, List.of(
+        new SubType(0, 19, "new", "New", MetadataStatus.ACTIVE))))
+        .isInstanceOfSatisfying(BusinessException.class, error -> {
+          assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT);
+          assertThat(error.getMessage()).isEqualTo("Metadata conflict");
+        });
   }
 
   private FieldDefinition field(long id, String code) {

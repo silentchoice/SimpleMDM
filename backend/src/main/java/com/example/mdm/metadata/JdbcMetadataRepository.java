@@ -4,6 +4,7 @@ import com.example.mdm.common.error.BusinessException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
@@ -123,19 +124,72 @@ class JdbcMetadataRepository implements MetadataRepository {
     return fields("sub_fields","sub_type_id",departmentId,subTypeId,true);
   }
   @Override public void replaceMasterFields(long departmentId,long masterTypeId,List<FieldDefinition> fields) {
-    jdbc.update("DELETE FROM master_fields WHERE department_id=:department AND master_type_id=:owner",
-        Map.of("department",departmentId,"owner",masterTypeId));
-    fields.forEach(field -> createField(departmentId,"master_fields","master_type_id",field));
+    try {
+      jdbc.update("DELETE FROM master_fields WHERE department_id=:department AND master_type_id=:owner",
+          Map.of("department",departmentId,"owner",masterTypeId));
+      fields.forEach(field -> createField(departmentId,"master_fields","master_type_id",field));
+    } catch (DataIntegrityViolationException exception) { throw metadataConflict(exception); }
   }
   @Override public void replaceSubTypes(long departmentId,long masterTypeId,List<SubType> types) {
-    jdbc.update("DELETE FROM sub_types WHERE department_id=:department AND master_type_id=:owner",
-        Map.of("department",departmentId,"owner",masterTypeId));
-    types.forEach(type -> createSubType(departmentId,masterTypeId,type.code(),type.name()));
+    var existingById = new LinkedHashMap<Long, SubType>();
+    var existingByCode = new LinkedHashMap<String, SubType>();
+    findSubTypes(departmentId,masterTypeId).forEach(type -> {
+      existingById.put(type.id(),type);
+      existingByCode.put(type.code().toLowerCase(java.util.Locale.ROOT),type);
+    });
+    var retained = new java.util.HashSet<Long>();
+    try {
+      for (var desired : types) {
+        SubType existing = desired.id()>0 ? existingById.get(desired.id())
+            : existingByCode.get(desired.code().toLowerCase(java.util.Locale.ROOT));
+        if (desired.id()>0 && (existing==null || !existing.code().equalsIgnoreCase(desired.code()))) {
+          throw new BusinessException(HttpStatus.CONFLICT,"Metadata subtype identity conflict");
+        }
+        if (existing==null) {
+          insertSubType(departmentId,masterTypeId,desired.code(),desired.name());
+        } else {
+          int updated=jdbc.update("UPDATE sub_types SET name=:name,status='ACTIVE' WHERE "
+                  +"id=:id AND department_id=:department AND master_type_id=:owner AND code=:code",
+              Map.of("name",desired.name(),"id",existing.id(),"department",departmentId,
+                  "owner",masterTypeId,"code",existing.code()));
+          if (updated!=1) throw new BusinessException(HttpStatus.CONFLICT,"Metadata subtype changed");
+          retained.add(existing.id());
+        }
+      }
+      for (var existing : existingById.values()) {
+        if (!retained.contains(existing.id())) removeSubType(departmentId,masterTypeId,existing.id());
+      }
+    } catch (DataIntegrityViolationException exception) { throw metadataConflict(exception); }
   }
   @Override public void replaceSubFields(long departmentId,long subTypeId,List<FieldDefinition> fields) {
-    jdbc.update("DELETE FROM sub_fields WHERE department_id=:department AND sub_type_id=:owner",
-        Map.of("department",departmentId,"owner",subTypeId));
-    fields.forEach(field -> createField(departmentId,"sub_fields","sub_type_id",field));
+    try {
+      jdbc.update("DELETE FROM sub_fields WHERE department_id=:department AND sub_type_id=:owner",
+          Map.of("department",departmentId,"owner",subTypeId));
+      fields.forEach(field -> createField(departmentId,"sub_fields","sub_type_id",field));
+    } catch (DataIntegrityViolationException exception) { throw metadataConflict(exception); }
+  }
+  private void insertSubType(long departmentId,long masterTypeId,String code,String name) {
+    var key=new GeneratedKeyHolder();
+    jdbc.update("INSERT INTO sub_types(department_id,master_type_id,code,name,status) "
+            +"VALUES(:department,:owner,:code,:name,'ACTIVE')",
+        new MapSqlParameterSource(Map.of("department",departmentId,"owner",masterTypeId,
+            "code",code,"name",name)),key);
+  }
+  private void removeSubType(long departmentId,long masterTypeId,long subTypeId) {
+    var parameters=Map.<String,Object>of("department",departmentId,"owner",masterTypeId,"id",subTypeId);
+    Integer dependencies=jdbc.queryForObject("SELECT "
+        +"(SELECT COUNT(*) FROM sub_fields WHERE department_id=:department AND sub_type_id=:id)+"
+        +"(SELECT COUNT(*) FROM sub_records WHERE sub_type_id=:id)+"
+        +"(SELECT COUNT(*) FROM sub_record_drafts WHERE sub_type_id=:id)+"
+        +"(SELECT COUNT(*) FROM approval_tasks WHERE department_id=:department "
+        +"AND entity_type='SUB_FIELDS' AND entity_id=:id AND status='PENDING')",
+        parameters,Integer.class);
+    if (dependencies!=null && dependencies>0) {
+      throw new BusinessException(HttpStatus.CONFLICT,"Subtype has dependent metadata or records");
+    }
+    int deleted=jdbc.update("DELETE FROM sub_types WHERE department_id=:department "
+        +"AND master_type_id=:owner AND id=:id",parameters);
+    if (deleted!=1) throw new BusinessException(HttpStatus.CONFLICT,"Metadata subtype changed");
   }
   private List<FieldDefinition> fields(String table,String owner,long departmentId,long id,boolean shared) {
     String sharedColumn=shared?",share_config":"";

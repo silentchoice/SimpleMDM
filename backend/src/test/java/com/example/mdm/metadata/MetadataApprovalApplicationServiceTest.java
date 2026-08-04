@@ -22,7 +22,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
+import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
 
 class MetadataApprovalApplicationServiceTest {
   private final MetadataApprovalRepository approvals = Mockito.mock(MetadataApprovalRepository.class);
@@ -81,6 +87,82 @@ class MetadataApprovalApplicationServiceTest {
     assertStatus(() -> service.approve(9, null), HttpStatus.BAD_REQUEST);
   }
 
+  @Test void malformedFieldMemberWithNullCodeIsBadRequestInsteadOfServerError() throws Exception {
+    var malformed = List.of(fieldWithCode(null, 41));
+    String base = fingerprint(malformed);
+    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+        envelope(7, 41, "MASTER_FIELDS", base, malformed),
+        envelope(7, 41, "MASTER_FIELDS", base, malformed), "PENDING"));
+    assertStatus(() -> service.approve(9, null), HttpStatus.BAD_REQUEST);
+  }
+
+  @Test void subtypeApprovalPreservesOrderedDefinitionsForRepositoryDiff() throws Exception {
+    var before = List.of(new SubType(55, 41, "retained", "Old", MetadataStatus.ACTIVE));
+    var after = List.of(new SubType(55, 41, "retained", "New", MetadataStatus.ACTIVE),
+        new SubType(0, 41, "added", "Added", MetadataStatus.ACTIVE));
+    String base = fingerprint(before);
+    when(approvals.lock(9)).thenReturn(task(9, 7, "SUB_TYPES", 41,
+        envelope(7, 41, "SUB_TYPES", base, before),
+        envelope(7, 41, "SUB_TYPES", base, after), "PENDING"));
+    when(metadata.findSubTypes(7, 41)).thenReturn(before);
+    service.approve(9, null);
+    verify(metadata).replaceSubTypes(7, 41, after);
+    verify(approvals).approve(9, 23, null);
+  }
+
+  @Test void subfieldApprovalValidatesSubtypeTemplateAndAppliesOnlyThatSubtype() throws Exception {
+    var before = List.of(field(1, 55, "old", 1));
+    var after = List.of(field(0, 55, "new", 1));
+    String base = fingerprint(before);
+    when(approvals.lock(9)).thenReturn(task(9, 7, "SUB_FIELDS", 55,
+        envelope(7, 41, "SUB_FIELDS", base, before),
+        envelope(7, 41, "SUB_FIELDS", base, after), "PENDING"));
+    when(approvals.requireSubTypeTemplate(7, 55)).thenReturn(41L);
+    when(metadata.findSubFields(7, 55)).thenReturn(before);
+    service.approve(9, null);
+    verify(metadata).lockTemplateAssignment(7, 41);
+    verify(metadata).replaceSubFields(7, 55, after);
+  }
+
+  @Test void missingTaskIsNotFoundAndRepeatedRejectionIsConflict() {
+    when(approvals.lock(404)).thenThrow(BusinessException.notFound("Approval task"));
+    assertStatus(() -> service.approve(404, null), HttpStatus.NOT_FOUND);
+    when(approvals.lock(10)).thenReturn(task(10, 7, "MASTER_FIELDS", 41, "{}", "{}", "REJECTED"));
+    assertStatus(() -> service.reject(10, "again"), HttpStatus.CONFLICT);
+  }
+
+  @Test void entityAndTemplateMismatchIsBadRequest() throws Exception {
+    var fields = List.of(field(1, 41, "old", 1));
+    String base = fingerprint(fields);
+    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+        envelope(7, 42, "MASTER_FIELDS", base, fields),
+        envelope(7, 42, "MASTER_FIELDS", base, fields), "PENDING"));
+    assertStatus(() -> service.approve(9, null), HttpStatus.BAD_REQUEST);
+  }
+
+  @Test void taskTransitionFailureEscapesTransactionalBoundaryForRollback() throws Exception {
+    var before = List.of(field(1, 41, "old", 1));
+    var after = List.of(field(0, 41, "new", 1));
+    String base = fingerprint(before);
+    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+        envelope(7, 41, "MASTER_FIELDS", base, before),
+        envelope(7, 41, "MASTER_FIELDS", base, after), "PENDING"));
+    when(metadata.findMasterFields(7, 41)).thenReturn(before);
+    Mockito.doThrow(new BusinessException(HttpStatus.CONFLICT, "transition lost"))
+        .when(approvals).approve(9, 23, null);
+    var transactions = new RecordingTransactionManager();
+    var proxyFactory = new ProxyFactory(service);
+    proxyFactory.setProxyTargetClass(true);
+    proxyFactory.addAdvice(new TransactionInterceptor(transactions,
+        new AnnotationTransactionAttributeSource()));
+    var transactionalService = (MetadataApprovalApplicationService) proxyFactory.getProxy();
+
+    assertStatus(() -> transactionalService.approve(9, null), HttpStatus.CONFLICT);
+    verify(metadata).replaceMasterFields(7, 41, after);
+    assertThat(transactions.rolledBack).isTrue();
+    assertThat(transactions.committed).isFalse();
+  }
+
   @Test void rejectionRequiresReasonAndDoesNotTouchActiveMetadata() {
     when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41, "{}", "{}", "PENDING"));
     assertStatus(() -> service.reject(9, " "), HttpStatus.BAD_REQUEST);
@@ -111,6 +193,10 @@ class MetadataApprovalApplicationServiceTest {
     return new FieldDefinition(id, owner, code, code, FieldType.TEXT, false, List.of(), false, order,
         MetadataStatus.ACTIVE);
   }
+  private FieldDefinition fieldWithCode(String code, long owner) {
+    return new FieldDefinition(1, owner, code, "name", FieldType.TEXT, false, List.of(), false, 1,
+        MetadataStatus.ACTIVE);
+  }
   private String envelope(long department, long template, String kind, String base, Object definitions)
       throws Exception {
     return json.writeValueAsString(java.util.Map.of("schemaVersion", 1, "departmentId", department,
@@ -124,5 +210,14 @@ class MetadataApprovalApplicationServiceTest {
   private void assertStatus(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, HttpStatus status) {
     assertThatThrownBy(call).isInstanceOfSatisfying(BusinessException.class,
         exception -> assertThat(exception.status()).isEqualTo(status));
+  }
+
+  private static final class RecordingTransactionManager extends AbstractPlatformTransactionManager {
+    private boolean committed;
+    private boolean rolledBack;
+    @Override protected Object doGetTransaction() { return new Object(); }
+    @Override protected void doBegin(Object transaction, TransactionDefinition definition) {}
+    @Override protected void doCommit(DefaultTransactionStatus status) { committed = true; }
+    @Override protected void doRollback(DefaultTransactionStatus status) { rolledBack = true; }
   }
 }

@@ -7,11 +7,13 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import com.example.mdm.common.error.BusinessException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.RowMapper;
@@ -47,5 +49,32 @@ class JdbcMetadataApprovalRepositoryTest {
     assertThatThrownBy(() -> repository.requireSubTypeTemplate(7, 404))
         .isInstanceOfSatisfying(BusinessException.class,
             exception -> assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test void missingLockedTaskIsNotFoundAndQueryUsesForUpdate() {
+    var jdbc = Mockito.mock(NamedParameterJdbcTemplate.class);
+    var repository = new JdbcMetadataApprovalRepository(jdbc);
+    when(jdbc.query(anyString(), anyMap(), any(RowMapper.class))).thenReturn(List.of());
+
+    assertThatThrownBy(() -> repository.lock(404))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND));
+    var sql = ArgumentCaptor.forClass(String.class);
+    verify(jdbc).query(sql.capture(), anyMap(), any(RowMapper.class));
+    assertThat(sql.getValue()).contains("WHERE id=:id FOR UPDATE");
+  }
+
+  @Test void lostPendingTransitionIsStableConflictAndUpdateIsGuarded() {
+    var jdbc = Mockito.mock(NamedParameterJdbcTemplate.class);
+    var repository = new JdbcMetadataApprovalRepository(jdbc);
+    when(jdbc.update(anyString(), any(SqlParameterSource.class))).thenReturn(0);
+
+    assertThatThrownBy(() -> repository.reject(9, 23, "reason"))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT));
+    var sql = ArgumentCaptor.forClass(String.class);
+    verify(jdbc).update(sql.capture(), any(SqlParameterSource.class));
+    assertThat(sql.getValue()).contains("WHERE id=:id AND status='PENDING'");
   }
 }
