@@ -30,12 +30,12 @@
 **Interfaces:**
 - Produces: `MetadataRepository.requireAssignment(long departmentId, long masterTypeId)` and department-aware field queries.
 
-- [ ] **Step 1: Write a failing repository contract test** that asserts a second active assignment for one department maps to `BusinessException` status 409 and that two departments using one template return separate field lists.
-- [ ] **Step 2: Run** `mvnw.cmd -Dtest=MetadataRepositoryContractTest test`; expect failure because department-scoped methods and V3 do not exist.
-- [ ] **Step 3: Add V3 migration** with `department_id` foreign keys on `master_fields`, `sub_types`, and `sub_fields`; replace unique keys with `(department_id, owner_id, code)` and add a unique department assignment key.
-- [ ] **Step 4: Change repository signatures** to `findMasterFields(long departmentId, long masterTypeId)`, `findSubTypes(long departmentId, long masterTypeId)`, and `findSubFields(long departmentId, long subTypeId)`; every SQL statement must bind `department_id`.
-- [ ] **Step 5: Translate** `DuplicateKeyException`/`DataIntegrityViolationException` into `BusinessException(HttpStatus.CONFLICT, "Metadata conflict")` while retaining database unique constraints for concurrency safety.
-- [ ] **Step 6: Run the contract and all non-container tests**, then commit with `feat: scope metadata storage by department`.
+- [x] **Step 1: Write a failing repository contract test** that asserts a second active assignment for one department maps to `BusinessException` status 409 and that two departments using one template return separate field lists.
+- [x] **Step 2: Run** `mvnw.cmd -Dtest=MetadataRepositoryContractTest test`; expect failure because department-scoped methods and V3 do not exist.
+- [x] **Step 3: Add V3 migration** with `department_id` foreign keys on `master_fields`, `sub_types`, and `sub_fields`; replace unique keys with `(department_id, owner_id, code)` and add a unique department assignment key.
+- [x] **Step 4: Change repository signatures** to `findMasterFields(long departmentId, long masterTypeId)`, `findSubTypes(long departmentId, long masterTypeId)`, and `findSubFields(long departmentId, long subTypeId)`; every SQL statement must bind `department_id`.
+- [x] **Step 5: Translate** `DuplicateKeyException`/`DataIntegrityViolationException` into `BusinessException(HttpStatus.CONFLICT, "Metadata conflict")` while retaining database unique constraints for concurrency safety.
+- [x] **Step 6: Run the contract and all non-container tests**, then commit with `feat: scope metadata storage by department`.
 
 ### Task 2: Field structure and value validation
 
@@ -49,10 +49,10 @@
 **Interfaces:**
 - Produces: `void FieldStructureValidator.validate(FieldDefinition definition)` and `void FieldValueValidator.validate(List<FieldDefinition>, Map<String,Object>)`.
 
-- [ ] **Step 1: Add failing table-driven tests** for code regex `[A-Za-z][A-Za-z0-9_]{0,63}`, empty/duplicate selection options, options on non-selection fields, unknown values, required values, dates, numbers, switches, and multi-select values.
-- [ ] **Step 2: Run the two validator tests** and confirm each new branch fails for the named missing behavior.
-- [ ] **Step 3: Implement minimal validation**; normalize no business value silently, and return `BusinessException.badRequest(...)` with the offending field code.
-- [ ] **Step 4: Re-run validator and all non-container tests**, then commit with `feat: validate department metadata structures`.
+- [x] **Step 1: Add failing table-driven tests** for code regex `[A-Za-z][A-Za-z0-9_]{0,63}`, empty/duplicate selection options, options on non-selection fields, unknown values, required values, dates, numbers, switches, and multi-select values.
+- [x] **Step 2: Run the two validator tests** and confirm each new branch fails for the named missing behavior.
+- [x] **Step 3: Implement minimal validation**; normalize no business value silently, and return `BusinessException.badRequest(...)` with the offending field code.
+- [x] **Step 4: Re-run validator and all non-container tests**, then commit with `feat: validate department metadata structures`.
 
 ### Task 3: Editor submission and immutable approval snapshots
 
@@ -66,11 +66,11 @@
 **Interfaces:**
 - Produces: `long submitMasterFields(List<FieldDefinition> fields)`, `long submitSubTypes(List<SubType> types)`, and `long submitSubFields(long subTypeId, List<FieldDefinition> fields)`.
 
-- [ ] **Step 1: Write failing tests** proving `DEPT_EDITOR` submission derives department from `UserPrincipal`, rejects another department/template, stores literal before/after JSON snapshots, and leaves active repository results unchanged.
-- [ ] **Step 2: Run** `mvnw.cmd -Dtest=MetadataServiceTest test`; expect failures from current direct-write methods.
-- [ ] **Step 3: Remove direct ACTIVE field/sub-type writes from `MetadataService`**. Require `Role.DEPT_EDITOR`, call `requireDepartment(principal.department().id())`, validate the department assignment, and persist `approval_tasks` with `status='PENDING'`, `submitted_by`, and the editor department.
-- [ ] **Step 4: Serialize snapshots with Jackson DTOs** containing explicit schema version, department ID, template ID, entity kind, and ordered definitions; never serialize security principals or credentials.
-- [ ] **Step 5: Run service and all non-container tests**, then commit with `feat: submit department metadata for approval`.
+- [x] **Step 1: Write failing tests** proving `DEPT_EDITOR` submission derives department from `UserPrincipal`, rejects another department/template, stores literal before/after JSON snapshots, and leaves active repository results unchanged.
+- [x] **Step 2: Run** `mvnw.cmd -Dtest=MetadataServiceTest test`; expect failures from current direct-write methods.
+- [x] **Step 3: Remove direct ACTIVE field/sub-type writes from `MetadataService`**. Require `Role.DEPT_EDITOR`, call `requireDepartment(principal.department().id())`, validate the department assignment, and persist `approval_tasks` with `status='PENDING'`, `submitted_by`, and the editor department.
+- [x] **Step 4: Serialize snapshots with Jackson DTOs** containing explicit schema version, department ID, template ID, entity kind, and ordered definitions; never serialize security principals or credentials.
+- [x] **Step 5: Run service and all non-container tests**, then commit with `feat: submit department metadata for approval`.
 
 ### Task 4: Compatible metadata API families
 
@@ -86,10 +86,10 @@
 - Consumes: Task 3 submission methods and department-aware Task 1 reads.
 - Produces: `/api/master-type`, `/api/master-field`, `/api/sub-type`, `/api/sub-field` endpoints using `ApiResponse`.
 
-- [ ] **Step 1: Write failing MockMvc tests** for exact paths, request IDs, editor submission, viewer reads, cross-department 403, malformed schema 400, missing entity 404, and duplicate 409.
-- [ ] **Step 2: Run** `mvnw.cmd -Dtest=MetadataControllerTest test`; expect 404/missing-controller failures.
-- [ ] **Step 3: Implement focused controllers**: master-type creation/assignment calls super-admin services; structure POST endpoints submit approval tasks; GET endpoints return only current department `ACTIVE` definitions.
-- [ ] **Step 4: Run controller and all non-container tests**, then commit with `feat: expose department metadata APIs`.
+- [x] **Step 1: Write failing MockMvc tests** for exact paths, request IDs, editor submission, viewer reads, cross-department 403, malformed schema 400, missing entity 404, and duplicate 409.
+- [x] **Step 2: Run** `mvnw.cmd -Dtest=MetadataControllerTest test`; expect 404/missing-controller failures.
+- [x] **Step 3: Implement focused controllers**: master-type creation/assignment calls super-admin services; structure POST endpoints submit approval tasks; GET endpoints return only current department `ACTIVE` definitions.
+- [x] **Step 4: Run controller and all non-container tests**, then commit with `feat: expose department metadata APIs`.
 
 ### Task 5: Department approval applies metadata atomically
 
@@ -102,10 +102,10 @@
 **Interfaces:**
 - Produces: `void approve(long taskId, String comment)` and `void reject(long taskId, String reason)` for later delegation from the general approval module.
 
-- [ ] **Step 1: Write failing tests** proving same-department approver access, cross-department rejection, repeat approval 409, rejection without active changes, and transactional application of ordered snapshots.
-- [ ] **Step 2: Add an isolation test** where departments A and B share a template, A approves a new field, and B's active schema remains byte-for-byte unchanged.
-- [ ] **Step 3: Run the tests** and confirm failure because no application service exists.
-- [ ] **Step 4: Implement `@Transactional` approval**: require `DEPT_APPROVER`, lock the task with `SELECT ... FOR UPDATE`, validate department/status/schema version, replace only that department's definitions, and update task status atomically.
-- [ ] **Step 5: Implement rejection** requiring a nonblank reason without touching active definitions.
-- [ ] **Step 6: Run all non-container backend tests, frontend tests, frontend build, and `git diff --check`**. Request code review and resolve all Critical/Important findings.
-- [ ] **Step 7: Commit** with `feat: apply approved department metadata changes`.
+- [x] **Step 1: Write failing tests** proving same-department approver access, cross-department rejection, repeat approval 409, rejection without active changes, and transactional application of ordered snapshots.
+- [x] **Step 2: Add an isolation test** where departments A and B share a template, A approves a new field, and B's active schema remains byte-for-byte unchanged.
+- [x] **Step 3: Run the tests** and confirm failure because no application service exists.
+- [x] **Step 4: Implement `@Transactional` approval**: require `DEPT_APPROVER`, lock the task with `SELECT ... FOR UPDATE`, validate department/status/schema version, replace only that department's definitions, and update task status atomically.
+- [x] **Step 5: Implement rejection** requiring a nonblank reason without touching active definitions.
+- [x] **Step 6: Run all non-container backend tests, frontend tests, frontend build, and `git diff --check`**. Request code review and resolve all Critical/Important findings.
+- [x] **Step 7: Commit** with `feat: apply approved department metadata changes`.
