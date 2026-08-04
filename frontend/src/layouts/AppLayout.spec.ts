@@ -4,6 +4,8 @@ import ElementPlus from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppLayout from './AppLayout.vue'
 import { useAuthStore } from '../stores/auth'
+import { createHttpClient } from '../api/http'
+import type { AxiosAdapter } from 'axios'
 
 const { logout, push } = vi.hoisted(() => ({ logout: vi.fn(), push: vi.fn() }))
 
@@ -38,14 +40,43 @@ describe('AppLayout', () => {
     expect(wrapper.text()).not.toContain('Submit Change')
   })
 
-  it('clears local access and reports a logout service failure', async () => {
-    logout.mockRejectedValue(new Error('offline'))
+  it('sends the bearer token and clears local access after a successful logout attempt', async () => {
+    let authorization: unknown
+    let tokenDuringRequest: string | undefined
+    const adapter: AxiosAdapter = async (config) => {
+      authorization = config.headers?.Authorization
+      tokenDuringRequest = useAuthStore().session?.accessToken
+      return { data: { code: 0, message: 'OK', data: null, requestId: 'logout-success' }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    logout.mockImplementation(() => createHttpClient({ adapter }).post('/auth/logout'))
     const wrapper = mountLayout()
 
     await wrapper.get('[data-testid="logout-button"]').trigger('click')
     await flushPromises()
 
     expect(useAuthStore().session).toBeNull()
+    expect(authorization).toBe('Bearer viewer-token')
+    expect(tokenDuringRequest).toBe('viewer-token')
+    expect(push).toHaveBeenCalledWith('/login')
+  })
+
+  it('sends the bearer token and clears local access after a failed logout attempt', async () => {
+    let authorization: unknown
+    let tokenDuringRequest: string | undefined
+    const adapter: AxiosAdapter = async (config) => {
+      authorization = config.headers?.Authorization
+      tokenDuringRequest = useAuthStore().session?.accessToken
+      return { data: { code: 500, message: 'Offline', data: null, requestId: 'logout-failure' }, status: 500, statusText: 'Service Unavailable', headers: {}, config }
+    }
+    logout.mockImplementation(() => createHttpClient({ adapter }).post('/auth/logout'))
+    const wrapper = mountLayout()
+
+    await wrapper.get('[data-testid="logout-button"]').trigger('click')
+    await flushPromises()
+
+    expect(useAuthStore().session).toBeNull()
+    expect(authorization).toBe('Bearer viewer-token')
+    expect(tokenDuringRequest).toBe('viewer-token')
     expect(push).toHaveBeenCalledWith({ path: '/login', query: { logout: 'local' } })
   })
 })

@@ -13,13 +13,15 @@ const pageTitle = computed(() => route.meta.title ?? 'SimpleMDM')
 const mobileMenuOpen = ref(false)
 
 async function signOut(): Promise<void> {
-  auth.clearSession()
+  let logoutFailed = false
   try {
     await logout()
-    await router.push('/login')
   } catch {
-    await router.push({ path: '/login', query: { logout: 'local' } })
+    logoutFailed = true
+  } finally {
+    auth.clearSession()
   }
+  await router.push(logoutFailed ? { path: '/login', query: { logout: 'local' } } : '/login')
 }
 </script>
 
