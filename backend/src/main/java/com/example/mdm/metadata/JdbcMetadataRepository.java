@@ -74,10 +74,14 @@ class JdbcMetadataRepository implements MetadataRepository {
   @Override public SubType createSubType(long departmentId,long masterTypeId,String code,String name) {
     requireAssignment(departmentId,masterTypeId);
     var key=new GeneratedKeyHolder();
+    Integer position=jdbc.queryForObject("SELECT COALESCE(MAX(sort_order),-1)+1 FROM sub_types "
+            +"WHERE department_id=:department AND master_type_id=:owner",
+        Map.of("department",departmentId,"owner",masterTypeId),Integer.class);
     try {
-      jdbc.update("INSERT INTO sub_types(department_id,master_type_id,code,name,status) "
-              +"VALUES(:department,:owner,:code,:name,'ACTIVE')",
-          new MapSqlParameterSource(Map.of("department",departmentId,"owner",masterTypeId,"code",code,"name",name)),key);
+      jdbc.update("INSERT INTO sub_types(department_id,master_type_id,code,name,sort_order,status) "
+              +"VALUES(:department,:owner,:code,:name,:position,'ACTIVE')",
+          new MapSqlParameterSource(Map.of("department",departmentId,"owner",masterTypeId,
+              "code",code,"name",name,"position",position==null?0:position)),key);
     } catch (DuplicateKeyException exception) {
       throw metadataConflict(exception);
     } catch (DataIntegrityViolationException exception) {
@@ -117,7 +121,7 @@ class JdbcMetadataRepository implements MetadataRepository {
   }
   @Override public List<SubType> findSubTypes(long departmentId,long masterTypeId) {
     return jdbc.query("SELECT id,master_type_id,code,name,status FROM sub_types WHERE department_id=:department "
-        +"AND master_type_id=:id AND status='ACTIVE' ORDER BY id",Map.of("department",departmentId,"id",masterTypeId),(rs,n)->
+        +"AND master_type_id=:id AND status='ACTIVE' ORDER BY sort_order,id",Map.of("department",departmentId,"id",masterTypeId),(rs,n)->
         new SubType(rs.getLong("id"),rs.getLong("master_type_id"),rs.getString("code"),rs.getString("name"),MetadataStatus.valueOf(rs.getString("status"))));
   }
   @Override public List<FieldDefinition> findSubFields(long departmentId,long subTypeId) {
@@ -139,19 +143,20 @@ class JdbcMetadataRepository implements MetadataRepository {
     });
     var retained = new java.util.HashSet<Long>();
     try {
-      for (var desired : types) {
+      for (int position=0;position<types.size();position++) {
+        var desired=types.get(position);
         SubType existing = desired.id()>0 ? existingById.get(desired.id())
             : existingByCode.get(desired.code().toLowerCase(java.util.Locale.ROOT));
         if (desired.id()>0 && (existing==null || !existing.code().equalsIgnoreCase(desired.code()))) {
           throw new BusinessException(HttpStatus.CONFLICT,"Metadata subtype identity conflict");
         }
         if (existing==null) {
-          insertSubType(departmentId,masterTypeId,desired.code(),desired.name());
+          insertSubType(departmentId,masterTypeId,desired.code(),desired.name(),position);
         } else {
-          int updated=jdbc.update("UPDATE sub_types SET name=:name,status='ACTIVE' WHERE "
+          int updated=jdbc.update("UPDATE sub_types SET name=:name,sort_order=:position,status='ACTIVE' WHERE "
                   +"id=:id AND department_id=:department AND master_type_id=:owner AND code=:code",
               Map.of("name",desired.name(),"id",existing.id(),"department",departmentId,
-                  "owner",masterTypeId,"code",existing.code()));
+                  "owner",masterTypeId,"code",existing.code(),"position",position));
           if (updated!=1) throw new BusinessException(HttpStatus.CONFLICT,"Metadata subtype changed");
           retained.add(existing.id());
         }
@@ -168,12 +173,12 @@ class JdbcMetadataRepository implements MetadataRepository {
       fields.forEach(field -> createField(departmentId,"sub_fields","sub_type_id",field));
     } catch (DataIntegrityViolationException exception) { throw metadataConflict(exception); }
   }
-  private void insertSubType(long departmentId,long masterTypeId,String code,String name) {
+  private void insertSubType(long departmentId,long masterTypeId,String code,String name,int position) {
     var key=new GeneratedKeyHolder();
-    jdbc.update("INSERT INTO sub_types(department_id,master_type_id,code,name,status) "
-            +"VALUES(:department,:owner,:code,:name,'ACTIVE')",
+    jdbc.update("INSERT INTO sub_types(department_id,master_type_id,code,name,sort_order,status) "
+            +"VALUES(:department,:owner,:code,:name,:position,'ACTIVE')",
         new MapSqlParameterSource(Map.of("department",departmentId,"owner",masterTypeId,
-            "code",code,"name",name)),key);
+            "code",code,"name",name,"position",position)),key);
   }
   private void removeSubType(long departmentId,long masterTypeId,long subTypeId) {
     var parameters=Map.<String,Object>of("department",departmentId,"owner",masterTypeId,"id",subTypeId);

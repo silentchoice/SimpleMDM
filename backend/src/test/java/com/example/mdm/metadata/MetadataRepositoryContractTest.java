@@ -58,7 +58,8 @@ class MetadataRepositoryContractTest {
     var sql = ArgumentCaptor.forClass(String.class);
     org.mockito.Mockito.verify(jdbc).query(sql.capture(), anyMap(),
         org.mockito.ArgumentMatchers.<RowMapper<SubType>>any());
-    assertThat(sql.getValue()).contains("status='ACTIVE'");
+    assertThat(sql.getValue()).contains("status='ACTIVE'")
+        .contains("ORDER BY sort_order,id");
   }
 
   @Test
@@ -111,9 +112,39 @@ class MetadataRepositoryContractTest {
         new SubType(55, 19, "retained", "New", MetadataStatus.ACTIVE),
         new SubType(0, 19, "added", "Added", MetadataStatus.ACTIVE)));
 
-    verify(jdbc).update(contains("UPDATE sub_types"), anyMap());
-    verify(jdbc).update(contains("INSERT INTO sub_types"), any(MapSqlParameterSource.class),
+    var updateSql = ArgumentCaptor.forClass(String.class);
+    var updateParameters = ArgumentCaptor.forClass(Map.class);
+    verify(jdbc).update(updateSql.capture(), updateParameters.capture());
+    assertThat(updateSql.getValue()).contains("sort_order=:position");
+    assertThat(updateParameters.getValue()).containsEntry("id", 55L).containsEntry("position", 0);
+    var insertParameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+    verify(jdbc).update(contains("INSERT INTO sub_types"), insertParameters.capture(),
         any(GeneratedKeyHolder.class));
+    assertThat(insertParameters.getValue().getValue("position")).isEqualTo(1);
+    org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never())
+        .update(contains("DELETE FROM sub_types"), anyMap());
+  }
+
+  @Test void retainedSubtypeIdsCanSwapApprovedPositionsWithoutDeleteOrUniqueConflict() {
+    var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
+    var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());
+    when(jdbc.<SubType>query(contains("FROM sub_types"), anyMap(), any(RowMapper.class)))
+        .thenReturn(List.of(new SubType(55, 19, "first", "First", MetadataStatus.ACTIVE),
+            new SubType(56, 19, "second", "Second", MetadataStatus.ACTIVE)));
+    when(jdbc.update(contains("UPDATE sub_types"), anyMap())).thenReturn(1);
+
+    repository.replaceSubTypes(7, 19, List.of(
+        new SubType(56, 19, "second", "Second", MetadataStatus.ACTIVE),
+        new SubType(55, 19, "first", "First", MetadataStatus.ACTIVE)));
+
+    var parameters = ArgumentCaptor.forClass(Map.class);
+    verify(jdbc, org.mockito.Mockito.times(2)).update(contains("UPDATE sub_types"), parameters.capture());
+    assertThat(parameters.getAllValues()).extracting(values -> values.get("id"), values -> values.get("position"))
+        .containsExactly(org.assertj.core.groups.Tuple.tuple(56L, 0),
+            org.assertj.core.groups.Tuple.tuple(55L, 1));
+    assertThat(parameters.getAllValues()).allSatisfy(values -> {
+      assertThat(values).containsEntry("department", 7L).containsEntry("owner", 19L);
+    });
     org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never())
         .update(contains("DELETE FROM sub_types"), anyMap());
   }
