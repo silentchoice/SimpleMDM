@@ -3,6 +3,7 @@ package com.example.mdm.metadata;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -90,12 +91,80 @@ class MetadataServiceTest {
   @Test void subFieldSubmissionRejectsSubtypeFromAnotherDepartment() {
     when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
     when(approvals.requireSubTypeTemplate(7L, 55L))
-        .thenThrow(BusinessException.notFound("Sub type"));
+        .thenThrow(BusinessException.forbidden());
 
     assertThatThrownBy(() -> service.submitSubFields(55L, List.of(field(0, 55, "new", 1))))
         .isInstanceOfSatisfying(BusinessException.class,
-            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND));
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN));
     verify(approvals, never()).submit(any());
+  }
+
+  @Test void subFieldSubmissionReturnsNotFoundWhenSubtypeDoesNotExist() {
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
+    when(approvals.requireSubTypeTemplate(7L, 404L))
+        .thenThrow(BusinessException.notFound("Sub type"));
+
+    assertThatThrownBy(() -> service.submitSubFields(404L, List.of(field(0, 404, "new", 1))))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND));
+  }
+
+  @Test void rejectsMalformedSubtypeStructuresAndLists() {
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
+    var invalid = List.of(
+        List.of(new SubType(0, 41, null, "Name", MetadataStatus.ACTIVE)),
+        List.of(new SubType(0, 41, "bad-code", "Name", MetadataStatus.ACTIVE)),
+        List.of(new SubType(0, 41, "valid", " ", MetadataStatus.ACTIVE)),
+        List.of(new SubType(0, 41, "valid", "Name", MetadataStatus.DISABLED)),
+        List.of(new SubType(0, 41, "same", "One", MetadataStatus.ACTIVE),
+            new SubType(0, 41, "SAME", "Two", MetadataStatus.ACTIVE)));
+
+    for (var types : invalid) {
+      assertThatThrownBy(() -> service.submitSubTypes(types))
+          .isInstanceOfSatisfying(BusinessException.class,
+              exception -> assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+    verify(approvals, never()).submit(any());
+  }
+
+  @Test void rejectsDuplicateFieldCodesAndSortOrders() {
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
+
+    assertThatThrownBy(() -> service.submitMasterFields(List.of(
+        field(0, 41, "same", 1), field(0, 41, "SAME", 2))))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST));
+    assertThatThrownBy(() -> service.submitMasterFields(List.of(
+        field(0, 41, "one", 1), field(0, 41, "two", 1))))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST));
+  }
+
+  @Test void subTypeSubmissionStoresSnapshotWithoutActiveWrites() {
+    var before = List.of(new SubType(1, 41, "old", "Old", MetadataStatus.ACTIVE));
+    var after = List.of(new SubType(0, 41, "new", "New", MetadataStatus.ACTIVE));
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
+    when(metadata.findSubTypes(7L, 41L)).thenReturn(before);
+    when(approvals.submit(any())).thenReturn(2L);
+
+    assertThat(service.submitSubTypes(after)).isEqualTo(2L);
+
+    verify(metadata, never()).createSubType(anyLong(), anyLong(), any(), any());
+    assertThat(metadata.findSubTypes(7L, 41L)).containsExactlyElementsOf(before);
+  }
+
+  @Test void subFieldSubmissionStoresSnapshotWithoutActiveWrites() {
+    var before = List.of(field(1, 55, "old", 1));
+    var after = List.of(field(0, 55, "new", 2));
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor(12L, 7L));
+    when(approvals.requireSubTypeTemplate(7L, 55L)).thenReturn(41L);
+    when(metadata.findSubFields(7L, 55L)).thenReturn(before);
+    when(approvals.submit(any())).thenReturn(3L);
+
+    assertThat(service.submitSubFields(55L, after)).isEqualTo(3L);
+
+    verify(metadata, never()).createSubField(anyLong(), any());
+    assertThat(metadata.findSubFields(7L, 55L)).containsExactlyElementsOf(before);
   }
 
   @Test void validatesEverySubmittedFieldAndPreservesOrder() throws Exception {
@@ -112,6 +181,21 @@ class MetadataServiceTest {
     var definitions = json.readTree(request.getValue().afterSnapshot()).get("orderedDefinitions");
     assertThat(definitions.get(0).get("code").asText()).isEqualTo("second");
     assertThat(definitions.get(1).get("code").asText()).isEqualTo("first");
+  }
+
+  @Test void legacyReadDerivesDepartmentAndNeverUsesUnscopedRepositoryDefaults() {
+    var viewer = new UserPrincipal(18L, "viewer", "Viewer",
+        new DepartmentPrincipal(7L, "D7", "Department"), List.of(Role.DEPT_VIEWER));
+    when(authorization.requireRole(Role.DEPT_EDITOR, Role.DEPT_APPROVER, Role.DEPT_VIEWER))
+        .thenReturn(viewer);
+    var fields = List.of(field(1, 41, "current", 1));
+    when(metadata.findMasterFields(7L, 41L)).thenReturn(fields);
+
+    assertThat(service.masterFields(41L)).containsExactlyElementsOf(fields);
+
+    verify(authorization).requireDepartment(7L);
+    verify(metadata).requireAssignment(7L, 41L);
+    verify(metadata, never()).findMasterFields(41L);
   }
 
   private void assertEnvelope(String value, long departmentId, long templateId, String kind,
