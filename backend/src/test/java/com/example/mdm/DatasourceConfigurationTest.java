@@ -16,6 +16,6 @@ class DatasourceConfigurationTest {
         .get(0);
 
     assertThat(properties.getProperty("spring.datasource.url"))
-        .isEqualTo("${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:${MYSQL_PORT:3306}/${MYSQL_DATABASE:mdm}}");
+        .isEqualTo("${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:${MYSQL_PORT:3306}/${MYSQL_DATABASE:mdm_mpv}}");
   }
 }

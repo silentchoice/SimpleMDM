@@ -2,15 +2,15 @@ spring:
   application:
     name: mdm
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:${MYSQL_PORT:3306}/${MYSQL_DATABASE:mdm}}
-    username: ${SPRING_DATASOURCE_USERNAME:${MYSQL_USER:mdm}}
-    password: ${SPRING_DATASOURCE_PASSWORD:${MYSQL_PASSWORD}}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:${MYSQL_PORT:3306}/${MYSQL_DATABASE:mdm_mpv}}
+    username: ${SPRING_DATASOURCE_USERNAME:${MYSQL_USER:root}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${MYSQL_PASSWORD:01270127}}
   flyway:
     enabled: true
     locations: classpath:db/migration
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:192.168.78.100}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
 
@@ -26,5 +26,5 @@ app:
     password: ${INITIAL_ADMIN_PASSWORD:}
     display-name: ${INITIAL_ADMIN_DISPLAY_NAME:}
   jwt:
-    secret: ${JWT_SECRET:}
+    secret: ${JWT_SECRET:SimpleMDM-local-dev-jwt-secret-2026-change-in-production}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:3600}
