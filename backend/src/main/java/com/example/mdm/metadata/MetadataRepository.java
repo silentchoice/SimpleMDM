@@ -21,6 +21,9 @@ public interface MetadataRepository {
   List<FieldDefinition> findMasterFields(long departmentId, long masterTypeId);
   List<SubType> findSubTypes(long departmentId, long masterTypeId);
   List<FieldDefinition> findSubFields(long departmentId, long subTypeId);
+  void replaceMasterFields(long departmentId, long masterTypeId, List<FieldDefinition> fields);
+  void replaceSubTypes(long departmentId, long masterTypeId, List<SubType> types);
+  void replaceSubFields(long departmentId, long subTypeId, List<FieldDefinition> fields);
 
   default List<FieldDefinition> findMasterFields(long masterTypeId) {
     throw new UnsupportedOperationException("Department id is required");

@@ -122,6 +122,21 @@ class JdbcMetadataRepository implements MetadataRepository {
   @Override public List<FieldDefinition> findSubFields(long departmentId,long subTypeId) {
     return fields("sub_fields","sub_type_id",departmentId,subTypeId,true);
   }
+  @Override public void replaceMasterFields(long departmentId,long masterTypeId,List<FieldDefinition> fields) {
+    jdbc.update("DELETE FROM master_fields WHERE department_id=:department AND master_type_id=:owner",
+        Map.of("department",departmentId,"owner",masterTypeId));
+    fields.forEach(field -> createField(departmentId,"master_fields","master_type_id",field));
+  }
+  @Override public void replaceSubTypes(long departmentId,long masterTypeId,List<SubType> types) {
+    jdbc.update("DELETE FROM sub_types WHERE department_id=:department AND master_type_id=:owner",
+        Map.of("department",departmentId,"owner",masterTypeId));
+    types.forEach(type -> createSubType(departmentId,masterTypeId,type.code(),type.name()));
+  }
+  @Override public void replaceSubFields(long departmentId,long subTypeId,List<FieldDefinition> fields) {
+    jdbc.update("DELETE FROM sub_fields WHERE department_id=:department AND sub_type_id=:owner",
+        Map.of("department",departmentId,"owner",subTypeId));
+    fields.forEach(field -> createField(departmentId,"sub_fields","sub_type_id",field));
+  }
   private List<FieldDefinition> fields(String table,String owner,long departmentId,long id,boolean shared) {
     String sharedColumn=shared?",share_config":"";
     return jdbc.query("SELECT id,"+owner+",code,display_name,field_type,required_flag,options,sort_order,status"+sharedColumn+

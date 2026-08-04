@@ -42,6 +42,40 @@ class JdbcMetadataApprovalRepository implements MetadataApprovalRepository {
   }
 
   @Override
+  public ApprovalTask lock(long taskId) {
+    var tasks = jdbc.query("SELECT id,department_id,entity_type,entity_id,before_snapshot,"
+            + "after_snapshot,status FROM approval_tasks WHERE id=:id FOR UPDATE", Map.of("id", taskId),
+        (result, row) -> new ApprovalTask(result.getLong("id"), result.getLong("department_id"),
+            result.getString("entity_type"), result.getLong("entity_id"),
+            result.getString("before_snapshot"), result.getString("after_snapshot"),
+            result.getString("status")));
+    if (tasks.isEmpty()) {
+      throw BusinessException.notFound("Approval task");
+    }
+    return tasks.get(0);
+  }
+
+  @Override
+  public void approve(long taskId, long reviewerId, String comment) {
+    transition(taskId, reviewerId, "APPROVED", comment);
+  }
+
+  @Override
+  public void reject(long taskId, long reviewerId, String reason) {
+    transition(taskId, reviewerId, "REJECTED", reason);
+  }
+
+  private void transition(long taskId, long reviewerId, String status, String comment) {
+    int updated = jdbc.update("UPDATE approval_tasks SET status=:status,reviewed_by=:reviewer,"
+            + "review_comment=:comment,reviewed_at=CURRENT_TIMESTAMP WHERE id=:id AND status='PENDING'",
+        new MapSqlParameterSource().addValue("status", status).addValue("reviewer", reviewerId)
+            .addValue("comment", comment).addValue("id", taskId));
+    if (updated != 1) {
+      throw new BusinessException(HttpStatus.CONFLICT, "Approval task is not pending");
+    }
+  }
+
+  @Override
   public long requireSubTypeTemplate(long departmentId, long subTypeId) {
     var templateIds = jdbc.query("SELECT master_type_id FROM sub_types WHERE department_id=:department "
             + "AND id=:id AND status='ACTIVE'", Map.of("department", departmentId, "id", subTypeId),
