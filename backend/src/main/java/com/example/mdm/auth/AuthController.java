@@ -40,7 +40,10 @@ public class AuthController {
   public ApiResponse<Void> logout(HttpServletRequest request) {
     String authorization = request.getHeader("Authorization");
     JwtService.ParsedToken token = jwtService.parseToken(authorization.substring("Bearer ".length()));
-    tokenRevocationStore.revoke(token.jti(), Duration.between(java.time.Instant.now(), token.expiresAt()));
+    Duration ttl = Duration.between(java.time.Instant.now(), token.expiresAt());
+    if (!ttl.isNegative() && !ttl.isZero()) {
+      tokenRevocationStore.revoke(token.jti(), ttl);
+    }
     return ApiResponse.success(null, requestId(request));
   }
 

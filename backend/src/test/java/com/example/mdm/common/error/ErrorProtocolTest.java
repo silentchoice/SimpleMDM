@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.example.mdm.auth.AuthController;
 import com.example.mdm.auth.AuthenticationService;
@@ -12,11 +13,15 @@ import com.example.mdm.auth.JwtService;
 import com.example.mdm.auth.Role;
 import com.example.mdm.auth.TokenRevocationStore;
 import com.example.mdm.auth.UserPrincipal;
+import com.example.mdm.auth.DepartmentPrincipal;
 import com.example.mdm.auth.SecurityConfig;
+import com.example.mdm.common.api.RequestId;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.util.List;
 import com.example.mdm.auth.TokenRevocationStore;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -26,6 +31,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @WebMvcTest(AuthController.class)
 @Import({SecurityConfig.class, JwtService.class, ErrorProtocolTest.RevocationConfig.class})
@@ -33,6 +44,7 @@ import org.springframework.test.web.servlet.MockMvc;
     "app.jwt.secret=01234567890123456789012345678901",
     "app.jwt.expiration-seconds=60"
 })
+@ExtendWith(OutputCaptureExtension.class)
 class ErrorProtocolTest {
 
   @Autowired
@@ -41,8 +53,16 @@ class ErrorProtocolTest {
   @Autowired
   private JwtService jwtService;
 
+  @Autowired
+  private GlobalExceptionHandler exceptionHandler;
+
   @MockBean
   private AuthenticationService authenticationService;
+
+  @AfterEach
+  void clearSecurityContext() {
+    SecurityContextHolder.clearContext();
+  }
 
   @Test
   void unknownRouteReturnsNotFoundInTheSharedResponseContract() throws Exception {
@@ -77,6 +97,22 @@ class ErrorProtocolTest {
         .andExpect(jsonPath("$.message").value("Unsupported media type"))
         .andExpect(jsonPath("$.data").value(nullValue()))
         .andExpect(jsonPath("$.requestId").value("req-415"));
+  }
+
+  @Test
+  void unexpectedErrorsLogTraceContextWithoutSensitiveExceptionMessage(CapturedOutput output) {
+    var request = new MockHttpServletRequest();
+    request.setAttribute(RequestId.ATTRIBUTE, "req-500");
+    var principal = new UserPrincipal(7L, "alice", "Alice",
+        new DepartmentPrincipal(3L, "SALES", "Sales"), List.of(Role.DEPT_EDITOR));
+    SecurityContextHolder.getContext().setAuthentication(
+        new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+
+    exceptionHandler.handleUnexpectedException(new IllegalStateException("Bearer secret-token"), request);
+
+    assertThat(output).contains("requestId=req-500", "operator=alice", "departmentId=3",
+        "exceptionType=java.lang.IllegalStateException");
+    assertThat(output).doesNotContain("secret-token");
   }
 
   private UserPrincipal principal() {

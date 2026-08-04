@@ -2,6 +2,7 @@ package com.example.mdm.common.error;
 
 import com.example.mdm.common.api.ApiResponse;
 import com.example.mdm.common.api.RequestId;
+import com.example.mdm.auth.UserPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
@@ -14,9 +15,14 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+  private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
   @ExceptionHandler(BusinessException.class)
   public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException exception,
       HttpServletRequest request) {
@@ -57,7 +63,19 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(Exception.class)
-  public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(Exception exception,
+      HttpServletRequest request) {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    String operator = "anonymous";
+    String departmentId = "none";
+    if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
+      operator = principal.username();
+      if (principal.department() != null) {
+        departmentId = Long.toString(principal.department().id());
+      }
+    }
+    log.error("Unexpected error requestId={} operator={} departmentId={} exceptionType={}",
+        requestId(request), operator, departmentId, exception.getClass().getName());
     return ResponseEntity.internalServerError()
         .body(ApiResponse.failure(500, "Internal server error", requestId(request)));
   }

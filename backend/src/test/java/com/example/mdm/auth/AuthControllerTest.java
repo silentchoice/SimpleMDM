@@ -2,6 +2,8 @@ package com.example.mdm.auth;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -17,6 +19,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockHttpServletRequest;
+import java.time.Instant;
 
 @WebMvcTest(AuthController.class)
 @Import(SecurityConfig.class)
@@ -93,5 +97,22 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.message").value("Unauthorized"))
         .andExpect(jsonPath("$.data").value(nullValue()))
         .andExpect(jsonPath("$.requestId").isNotEmpty());
+  }
+
+  @Test
+  void logoutTreatsTokenThatExpiresDuringRequestAsAlreadyRevoked() {
+    var request = new MockHttpServletRequest();
+    request.addHeader("Authorization", "Bearer signed.jwt.token");
+    request.setAttribute(com.example.mdm.common.api.RequestId.ATTRIBUTE, "req-expired-logout");
+    var principal = new UserPrincipal(7L, "alice", "Alice", null,
+        java.util.List.of(Role.DEPT_VIEWER));
+    when(jwtService.parseToken("signed.jwt.token"))
+        .thenReturn(new JwtService.ParsedToken(principal, "jti", Instant.now().minusSeconds(1)));
+    var controller = new AuthController(authenticationService, jwtService, tokenRevocationStore);
+
+    var response = controller.logout(request);
+
+    org.assertj.core.api.Assertions.assertThat(response.code()).isZero();
+    verify(tokenRevocationStore, never()).revoke(any(), any());
   }
 }

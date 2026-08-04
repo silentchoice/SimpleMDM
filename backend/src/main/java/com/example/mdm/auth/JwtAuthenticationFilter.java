@@ -1,22 +1,32 @@
 package com.example.mdm.auth;
 
+import com.example.mdm.common.api.ApiResponse;
+import com.example.mdm.common.api.RequestId;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 class JwtAuthenticationFilter extends OncePerRequestFilter {
+  private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
   private final JwtService jwtService;
   private final TokenRevocationStore tokenRevocationStore;
+  private final ObjectMapper objectMapper;
 
-  JwtAuthenticationFilter(JwtService jwtService, TokenRevocationStore tokenRevocationStore) {
+  JwtAuthenticationFilter(JwtService jwtService, TokenRevocationStore tokenRevocationStore,
+      ObjectMapper objectMapper) {
     this.jwtService = jwtService;
     this.tokenRevocationStore = tokenRevocationStore;
+    this.objectMapper = objectMapper;
   }
 
   @Override
@@ -24,21 +34,35 @@ class JwtAuthenticationFilter extends OncePerRequestFilter {
       FilterChain filterChain) throws ServletException, IOException {
     String authorization = request.getHeader("Authorization");
     if (authorization != null && authorization.startsWith("Bearer ")) {
+      JwtService.ParsedToken parsedToken;
       try {
-        JwtService.ParsedToken parsedToken = jwtService.parseToken(authorization.substring(7));
+        parsedToken = jwtService.parseToken(authorization.substring(7));
+      } catch (RuntimeException ignored) {
+        SecurityContextHolder.clearContext();
+        filterChain.doFilter(request, response);
+        return;
+      }
+      try {
         if (tokenRevocationStore.isRevoked(parsedToken.jti())) {
           SecurityContextHolder.clearContext();
           filterChain.doFilter(request, response);
           return;
         }
-        UserPrincipal principal = parsedToken.principal();
-        var authorities = principal.roles().stream()
-            .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name())).toList();
-        SecurityContextHolder.getContext().setAuthentication(
-            new UsernamePasswordAuthenticationToken(principal, null, authorities));
-      } catch (RuntimeException ignored) {
-        SecurityContextHolder.clearContext();
+      } catch (RuntimeException exception) {
+        Object requestId = request.getAttribute(RequestId.ATTRIBUTE);
+        log.error("Token revocation lookup failed requestId={}", requestId, exception);
+        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        objectMapper.writeValue(response.getOutputStream(),
+            ApiResponse.failure(500, "Internal server error",
+                requestId == null ? null : requestId.toString()));
+        return;
       }
+      UserPrincipal principal = parsedToken.principal();
+      var authorities = principal.roles().stream()
+          .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name())).toList();
+      SecurityContextHolder.getContext().setAuthentication(
+          new UsernamePasswordAuthenticationToken(principal, null, authorities));
     }
     filterChain.doFilter(request, response);
   }

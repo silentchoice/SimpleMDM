@@ -34,7 +34,8 @@ public class SecurityConfig {
             .requestMatchers("/api/auth/login").permitAll()
             .anyRequest().authenticated())
         .addFilterBefore(new RequestIdFilter(), SecurityContextHolderFilter.class)
-        .addFilterAfter(new JwtAuthenticationFilter(jwtService, tokenRevocationStore), SecurityContextHolderFilter.class);
+        .addFilterAfter(new JwtAuthenticationFilter(jwtService, tokenRevocationStore, objectMapper),
+            SecurityContextHolderFilter.class);
     return http.build();
   }
 
