@@ -110,9 +110,11 @@ class MetadataControllerTest {
   }
 
   @Test
-  void malformedSchemaIsBadRequest() throws Exception {
+  void validJsonWithMalformedSchemaIsBadRequest() throws Exception {
     mvc.perform(post("/api/master-field/41").requestAttr(RequestId.ATTRIBUTE, "req-bad")
-            .contentType(MediaType.APPLICATION_JSON).content("{"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("[{\"code\":\"\",\"displayName\":\"Serial\","
+                + "\"fieldType\":\"TEXT\"}]"))
         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
   }
 

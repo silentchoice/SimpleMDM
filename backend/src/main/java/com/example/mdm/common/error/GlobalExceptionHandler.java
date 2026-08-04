@@ -10,6 +10,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.security.access.AccessDeniedException;
@@ -30,7 +31,7 @@ public class GlobalExceptionHandler {
         .body(ApiResponse.failure(exception.status().value(), exception.getMessage(), requestId(request)));
   }
 
-  @ExceptionHandler(MethodArgumentNotValidException.class)
+  @ExceptionHandler({MethodArgumentNotValidException.class, HandlerMethodValidationException.class})
   public ResponseEntity<ApiResponse<Void>> handleValidationException(HttpServletRequest request) {
     return ResponseEntity.badRequest()
         .body(ApiResponse.failure(400, "Validation failed", requestId(request)));
