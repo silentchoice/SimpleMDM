@@ -12,6 +12,7 @@ const username = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const logoutNotice = route.query.logout === 'local'
 
 async function submit(): Promise<void> {
   error.value = ''
@@ -37,6 +38,7 @@ async function submit(): Promise<void> {
     <el-card class="login-card" shadow="always">
       <h1>SimpleMDM</h1>
       <p class="login-subtitle">Management Console</p>
+      <p v-if="logoutNotice" class="logout-notice" role="status">Signed out locally. Server sign-out could not be confirmed.</p>
       <form @submit.prevent="submit">
         <label for="username">Username</label>
         <input id="username" v-model="username" name="username" autocomplete="username" />

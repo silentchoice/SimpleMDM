@@ -16,8 +16,25 @@ function makeRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `req-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function apiError(envelope: ApiEnvelope<unknown>, status?: number): ApiError {
-  return { code: envelope.code, message: envelope.message, requestId: envelope.requestId, status }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object'
+}
+
+function isApiEnvelope(value: unknown): value is ApiEnvelope<unknown> {
+  return isRecord(value) && typeof value.code === 'number' && typeof value.message === 'string'
+    && 'data' in value && typeof value.requestId === 'string'
+}
+
+function apiError(response: unknown, status?: number): ApiError {
+  if (isRecord(response) && typeof response.code === 'number' && typeof response.message === 'string') {
+    return {
+      code: response.code,
+      message: response.message || `Request failed${status ? ` (HTTP ${status})` : ''}`,
+      requestId: typeof response.requestId === 'string' ? response.requestId : undefined,
+      status
+    }
+  }
+  return { message: status && status >= 400 ? `Request failed (HTTP ${status})` : 'Malformed API response', status }
 }
 
 export function createHttpClient(options: HttpOptions = {}): HttpClient {
@@ -34,15 +51,16 @@ export function createHttpClient(options: HttpOptions = {}): HttpClient {
   async function request<T>(method: 'get' | 'post', url: string, data?: unknown): Promise<T> {
     try {
       const response = await client.request<ApiEnvelope<T>>({ method, url, data })
-      const envelope = response.data
+      const envelope: unknown = response.data
       if (response.status === 401) useAuthStore().clearSession()
+      if (!isApiEnvelope(envelope)) throw apiError(envelope, response.status)
       if (response.status >= 400 || envelope.code !== 0) throw apiError(envelope, response.status)
-      return envelope.data
+      return envelope.data as T
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const envelope = error.response?.data as ApiEnvelope<unknown> | undefined
+        const envelope: unknown = error.response?.data
         if (error.response?.status === 401) useAuthStore().clearSession()
-        if (envelope) throw apiError(envelope, error.response?.status)
+        if (envelope !== undefined) throw apiError(envelope, error.response?.status)
         throw { message: error.message, status: error.response?.status } satisfies ApiError
       }
       throw error

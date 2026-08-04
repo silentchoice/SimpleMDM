@@ -49,4 +49,10 @@ describe('http client', () => {
     await expect(client.get('/records')).rejects.toMatchObject({ requestId: 'server-401' })
     expect(useAuthStore().session).toBeNull()
   })
+
+  it('uses an HTTP-status fallback for a malformed proxy error response', async () => {
+    const client = createHttpClient({ adapter: adapter('<html>Bad Gateway</html>', 502) })
+
+    await expect(client.get('/records')).rejects.toMatchObject({ message: 'Request failed (HTTP 502)', status: 502 })
+  })
 })

@@ -27,6 +27,15 @@ describe('auth store', () => {
     expect(restoredStore.isAuthenticated).toBe(true)
   })
 
+  it('clears a syntactically valid but malformed stored session', () => {
+    sessionStorage.setItem('mdm.session', JSON.stringify({ accessToken: 'token', user: { id: '7' }, roles: 'DEPT_EDITOR' }))
+
+    const store = useAuthStore()
+
+    expect(store.session).toBeNull()
+    expect(sessionStorage.getItem('mdm.session')).toBeNull()
+  })
+
   it('clears its persisted session on logout', () => {
     const store = useAuthStore()
     store.setSession(session)

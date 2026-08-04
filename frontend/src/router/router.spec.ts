@@ -50,4 +50,14 @@ describe('authenticated router and menu', () => {
     expect(labels).toContain('Active Metadata')
     expect(labels).toContain('Submit Change')
   })
+
+  it('keeps the read-only viewer menu free of change and system actions', () => {
+    const labels = menuForRoles(['DEPT_VIEWER']).map((item) => item.label)
+
+    expect(labels).toContain('Active Metadata')
+    expect(labels).not.toContain('Submit Change')
+    expect(labels).not.toContain('Approvals')
+    expect(labels).not.toContain('Users')
+    expect(labels).not.toContain('Departments')
+  })
 })
