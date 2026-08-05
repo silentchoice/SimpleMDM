@@ -36,6 +36,20 @@ class MetadataServiceTest {
     service = new MetadataService(metadata, approvals, authorization, validator, json);
   }
 
+  @Test void currentMasterTypeDerivesTheAuthenticatedDepartment() {
+    var viewer = new UserPrincipal(18L, "viewer", "Viewer",
+        new DepartmentPrincipal(7L, "D7", "Department"), List.of(Role.DEPT_VIEWER));
+    var assigned = new MasterType(41L, "ASSET", "Asset", MetadataStatus.ACTIVE);
+    when(authorization.requireRole(Role.DEPT_EDITOR, Role.DEPT_APPROVER, Role.DEPT_VIEWER))
+        .thenReturn(viewer);
+    when(metadata.findAssignedMasterType(7L)).thenReturn(assigned);
+
+    assertThat(service.currentMasterType()).isEqualTo(assigned);
+
+    verify(authorization).requireDepartment(7L);
+    verify(metadata).findAssignedMasterType(7L);
+  }
+
   @Test void masterFieldSubmissionDerivesDepartmentAndStoresLiteralSnapshots() throws Exception {
     var editor = editor(12L, 7L);
     var before = List.of(field(1L, 41L, "old", 1));

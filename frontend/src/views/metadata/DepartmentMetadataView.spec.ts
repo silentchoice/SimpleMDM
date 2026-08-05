@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/auth'
 import DepartmentMetadataView from './DepartmentMetadataView.vue'
 
 const metadataApi = vi.hoisted(() => ({
-  listMasterFields: vi.fn(), listSubTypes: vi.fn(), listSubFields: vi.fn(),
+  currentMasterType: vi.fn(), listMasterFields: vi.fn(), listSubTypes: vi.fn(), listSubFields: vi.fn(),
   submitMasterFields: vi.fn(), submitSubTypes: vi.fn(), submitSubFields: vi.fn()
 }))
 vi.mock('../../api/metadata', () => metadataApi)
@@ -14,15 +14,26 @@ vi.mock('../../api/metadata', () => metadataApi)
 const field = { id: 1, ownerTypeId: 41, code: 'SERIAL', displayName: 'Serial number', fieldType: 'TEXT', required: true, options: [], shared: false, sortOrder: 0, status: 'ACTIVE' }
 const subType = { id: 55, masterTypeId: 41, code: 'ACCESSORY', name: 'Accessory', status: 'ACTIVE' }
 
-function mountView() { return mount(DepartmentMetadataView, { props: { masterTypeId: 41 }, global: { plugins: [ElementPlus] } }) }
+function mountView(initialTab: 'active' | 'submit' = 'active') { return mount(DepartmentMetadataView, { props: { initialTab }, global: { plugins: [ElementPlus] } }) }
 
 describe('department ACTIVE metadata workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setActivePinia(createPinia())
+    metadataApi.currentMasterType.mockResolvedValue({ id: 41, code: 'ASSET', name: 'Asset', status: 'ACTIVE' })
     metadataApi.listMasterFields.mockResolvedValue([field])
     metadataApi.listSubTypes.mockResolvedValue([subType])
     metadataApi.listSubFields.mockResolvedValue([field])
+  })
+
+  it('discovers the authenticated department assignment and opens the submit route on its editor tab', async () => {
+    useAuthStore().setSession({ accessToken: 'token', user: { id: 1, username: 'editor', displayName: 'Editor' }, roles: ['DEPT_EDITOR'], department: { id: 3, code: 'OPS', name: 'Operations' } })
+    const wrapper = mountView('submit')
+    await flushPromises()
+
+    expect(metadataApi.currentMasterType).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Asset')
+    expect(wrapper.find('[name="subTypeId"]').exists()).toBe(true)
   })
 
   for (const role of ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] as const) {

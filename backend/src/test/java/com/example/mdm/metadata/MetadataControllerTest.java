@@ -54,6 +54,18 @@ class MetadataControllerTest {
   }
 
   @Test
+  void departmentMemberReadsItsCurrentAssignedMasterTypeWithoutSupplyingDepartmentId()
+      throws Exception {
+    when(service.currentMasterType()).thenReturn(new MasterType(41, "ASSET", "Asset", MetadataStatus.ACTIVE));
+
+    mvc.perform(get("/api/master-type/current").requestAttr(RequestId.ATTRIBUTE, "req-current"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(41))
+        .andExpect(jsonPath("$.data.code").value("ASSET"))
+        .andExpect(jsonPath("$.requestId").value("req-current"));
+    verify(service).currentMasterType();
+  }
+
+  @Test
   void viewerReadsOnlyActiveMasterFieldsThroughService() throws Exception {
     when(service.masterFields(41)).thenReturn(List.of(field(11, 41, "serial")));
     mvc.perform(get("/api/master-field/41").requestAttr(RequestId.ATTRIBUTE, "req-read"))

@@ -58,6 +58,7 @@ export interface ApprovalSubmission {
 }
 
 export function listMasterTypes(): Promise<MasterType[]> { return http.get<MasterType[]>('/master-type') }
+export function currentMasterType(): Promise<MasterType> { return http.get<MasterType>('/master-type/current') }
 export function createMasterType(body: MasterTypeInput): Promise<MasterType> { return http.post<MasterType>('/master-type', body) }
 export function assignDepartment(masterTypeId: number, departmentId: number): Promise<void> {
   return http.put<void>(`/master-type/${masterTypeId}/departments/${departmentId}`)

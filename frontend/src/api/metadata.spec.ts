@@ -7,7 +7,7 @@ const { http } = vi.hoisted(() => ({
 vi.mock('./http', () => ({ http }))
 
 import {
-  assignDepartment, createMasterType, listMasterFields, listMasterTypes, listSubFields, listSubTypes,
+  assignDepartment, createMasterType, currentMasterType, listMasterFields, listMasterTypes, listSubFields, listSubTypes,
   submitMasterFields, submitSubFields, submitSubTypes, type FieldSubmission, type SubTypeSubmission
 } from './metadata'
 
@@ -31,6 +31,14 @@ describe('metadata API client', () => {
     await assignDepartment(7, 3)
 
     expect(http.put).toHaveBeenCalledWith('/master-type/7/departments/3')
+  })
+
+  it('reads the authenticated department assignment without a caller-supplied department ID', async () => {
+    http.get.mockResolvedValue({ id: 41, code: 'ASSET', name: 'Asset', status: 'ACTIVE' })
+
+    await currentMasterType()
+
+    expect(http.get).toHaveBeenCalledWith('/master-type/current')
   })
 
   it('reads the ordered active structure from each owner path', async () => {

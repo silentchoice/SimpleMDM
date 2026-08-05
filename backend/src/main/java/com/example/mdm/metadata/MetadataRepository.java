@@ -18,6 +18,7 @@ public interface MetadataRepository {
   SubType createSubType(long departmentId, long masterTypeId, String code, String name);
   FieldDefinition createSubField(long departmentId, FieldDefinition field);
   List<MasterType> findMasterTypes();
+  MasterType findAssignedMasterType(long departmentId);
   List<FieldDefinition> findMasterFields(long departmentId, long masterTypeId);
   List<SubType> findSubTypes(long departmentId, long masterTypeId);
   List<FieldDefinition> findSubFields(long departmentId, long subTypeId);

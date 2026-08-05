@@ -28,8 +28,8 @@ export function createAppRouter(history: RouterHistory = import.meta.env.MODE ==
       {
         path: '/', component: AppLayout, meta: { requiresAuth: true }, children: [
           { path: '', name: 'dashboard', component: DashboardView, meta: { title: 'Dashboard', roles: [...allRoles] } },
-          { path: 'metadata/active/:masterTypeId?', name: 'active-metadata', component: DepartmentMetadataView, props: (route) => ({ masterTypeId: Number(route.params.masterTypeId ?? route.query.masterTypeId ?? 0) }), meta: { title: 'Active Metadata', roles: [...departmentMetadataRoles] } },
-          { path: 'metadata/changes/new', name: 'submit-change', component: DepartmentMetadataView, props: (route) => ({ masterTypeId: Number(route.query.masterTypeId ?? 0) }), meta: { title: 'Submit Change', roles: ['DEPT_EDITOR'] } },
+          { path: 'metadata/active', name: 'active-metadata', component: DepartmentMetadataView, meta: { title: 'Active Metadata', roles: [...departmentMetadataRoles] } },
+          { path: 'metadata/changes/new', name: 'submit-change', component: DepartmentMetadataView, props: { initialTab: 'submit' }, meta: { title: 'Submit Change', roles: ['DEPT_EDITOR'] } },
           { path: 'metadata/approvals', name: 'approvals', component: contentView('Approvals'), meta: { title: 'Approvals', roles: ['SUPER_ADMIN', 'DEPT_APPROVER'] } },
           { path: 'metadata/templates', name: 'master-type-templates', component: MasterTypeListView, meta: { title: 'Master Type Templates', roles: ['SUPER_ADMIN'] } },
           { path: 'system/users', name: 'users', component: UserListView, meta: { title: 'Users', roles: ['SUPER_ADMIN'] } },

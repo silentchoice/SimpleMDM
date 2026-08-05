@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { describe, expect, it, vi } from 'vitest'
 import MetadataEditor from './MetadataEditor.vue'
@@ -69,5 +69,31 @@ describe('metadata editor', () => {
     await wrapper.get('[data-testid="submit-master-fields"]').trigger('click')
 
     expect(wrapper.text()).toContain('Duplicate sort order')
+  })
+
+  it('removes a draft item so the submitted replacement snapshot can delete ACTIVE metadata', async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ approvalTaskId: 702 })
+    const wrapper = mount(MetadataEditor, { props: { family: 'master-fields', ownerId: 41, activeItems: [activeField, { ...activeField, id: 2, code: 'SECOND', displayName: 'Second', sortOrder: 1 }], onSubmit }, global: { plugins: [ElementPlus] } })
+    await wrapper.get('[data-testid="remove-0"]').trigger('click')
+    await wrapper.get('[data-testid="submit-master-fields"]').trigger('click')
+
+    expect(onSubmit).toHaveBeenCalledWith([expect.objectContaining({ code: 'SECOND', sortOrder: 0 })])
+  })
+
+  it('prevents duplicate concurrent submissions and retains request IDs in failures', async () => {
+    let resolve!: (value: { approvalTaskId: number }) => void
+    const onSubmit = vi.fn(() => new Promise<{ approvalTaskId: number }>((done) => { resolve = done }))
+    const wrapper = mountEditor(onSubmit)
+    const submit = wrapper.get('[data-testid="submit-master-fields"]')
+    await submit.trigger('click')
+    await submit.trigger('click')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    resolve({ approvalTaskId: 703 })
+    await flushPromises()
+
+    const failed = mountEditor(vi.fn().mockRejectedValue({ message: 'Pending task', requestId: 'req-pending' }))
+    await failed.get('[data-testid="submit-master-fields"]').trigger('click')
+    await flushPromises()
+    expect(failed.text()).toContain('Pending task (Request ID: req-pending)')
   })
 })

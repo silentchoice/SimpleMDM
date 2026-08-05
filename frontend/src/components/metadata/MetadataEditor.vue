@@ -18,13 +18,14 @@ const drafts = ref<MetadataItem[]>([])
 const editIndex = ref<number | null>(null)
 const taskId = ref<number | null>(null)
 const error = ref('')
+const saving = ref(false)
 const drawerOpen = computed(() => editIndex.value !== null)
 const editing = computed(() => editIndex.value === null ? null : drafts.value[editIndex.value] ?? null)
 const isFieldFamily = computed(() => props.family !== 'sub-types')
 
 function deepCopy(items: MetadataItem[]): MetadataItem[] { return JSON.parse(JSON.stringify(items)) as MetadataItem[] }
 function renumber(): void { drafts.value.forEach((item, index) => { if ('sortOrder' in item) item.sortOrder = index }) }
-watch(() => props.activeItems, (items) => { drafts.value = deepCopy(items); taskId.value = null; error.value = '' }, { immediate: true, deep: true })
+watch([() => props.activeItems, () => props.ownerId], ([items]) => { drafts.value = deepCopy(items); taskId.value = null; error.value = '' }, { immediate: true, deep: true })
 
 function add(): void {
   taskId.value = null
@@ -55,6 +56,12 @@ function move(index: number, direction: -1 | 1): void {
   drafts.value.splice(target, 0, item)
   renumber()
 }
+function remove(index: number): void {
+  if (saving.value) return
+  drafts.value.splice(index, 1)
+  renumber()
+  taskId.value = null
+}
 function validateBeforeSubmit(): string {
   const codes = new Set<string>()
   const orders = new Set<number>()
@@ -77,24 +84,26 @@ function errorMessage(reason: unknown): string {
   return apiError.requestId ? `${apiError.message} (Request ID: ${apiError.requestId})` : apiError.message ?? 'Unable to submit changes'
 }
 async function submit(): Promise<void> {
+  if (saving.value) return
   error.value = validateBeforeSubmit()
   if (error.value) return
+  saving.value = true
   try {
     const body = isFieldFamily.value ? (drafts.value as FieldDefinition[]).map(fieldSubmission) : (drafts.value as SubType[]).map(({ code, name }) => ({ code, name }))
     taskId.value = (await props.onSubmit(body)).approvalTaskId
-  } catch (reason) { error.value = errorMessage(reason) }
+  } catch (reason) { error.value = errorMessage(reason) } finally { saving.value = false }
 }
 </script>
 
 <template>
   <section class="metadata-editor">
-    <div class="view-heading"><h2>{{ family === 'master-fields' ? 'Master fields' : family === 'sub-types' ? 'Sub-types' : 'Sub-fields' }}</h2><el-button data-testid="add-item" type="primary" @click="add">Add</el-button></div>
+    <div class="view-heading"><h2>{{ family === 'master-fields' ? 'Master fields' : family === 'sub-types' ? 'Sub-types' : 'Sub-fields' }}</h2><el-button data-testid="add-item" type="primary" :disabled="saving" @click="add">Add</el-button></div>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <p v-if="taskId" role="status">Approval task #{{ taskId }} submitted. ACTIVE metadata is unchanged.</p>
     <ol>
-      <li v-for="(item, index) in drafts" :key="`${item.id}-${index}`"><span>{{ item.code }} — {{ 'displayName' in item ? item.displayName : item.name }}</span><el-button :data-testid="`edit-${index}`" text @click="edit(index)">Edit</el-button><el-button :data-testid="`move-up-${index}`" text :disabled="index === 0" @click="move(index, -1)">Up</el-button><el-button :data-testid="`move-down-${index}`" text :disabled="index === drafts.length - 1" @click="move(index, 1)">Down</el-button></li>
+      <li v-for="(item, index) in drafts" :key="`${item.id}-${index}`"><span>{{ item.code }} — {{ 'displayName' in item ? item.displayName : item.name }}</span><el-button :data-testid="`edit-${index}`" text :disabled="saving" @click="edit(index)">Edit</el-button><el-button :data-testid="`remove-${index}`" text type="danger" :disabled="saving" @click="remove(index)">Remove</el-button><el-button :data-testid="`move-up-${index}`" text :disabled="saving || index === 0" @click="move(index, -1)">Up</el-button><el-button :data-testid="`move-down-${index}`" text :disabled="saving || index === drafts.length - 1" @click="move(index, 1)">Down</el-button></li>
     </ol>
-    <el-button :data-testid="`submit-${family}`" type="primary" @click="submit">Submit {{ family }}</el-button>
+    <el-button :data-testid="`submit-${family}`" type="primary" :loading="saving" :disabled="saving" @click="submit">Submit {{ family }}</el-button>
     <FieldEditorDrawer :open="drawerOpen" :family="family" :draft="editing" @close="discard" @save="saveDraft" />
   </section>
 </template>

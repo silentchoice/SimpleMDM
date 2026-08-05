@@ -116,6 +116,15 @@ class JdbcMetadataRepository implements MetadataRepository {
     return jdbc.query("SELECT id,code,name,status FROM master_types ORDER BY id",Map.of(),(rs,n)->
         new MasterType(rs.getLong("id"),rs.getString("code"),rs.getString("name"),MetadataStatus.valueOf(rs.getString("status"))));
   }
+  @Override public MasterType findAssignedMasterType(long departmentId) {
+    var assignments = jdbc.query("SELECT mt.id,mt.code,mt.name,mt.status FROM department_master_types dmt "
+        +"JOIN master_types mt ON mt.id=dmt.master_type_id WHERE dmt.department_id=:department "
+        +"AND dmt.status='ACTIVE' AND mt.status='ACTIVE' ORDER BY mt.id",
+        Map.of("department", departmentId), (rs,n) -> new MasterType(rs.getLong("id"),
+            rs.getString("code"), rs.getString("name"), MetadataStatus.valueOf(rs.getString("status"))));
+    if (assignments.isEmpty()) throw BusinessException.notFound("Master type assignment");
+    return assignments.get(0);
+  }
   @Override public List<FieldDefinition> findMasterFields(long departmentId,long masterTypeId) {
     return fields("master_fields","master_type_id",departmentId,masterTypeId,false);
   }

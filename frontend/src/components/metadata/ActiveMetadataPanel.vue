@@ -4,24 +4,32 @@ import { listMasterFields, listSubFields, listSubTypes, type FieldDefinition, ty
 import type { ApiError } from '../../types'
 
 const props = withDefaults(defineProps<{ masterTypeId?: number }>(), { masterTypeId: 0 })
-const emit = defineEmits<{ loaded: [value: { fields: FieldDefinition[], subTypes: SubType[], subFields: Record<number, FieldDefinition[]> }] }>()
+const emit = defineEmits<{ loaded: [value: { masterTypeId: number, fields: FieldDefinition[], subTypes: SubType[], subFields: Record<number, FieldDefinition[]> }] }>()
 const fields = ref<FieldDefinition[]>([])
 const subTypes = ref<SubType[]>([])
 const subFields = ref<Record<number, FieldDefinition[]>>({})
 const loading = ref(false)
 const error = ref('')
+let generation = 0
 function message(reason: unknown): string { const value = reason as ApiError; return value.requestId ? `${value.message} (Request ID: ${value.requestId})` : value.message }
+function clear(): void { fields.value = []; subTypes.value = []; subFields.value = {}; error.value = '' }
 async function refresh(): Promise<void> {
-  if (!props.masterTypeId) return
+  const ownerId = props.masterTypeId
+  const requestGeneration = ++generation
+  clear()
+  if (!ownerId) return
   loading.value = true; error.value = ''
   try {
-    const [masterFields, types] = await Promise.all([listMasterFields(props.masterTypeId), listSubTypes(props.masterTypeId)])
+    const [masterFields, types] = await Promise.all([listMasterFields(ownerId), listSubTypes(ownerId)])
+    const lists = await Promise.all(types.map(async (type) => [type.id, await listSubFields(type.id)] as const))
+    if (requestGeneration !== generation || ownerId !== props.masterTypeId) return
     fields.value = masterFields
     subTypes.value = types
-    const lists = await Promise.all(types.map(async (type) => [type.id, await listSubFields(type.id)] as const))
     subFields.value = Object.fromEntries(lists)
-    emit('loaded', JSON.parse(JSON.stringify({ fields: fields.value, subTypes: subTypes.value, subFields: subFields.value })) as { fields: FieldDefinition[], subTypes: SubType[], subFields: Record<number, FieldDefinition[]> })
-  } catch (reason) { error.value = message(reason) } finally { loading.value = false }
+    emit('loaded', JSON.parse(JSON.stringify({ masterTypeId: ownerId, fields: fields.value, subTypes: subTypes.value, subFields: subFields.value })) as { masterTypeId: number, fields: FieldDefinition[], subTypes: SubType[], subFields: Record<number, FieldDefinition[]> })
+  } catch (reason) {
+    if (requestGeneration === generation && ownerId === props.masterTypeId) error.value = message(reason)
+  } finally { if (requestGeneration === generation) loading.value = false }
 }
 watch(() => props.masterTypeId, refresh)
 onMounted(refresh)

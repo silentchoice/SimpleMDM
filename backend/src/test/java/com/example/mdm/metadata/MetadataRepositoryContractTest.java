@@ -26,6 +26,24 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 class MetadataRepositoryContractTest {
   @Test
+  void readsOnlyTheCurrentActiveAssignmentForTheRequestedDepartment() {
+    var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
+    var assigned = new MasterType(19L, "ASSET", "Asset", MetadataStatus.ACTIVE);
+    when(jdbc.<MasterType>query(contains("department_master_types"), anyMap(),
+        org.mockito.ArgumentMatchers.<RowMapper<MasterType>>any())).thenReturn(List.of(assigned));
+    var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());
+
+    assertThat(repository.findAssignedMasterType(7L)).isEqualTo(assigned);
+
+    var sql = ArgumentCaptor.forClass(String.class);
+    var parameters = ArgumentCaptor.forClass(Map.class);
+    org.mockito.Mockito.verify(jdbc).query(sql.capture(), parameters.capture(),
+        org.mockito.ArgumentMatchers.<RowMapper<MasterType>>any());
+    assertThat(sql.getValue()).contains("department_master_types").contains("dmt.status='ACTIVE'")
+        .contains("mt.status='ACTIVE'");
+    assertThat(parameters.getValue()).containsEntry("department", 7L);
+  }
+  @Test
   void mapsSecondActiveAssignmentForDepartmentToConflict() {
     var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
     Set<Long> activeDepartmentIds = new HashSet<>();

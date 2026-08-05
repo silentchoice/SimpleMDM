@@ -122,6 +122,21 @@ class MetadataControllerSecurityTest {
   }
 
   @Test
+  void onlyDepartmentMetadataRolesReadTheirCurrentAssignment() throws Exception {
+    when(metadata.findAssignedMasterType(7L))
+        .thenReturn(new MasterType(41L, "ASSET", "Asset", MetadataStatus.ACTIVE));
+    for (Role role : List.of(Role.DEPT_EDITOR, Role.DEPT_APPROVER, Role.DEPT_VIEWER)) {
+      mvc.perform(get("/api/master-type/current")
+              .header("Authorization", token(role.ordinal() + 20L, SALES, role)))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(41));
+    }
+    mvc.perform(get("/api/master-type/current").header("Authorization", token(1L, null, Role.SUPER_ADMIN)))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value(403));
+    mvc.perform(get("/api/master-type/current"))
+        .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value(401));
+  }
+
+  @Test
   void crossDepartmentTemplateIdIsForbiddenThroughRealServiceBoundary() throws Exception {
     doThrow(BusinessException.forbidden()).when(metadata).requireTemplateAccess(7, 88);
 

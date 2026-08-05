@@ -28,6 +28,11 @@ public class MasterTypeController {
     return success(service.masterTypes(), request);
   }
 
+  @GetMapping("/current")
+  public ApiResponse<MasterType> current(HttpServletRequest request) {
+    return success(service.currentMasterType(), request);
+  }
+
   @PostMapping
   public ApiResponse<MasterType> create(@Valid @RequestBody TypeRequest body,
       HttpServletRequest request) {

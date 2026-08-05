@@ -42,6 +42,11 @@ public class MetadataService {
     return repository.createMasterType(normalize(code), name.trim(), actor.id());
   }
 
+  public MasterType currentMasterType() {
+    var actor = departmentReader();
+    return repository.findAssignedMasterType(actor.department().id());
+  }
+
   public void assignDepartment(long departmentId, long masterTypeId) {
     authorization.requireRole(Role.SUPER_ADMIN);
     repository.assignDepartment(departmentId, masterTypeId);
