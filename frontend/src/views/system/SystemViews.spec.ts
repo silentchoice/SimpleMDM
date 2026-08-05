@@ -59,6 +59,28 @@ describe('system administration views', () => {
     expect(saved).toHaveBeenCalledWith({ username: 'jdoe', password: 'secret-123', displayName: 'Jane Doe', departmentId: 3, roles: ['DEPT_EDITOR'] })
   })
 
+  it('requires reassignment before saving an existing user whose department is disabled', async () => {
+    const saved = vi.fn()
+    const wrapper = mount(UserDrawer, {
+      props: {
+        open: true,
+        user: { id: 9, username: 'jdoe', displayName: 'Jane Doe', departmentId: 3, status: 'ACTIVE', roles: ['DEPT_EDITOR'] },
+        departments: [
+          { id: 3, code: 'OPS', name: 'Operations', status: 'DISABLED' },
+          { id: 4, code: 'SALES', name: 'Sales', status: 'ACTIVE' }
+        ],
+        saving: false,
+        onSaved: saved
+      },
+      global: { plugins: [ElementPlus] }
+    })
+
+    await wrapper.get('form').trigger('submit')
+
+    expect(saved).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Select an active department before saving')
+  })
+
   it('shows API errors with request IDs and refreshes departments only after a successful create', async () => {
     api.createDepartment.mockRejectedValueOnce({ message: 'Duplicate department code', requestId: 'req-409' })
     const wrapper = mount(DepartmentListView, { global: { plugins: [ElementPlus] } })

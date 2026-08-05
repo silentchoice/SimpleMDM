@@ -42,6 +42,10 @@ async function submit(): Promise<void> {
   }
   if (submitting.value || props.saving) return
   const department = departmentId.value ? Number(departmentId.value) : null
+  if (department !== null && !props.departments.some((item) => item.id === department && item.status === 'ACTIVE')) {
+    validationError.value = 'Select an active department before saving'
+    return
+  }
   const value: UserDrawerInput = props.user
     ? { displayName: displayName.value.trim(), departmentId: department, roles: [...selectedRoles.value] }
     : { username: username.value.trim(), password: password.value, displayName: displayName.value.trim(), departmentId: department, roles: [...selectedRoles.value] }
