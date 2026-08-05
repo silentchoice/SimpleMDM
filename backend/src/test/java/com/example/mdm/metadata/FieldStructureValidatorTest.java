@@ -43,6 +43,28 @@ class FieldStructureValidatorTest {
         .doesNotThrowAnyException();
   }
 
+  @ParameterizedTest(name = "rejects invalid display name [{0}]")
+  @MethodSource("invalidDisplayNames")
+  void rejectsBlankOrOverlongDisplayNames(String displayName) {
+    assertBadRequest("serial",
+        () -> validator.validate(field("serial", displayName, FieldType.TEXT, List.of())));
+  }
+
+  static Stream<Arguments> invalidDisplayNames() {
+    return Stream.of(
+        Arguments.of((String) null),
+        Arguments.of(""),
+        Arguments.of(" "),
+        Arguments.of("x".repeat(129)));
+  }
+
+  @Test
+  void acceptsDisplayNameAtMaximumLength() {
+    assertThatCode(() -> validator.validate(
+        field("serial", "x".repeat(128), FieldType.TEXT, List.of())))
+        .doesNotThrowAnyException();
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"SELECT", "RADIO", "MULTISELECT"})
   void rejectsSelectionFieldsWithoutOptions(String type) {
@@ -94,7 +116,12 @@ class FieldStructureValidatorTest {
   }
 
   private FieldDefinition field(String code, FieldType type, List<String> options) {
-    return new FieldDefinition(1L, 2L, code, code, type, false, options, false, 0,
+    return field(code, code, type, options);
+  }
+
+  private FieldDefinition field(String code, String displayName, FieldType type,
+      List<String> options) {
+    return new FieldDefinition(1L, 2L, code, displayName, type, false, options, false, 0,
         MetadataStatus.ACTIVE);
   }
 

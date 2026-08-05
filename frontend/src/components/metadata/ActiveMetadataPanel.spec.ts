@@ -9,6 +9,14 @@ vi.mock('../../api/metadata', () => metadataApi)
 function deferred<T>() { let resolve!: (value: T) => void; return { promise: new Promise<T>((done) => { resolve = done }), resolve } }
 
 describe('ACTIVE metadata panel', () => {
+  it('describes a missing department assignment without asking for a manual ID', () => {
+    const wrapper = mount(ActiveMetadataPanel, { global: { plugins: [ElementPlus] } })
+
+    expect(wrapper.text()).toContain('No master type is assigned to this department.')
+    expect(wrapper.text()).not.toContain('Enter a master type ID')
+    wrapper.unmount()
+  })
+
   it('clears stale data and ignores an older owner response after a master type switch', async () => {
     const oldFields = deferred<any[]>()
     metadataApi.listMasterFields.mockReturnValueOnce(oldFields.promise).mockResolvedValueOnce([{ id: 2, ownerTypeId: 42, code: 'NEW', displayName: 'New field', fieldType: 'TEXT', required: false, options: [], shared: false, sortOrder: 0, status: 'ACTIVE' }])

@@ -37,6 +37,19 @@ describe('department ACTIVE metadata workspace', () => {
     expect(wrapper.find('[name="subTypeId"]').exists()).toBe(true)
   })
 
+  it('surfaces the current-assignment request ID when assignment discovery fails', async () => {
+    metadataApi.currentMasterType.mockRejectedValueOnce({
+      message: 'No master type assignment', requestId: 'req-assignment-404'
+    })
+    useAuthStore().setSession({ accessToken: 'token', user: { id: 1, username: 'viewer', displayName: 'Viewer' }, roles: ['DEPT_VIEWER'], department: { id: 3, code: 'OPS', name: 'Operations' } })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'No master type assignment (Request ID: req-assignment-404)')
+  })
+
   for (const role of ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] as const) {
     it(`${role} can inspect the same read-only ACTIVE structure`, async () => {
       useAuthStore().setSession({ accessToken: 'token', user: { id: 1, username: role, displayName: role }, roles: [role], department: { id: 3, code: 'OPS', name: 'Operations' } })

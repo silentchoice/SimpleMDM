@@ -15,6 +15,8 @@ import com.example.mdm.common.api.RequestId;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -130,6 +132,15 @@ class MetadataControllerTest {
         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"/api/master-field/41", "/api/sub-field/55"})
+  void fieldSubmissionRejectsDisplayNameLongerThan128Characters(String path) throws Exception {
+    mvc.perform(post(path).requestAttr(RequestId.ATTRIBUTE, "req-name-length")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("[" + fieldJson("serial", "x".repeat(129)) + "]"))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
+  }
+
   @Test
   void missingTemplateIsNotFound() throws Exception {
     when(service.subTypes(404)).thenThrow(BusinessException.notFound("Master type"));
@@ -159,8 +170,12 @@ class MetadataControllerTest {
   }
 
   private String fieldJson(String code) {
+    return fieldJson(code, "Serial");
+  }
+
+  private String fieldJson(String code, String displayName) {
     return "{\"id\":0,\"ownerTypeId\":41,\"code\":\"" + code
-        + "\",\"displayName\":\"Serial\",\"fieldType\":\"TEXT\",\"required\":false,"
+        + "\",\"displayName\":\"" + displayName + "\",\"fieldType\":\"TEXT\",\"required\":false,"
         + "\"options\":[],\"shared\":false,\"sortOrder\":0,\"status\":\"ACTIVE\"}";
   }
 }

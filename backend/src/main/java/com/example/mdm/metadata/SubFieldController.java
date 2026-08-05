@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,7 +42,7 @@ public class SubFieldController {
     return ApiResponse.success(data, (String) request.getAttribute(RequestId.ATTRIBUTE));
   }
 
-  public record FieldRequest(@NotBlank String code, @NotBlank String displayName,
+  public record FieldRequest(@NotBlank String code, @NotBlank @Size(max = 128) String displayName,
       @NotNull FieldType fieldType, boolean required, List<String> options, boolean shared,
       int sortOrder) {
     FieldDefinition definition(long ownerTypeId, boolean allowShared) {

@@ -34,7 +34,7 @@ class MetadataApprovalApplicationServiceTest {
   private final MetadataApprovalRepository approvals = Mockito.mock(MetadataApprovalRepository.class);
   private final MetadataRepository metadata = Mockito.mock(MetadataRepository.class);
   private final AuthorizationService authorization = Mockito.mock(AuthorizationService.class);
-  private final FieldStructureValidator validator = Mockito.mock(FieldStructureValidator.class);
+  private final FieldStructureValidator validator = Mockito.spy(new FieldStructureValidator());
   private final ObjectMapper json = new ObjectMapper();
   private MetadataApprovalApplicationService service;
 
@@ -60,6 +60,52 @@ class MetadataApprovalApplicationServiceTest {
     order.verify(metadata).findMasterFields(7, 41);
     order.verify(metadata).replaceMasterFields(7, 41, after);
     order.verify(approvals).approve(7, 9, 23, comment);
+  }
+
+  @Test void firstMasterFieldSnapshotCanBeApprovedFromAnEmptyActiveVersion() throws Exception {
+    var before = List.<FieldDefinition>of();
+    var after = List.of(field(0, 41, "serial", 0));
+    String base = fingerprint(before);
+    when(approvals.lock(7, 91)).thenReturn(task(91, 7, "MASTER_FIELDS", 41,
+        envelope(7, 41, "MASTER_FIELDS", base, before),
+        envelope(7, 41, "MASTER_FIELDS", base, after), "PENDING"));
+    when(metadata.findMasterFields(7, 41)).thenReturn(before);
+
+    service.approve(91, null);
+
+    verify(metadata).replaceMasterFields(7, 41, after);
+    verify(approvals).approve(7, 91, 23, null);
+  }
+
+  @Test void firstSubtypeSnapshotCanBeApprovedFromAnEmptyActiveVersion() throws Exception {
+    var before = List.<SubType>of();
+    var after = List.of(new SubType(0, 41, "device", "Device", MetadataStatus.ACTIVE));
+    String base = fingerprint(before);
+    when(approvals.lock(7, 92)).thenReturn(task(92, 7, "SUB_TYPES", 41,
+        envelope(7, 41, "SUB_TYPES", base, before),
+        envelope(7, 41, "SUB_TYPES", base, after), "PENDING"));
+    when(metadata.findSubTypes(7, 41)).thenReturn(before);
+
+    service.approve(92, null);
+
+    verify(metadata).replaceSubTypes(7, 41, after);
+    verify(approvals).approve(7, 92, 23, null);
+  }
+
+  @Test void firstSubfieldSnapshotCanBeApprovedFromAnEmptyActiveVersion() throws Exception {
+    var before = List.<FieldDefinition>of();
+    var after = List.of(field(0, 55, "model", 0));
+    String base = fingerprint(before);
+    when(approvals.lock(7, 93)).thenReturn(task(93, 7, "SUB_FIELDS", 55,
+        envelope(7, 41, "SUB_FIELDS", base, before),
+        envelope(7, 41, "SUB_FIELDS", base, after), "PENDING"));
+    when(approvals.requireSubTypeTemplate(7, 55)).thenReturn(41L);
+    when(metadata.findSubFields(7, 55)).thenReturn(before);
+
+    service.approve(93, null);
+
+    verify(metadata).replaceSubFields(7, 55, after);
+    verify(approvals).approve(7, 93, 23, null);
   }
 
   @Test void crossDepartmentAndNonPendingTasksAreRejectedWithoutWrites() throws Exception {
@@ -113,6 +159,21 @@ class MetadataApprovalApplicationServiceTest {
         envelope(7, 41, "MASTER_FIELDS", base, malformed),
         envelope(7, 41, "MASTER_FIELDS", base, malformed), "PENDING"));
     assertStatus(() -> service.approve(9, null), HttpStatus.BAD_REQUEST);
+  }
+
+  @Test void approvalDecodeRejectsAFieldDisplayNameLongerThan128Characters() throws Exception {
+    var before = List.of(field(1, 41, "serial", 0));
+    var after = List.of(new FieldDefinition(0, 41, "serial", "x".repeat(129), FieldType.TEXT,
+        false, List.of(), false, 0, MetadataStatus.ACTIVE));
+    String base = fingerprint(before);
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+        envelope(7, 41, "MASTER_FIELDS", base, before),
+        envelope(7, 41, "MASTER_FIELDS", base, after), "PENDING"));
+    when(metadata.findMasterFields(7, 41)).thenReturn(before);
+
+    assertStatus(() -> service.approve(9, null), HttpStatus.BAD_REQUEST);
+    verify(metadata, never()).replaceMasterFields(any(Long.class), any(Long.class), any());
+    verify(approvals, never()).approve(any(Long.class), any(Long.class), any(Long.class), any());
   }
 
   @Test void subtypeApprovalPreservesOrderedDefinitionsForRepositoryDiff() throws Exception {

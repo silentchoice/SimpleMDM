@@ -18,6 +18,10 @@ public class FieldStructureValidator {
     if (definition.fieldType() == null) {
       throw invalid(code, "field type is required");
     }
+    if (definition.displayName() == null || definition.displayName().isBlank()
+        || definition.displayName().length() > 128) {
+      throw invalid(code, "display name must be between 1 and 128 characters");
+    }
 
     if (!definition.supportsOptions()) {
       if (!definition.options().isEmpty()) {

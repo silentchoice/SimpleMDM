@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { SnapshotEnvelope } from '../../api/approval'
+import type { MetadataEntityKind, SnapshotEnvelope } from '../../api/approval'
 
 type Definition = Record<string, unknown> & { code: string }
 type DiffState = 'added' | 'removed' | 'modified' | 'unchanged'
-interface DiffRow { code: string, state: DiffState, before?: Definition, after?: Definition }
+type SnapshotSide = 'before' | 'after'
+interface DiffRow {
+  code: string
+  state: DiffState
+  before?: Definition
+  after?: Definition
+  beforeIndex?: number
+  afterIndex?: number
+}
 type SupportedEnvelope = Omit<SnapshotEnvelope, 'orderedDefinitions'> & { orderedDefinitions: Definition[] }
 type ParsedSnapshot =
   | { kind: 'supported', envelope: SupportedEnvelope }
@@ -14,41 +22,103 @@ type ParsedSnapshot =
 const props = defineProps<{ beforeSnapshot: string, afterSnapshot: string }>()
 const entityKinds = new Set(['MASTER_FIELDS', 'SUB_TYPES', 'SUB_FIELDS'])
 const fingerprintPattern = /^[0-9a-f]{64}$/
+const codePattern = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
+const fieldTypes = new Set(['TEXT', 'NUMBER', 'DATE', 'DATETIME', 'SELECT', 'RADIO', 'MULTISELECT', 'SWITCH'])
+const selectionFieldTypes = new Set(['SELECT', 'RADIO', 'MULTISELECT'])
+const envelopeKeys = ['schemaVersion', 'departmentId', 'templateId', 'entityKind', 'baseFingerprint', 'orderedDefinitions']
+const fieldKeys = ['id', 'ownerTypeId', 'code', 'displayName', 'fieldType', 'required', 'options', 'shared', 'sortOrder', 'status']
+const subtypeKeys = ['id', 'masterTypeId', 'code', 'name', 'status']
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function definitions(value: unknown): Definition[] | null {
-  if (!Array.isArray(value)) return null
+function hasExactKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  const actual = Object.keys(value)
+  return actual.length === keys.length
+    && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+}
+
+function validId(value: unknown, side: SnapshotSide): boolean {
+  return Number.isSafeInteger(value) && (side === 'before' ? (value as number) > 0 : value === 0)
+}
+
+function validLabel(value: unknown): value is string {
+  return typeof value === 'string' && !!value.trim() && value.length <= 128
+}
+
+function validField(value: Record<string, unknown>, kind: MetadataEntityKind,
+  side: SnapshotSide, templateId: number): value is Definition {
+  if (!hasExactKeys(value, fieldKeys) || !validId(value.id, side)
+    || !Number.isSafeInteger(value.ownerTypeId) || (value.ownerTypeId as number) <= 0
+    || (kind === 'MASTER_FIELDS' && value.ownerTypeId !== templateId)
+    || typeof value.code !== 'string' || !codePattern.test(value.code)
+    || !validLabel(value.displayName) || typeof value.fieldType !== 'string'
+    || !fieldTypes.has(value.fieldType) || typeof value.required !== 'boolean'
+    || !Array.isArray(value.options) || typeof value.shared !== 'boolean'
+    || (kind === 'MASTER_FIELDS' && value.shared)
+    || !Number.isSafeInteger(value.sortOrder) || (value.sortOrder as number) < 0
+    || value.status !== 'ACTIVE') return false
+  const options = value.options as unknown[]
+  if (options.some((option) => typeof option !== 'string' || !option.trim())
+    || new Set(options).size !== options.length) return false
+  return selectionFieldTypes.has(value.fieldType) ? options.length > 0 : options.length === 0
+}
+
+function validSubtype(value: Record<string, unknown>, side: SnapshotSide,
+  templateId: number): value is Definition {
+  return hasExactKeys(value, subtypeKeys) && validId(value.id, side)
+    && value.masterTypeId === templateId && typeof value.code === 'string'
+    && codePattern.test(value.code) && validLabel(value.name) && value.status === 'ACTIVE'
+}
+
+function definitions(value: unknown, kind: MetadataEntityKind, side: SnapshotSide,
+  templateId: number): Definition[] | null {
+  if (!Array.isArray(value) || (side === 'after' && value.length === 0)) return null
   const seen = new Set<string>()
+  const sortOrders = new Set<number>()
   const result: Definition[] = []
   for (const item of value) {
-    if (!isRecord(item) || typeof item.code !== 'string' || !item.code.trim() || seen.has(item.code)) return null
-    seen.add(item.code)
-    result.push(item as Definition)
+    if (!isRecord(item)) return null
+    if (kind === 'SUB_TYPES') {
+      if (!validSubtype(item, side, templateId)) return null
+    } else if (!validField(item, kind, side, templateId)) return null
+    const definition = item as Definition
+    const normalizedCode = definition.code.toLowerCase()
+    if (seen.has(normalizedCode)) return null
+    seen.add(normalizedCode)
+    if (kind !== 'SUB_TYPES') {
+      const sortOrder = definition.sortOrder as number
+      if (sortOrders.has(sortOrder)) return null
+      sortOrders.add(sortOrder)
+    }
+    result.push(definition)
   }
   return result
 }
 
-function parseSnapshot(raw: string): ParsedSnapshot {
+function parseSnapshot(raw: string, side: SnapshotSide): ParsedSnapshot {
   try {
     const value: unknown = JSON.parse(raw)
     if (!isRecord(value) || typeof value.schemaVersion !== 'number') return { kind: 'error' }
     if (value.schemaVersion !== 1) return { kind: 'unsupported', value }
-    const orderedDefinitions = definitions(value.orderedDefinitions)
-    if (!Number.isSafeInteger(value.departmentId) || (value.departmentId as number) <= 0
+    if (!hasExactKeys(value, envelopeKeys)
+      || !Number.isSafeInteger(value.departmentId) || (value.departmentId as number) <= 0
       || !Number.isSafeInteger(value.templateId) || (value.templateId as number) <= 0
       || typeof value.entityKind !== 'string' || !entityKinds.has(value.entityKind)
       || typeof value.baseFingerprint !== 'string' || !fingerprintPattern.test(value.baseFingerprint)
-      || !orderedDefinitions) return { kind: 'error' }
+      || !Array.isArray(value.orderedDefinitions)) return { kind: 'error' }
+    const entityKind = value.entityKind as MetadataEntityKind
+    const orderedDefinitions = definitions(value.orderedDefinitions, entityKind, side,
+      value.templateId as number)
+    if (!orderedDefinitions) return { kind: 'error' }
     return {
       kind: 'supported',
       envelope: {
         schemaVersion: 1,
         departmentId: value.departmentId as number,
         templateId: value.templateId as number,
-        entityKind: value.entityKind as SupportedEnvelope['entityKind'],
+        entityKind,
         baseFingerprint: value.baseFingerprint,
         orderedDefinitions
       }
@@ -64,8 +134,22 @@ function normalize(value: unknown): unknown {
   return Object.fromEntries(Object.keys(value).sort().map((key) => [key, normalize(value[key])]))
 }
 
-function sameDefinition(before: Definition, after: Definition): boolean {
-  return JSON.stringify(normalize(before)) === JSON.stringify(normalize(after))
+function businessProjection(kind: MetadataEntityKind, value: Definition): Record<string, unknown> {
+  if (kind === 'SUB_TYPES') return { code: value.code, name: value.name }
+  return {
+    code: value.code,
+    displayName: value.displayName,
+    fieldType: value.fieldType,
+    required: value.required,
+    options: value.options,
+    shared: value.shared,
+    sortOrder: value.sortOrder
+  }
+}
+
+function sameDefinition(kind: MetadataEntityKind, before: Definition, after: Definition): boolean {
+  return JSON.stringify(normalize(businessProjection(kind, before)))
+    === JSON.stringify(normalize(businessProjection(kind, after)))
 }
 
 function formatted(value: unknown): string {
@@ -73,8 +157,8 @@ function formatted(value: unknown): string {
 }
 
 const parsed = computed(() => ({
-  before: parseSnapshot(props.beforeSnapshot),
-  after: parseSnapshot(props.afterSnapshot)
+  before: parseSnapshot(props.beforeSnapshot, 'before'),
+  after: parseSnapshot(props.afterSnapshot, 'after')
 }))
 function metadataMatches(before: SupportedEnvelope, after: SupportedEnvelope): boolean {
   return before.departmentId === after.departmentId && before.templateId === after.templateId
@@ -96,16 +180,29 @@ const rows = computed<DiffRow[]>(() => {
   if (parsed.value.before.kind !== 'supported' || parsed.value.after.kind !== 'supported') return []
   const beforeDefinitions = parsed.value.before.envelope.orderedDefinitions
   const afterDefinitions = parsed.value.after.envelope.orderedDefinitions
-  const beforeByCode = new Map(beforeDefinitions.map((item) => [item.code, item]))
-  const afterCodes = new Set(afterDefinitions.map((item) => item.code))
-  const current = afterDefinitions.map((after): DiffRow => {
-    const before = beforeByCode.get(after.code)
-    if (!before) return { code: after.code, state: 'added', after }
-    return { code: after.code, state: sameDefinition(before, after) ? 'unchanged' : 'modified', before, after }
+  const kind = parsed.value.after.envelope.entityKind
+  const beforeByCode = new Map(beforeDefinitions.map((item, index) =>
+    [item.code.toLowerCase(), { item, index }] as const))
+  const afterCodes = new Set(afterDefinitions.map((item) => item.code.toLowerCase()))
+  const current = afterDefinitions.map((after, afterIndex): DiffRow => {
+    const matched = beforeByCode.get(after.code.toLowerCase())
+    if (!matched) return { code: after.code, state: 'added', after, afterIndex }
+    const unchanged = matched.index === afterIndex && sameDefinition(kind, matched.item, after)
+    return {
+      code: after.code,
+      state: unchanged ? 'unchanged' : 'modified',
+      before: matched.item,
+      after,
+      beforeIndex: matched.index,
+      afterIndex
+    }
   })
   const removed = beforeDefinitions
-    .filter((before) => !afterCodes.has(before.code))
-    .map((before): DiffRow => ({ code: before.code, state: 'removed', before }))
+    .map((before, beforeIndex) => ({ before, beforeIndex }))
+    .filter(({ before }) => !afterCodes.has(before.code.toLowerCase()))
+    .map(({ before, beforeIndex }): DiffRow => ({
+      code: before.code, state: 'removed', before, beforeIndex
+    }))
   return [...current, ...removed]
 })
 </script>
@@ -131,8 +228,8 @@ const rows = computed<DiffRow[]>(() => {
       >
         <header><strong>{{ row.code }}</strong><span>{{ row.state }}</span></header>
         <div class="snapshot-columns">
-          <section v-if="row.before"><h4>Before</h4><pre>{{ formatted(row.before) }}</pre></section>
-          <section v-if="row.after"><h4>After</h4><pre>{{ formatted(row.after) }}</pre></section>
+          <section v-if="row.before"><h4>Before position: {{ (row.beforeIndex ?? 0) + 1 }}</h4><pre>{{ formatted(row.before) }}</pre></section>
+          <section v-if="row.after"><h4>After position: {{ (row.afterIndex ?? 0) + 1 }}</h4><pre>{{ formatted(row.after) }}</pre></section>
         </div>
       </article>
     </div>

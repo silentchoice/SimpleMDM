@@ -97,7 +97,11 @@ public class MetadataApprovalApplicationService {
   }
 
   private List<SubType> subTypes(Envelope envelope, long templateId) {
-    List<SubType> definitions = readDefinitions(envelope, SubType.class);
+    return subTypes(envelope, templateId, false);
+  }
+
+  private List<SubType> subTypes(Envelope envelope, long templateId, boolean allowEmpty) {
+    List<SubType> definitions = readDefinitions(envelope, SubType.class, allowEmpty);
     Set<String> codes = new HashSet<>();
     for (var type : definitions) {
       if (type.masterTypeId() != templateId || type.code() == null || !CODE.matcher(type.code()).matches()
@@ -117,7 +121,11 @@ public class MetadataApprovalApplicationService {
   }
 
   private List<FieldDefinition> fields(Envelope envelope, long ownerId) {
-    List<FieldDefinition> definitions = readDefinitions(envelope, FieldDefinition.class);
+    return fields(envelope, ownerId, false);
+  }
+
+  private List<FieldDefinition> fields(Envelope envelope, long ownerId, boolean allowEmpty) {
+    List<FieldDefinition> definitions = readDefinitions(envelope, FieldDefinition.class, allowEmpty);
     Set<String> codes = new HashSet<>();
     Set<Integer> orders = new HashSet<>();
     for (var field : definitions) {
@@ -137,8 +145,8 @@ public class MetadataApprovalApplicationService {
 
   private void requireSnapshotIntegrity(MetadataApprovalRepository.ApprovalTask task, Envelope before) {
     List<?> definitions = switch (task.entityKind()) {
-      case "MASTER_FIELDS", "SUB_FIELDS" -> fields(before, task.entityId());
-      case "SUB_TYPES" -> subTypes(before, task.entityId());
+      case "MASTER_FIELDS", "SUB_FIELDS" -> fields(before, task.entityId(), true);
+      case "SUB_TYPES" -> subTypes(before, task.entityId(), true);
       default -> throw badSnapshot();
     };
     if (!before.baseFingerprint().equals(fingerprint(definitions))) throw badSnapshot();
@@ -159,11 +167,12 @@ public class MetadataApprovalApplicationService {
     catch (JsonProcessingException | RuntimeException exception) { throw badSnapshot(); }
   }
 
-  private <T> List<T> readDefinitions(Envelope envelope, Class<T> type) {
+  private <T> List<T> readDefinitions(Envelope envelope, Class<T> type, boolean allowEmpty) {
     try {
       var listType = json.getTypeFactory().constructCollectionType(List.class, type);
       List<T> definitions = json.readerFor(listType).readValue(envelope.orderedDefinitions());
-      if (definitions.isEmpty() || definitions.stream().anyMatch(java.util.Objects::isNull)) {
+      if ((!allowEmpty && definitions.isEmpty())
+          || definitions.stream().anyMatch(java.util.Objects::isNull)) {
         throw badSnapshot();
       }
       return List.copyOf(definitions);

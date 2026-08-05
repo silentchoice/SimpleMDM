@@ -16,7 +16,11 @@ function snapshot(definitions: unknown[] = []): string {
   return JSON.stringify({ schemaVersion: 1, departmentId: 3, templateId: 41, entityKind: 'MASTER_FIELDS', baseFingerprint: 'a'.repeat(64), orderedDefinitions: definitions })
 }
 function task(status = 'PENDING') {
-  return { id: 91, entityKind: 'MASTER_FIELDS', entityId: 41, status, beforeSnapshot: snapshot(), afterSnapshot: snapshot([{ code: 'SERIAL', displayName: 'Serial' }]), submittedBy: 12, reviewedBy: null, reviewComment: null, submittedAt: '2026-08-04T09:30:00', reviewedAt: null }
+  const after = {
+    id: 0, ownerTypeId: 41, code: 'SERIAL', displayName: 'Serial', fieldType: 'TEXT',
+    required: false, options: [], shared: false, sortOrder: 0, status: 'ACTIVE'
+  }
+  return { id: 91, entityKind: 'MASTER_FIELDS', entityId: 41, status, beforeSnapshot: snapshot(), afterSnapshot: snapshot([after]), submittedBy: 12, reviewedBy: null, reviewComment: null, submittedAt: '2026-08-04T09:30:00', reviewedAt: null }
 }
 function deferred<T>() {
   let resolve!: (value: T) => void

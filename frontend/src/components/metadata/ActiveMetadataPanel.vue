@@ -39,7 +39,7 @@ onBeforeUnmount(() => window.removeEventListener(ACTIVE_METADATA_INVALIDATED_EVE
 <template>
   <section aria-label="Current active version">
     <div class="view-heading"><div><h2>Current active version</h2><p>Approved metadata is read-only.</p></div><el-button data-testid="refresh-active" :loading="loading" @click="refresh">Refresh</el-button></div>
-    <p v-if="!masterTypeId">Enter a master type ID to inspect its department ACTIVE metadata.</p>
+    <p v-if="!masterTypeId">No master type is assigned to this department.</p>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <template v-if="masterTypeId">
       <h3>Master fields</h3><ul><li v-for="field in fields" :key="field.id">{{ field.displayName }} ({{ field.code }})</li></ul>

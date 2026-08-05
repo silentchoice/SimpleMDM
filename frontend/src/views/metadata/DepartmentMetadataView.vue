@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/auth'
 import { currentMasterType, submitMasterFields, submitSubFields, submitSubTypes, type FieldDefinition, type SubType } from '../../api/metadata'
 import ActiveMetadataPanel from '../../components/metadata/ActiveMetadataPanel.vue'
 import MetadataEditor from '../../components/metadata/MetadataEditor.vue'
+import type { ApiError } from '../../types'
 
 const props = withDefaults(defineProps<{ initialTab?: 'active' | 'submit' }>(), { initialTab: 'active' })
 const auth = useAuthStore()
@@ -26,9 +27,14 @@ function receiveActive(value: { masterTypeId: number, fields: FieldDefinition[],
   activeSubFields.value = value.subFields
   if (!activeSubFields.value[selectedSubTypeId.value]) selectedSubTypeId.value = value.subTypes[0]?.id ?? 0
 }
+function errorMessage(reason: unknown): string {
+  const value = reason as ApiError
+  const message = value.message ?? 'Unable to load current master type'
+  return value.requestId ? `${message} (Request ID: ${value.requestId})` : message
+}
 async function loadAssignment(): Promise<void> {
   clearActive(); assignmentError.value = ''
-  try { const assignment = await currentMasterType(); selectedMasterTypeId.value = assignment.id; assignmentName.value = `${assignment.name} (${assignment.code})` } catch (reason) { assignmentError.value = (reason as { message?: string }).message ?? 'Unable to load current master type' }
+  try { const assignment = await currentMasterType(); selectedMasterTypeId.value = assignment.id; assignmentName.value = `${assignment.name} (${assignment.code})` } catch (reason) { assignmentError.value = errorMessage(reason) }
 }
 onMounted(loadAssignment)
 </script>
