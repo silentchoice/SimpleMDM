@@ -4,10 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { login } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
 import type { ApiError } from '../types'
+import { useI18n } from 'vue-i18n'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { t } = useI18n()
 const username = ref('')
 const password = ref('')
 const loading = ref(false)
@@ -17,7 +20,7 @@ const logoutNotice = route.query.logout === 'local'
 async function submit(): Promise<void> {
   error.value = ''
   if (!username.value.trim() || !password.value) {
-    error.value = 'Username and password are required'
+    error.value = t('auth.required')
     return
   }
   loading.value = true
@@ -26,7 +29,7 @@ async function submit(): Promise<void> {
     await router.push(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
   } catch (reason) {
     const apiError = reason as ApiError
-    error.value = apiError.requestId ? `${apiError.message} (Request ID: ${apiError.requestId})` : apiError.message
+    error.value = apiError.requestId ? `${apiError.message} (${t('common.requestId', { id: apiError.requestId })})` : apiError.message
   } finally {
     loading.value = false
   }
@@ -37,15 +40,16 @@ async function submit(): Promise<void> {
   <main class="login-page">
     <el-card class="login-card" shadow="always">
       <h1>SimpleMDM</h1>
-      <p class="login-subtitle">Management Console</p>
-      <p v-if="logoutNotice" class="logout-notice" role="status">Signed out locally. Server sign-out could not be confirmed.</p>
+      <LanguageSwitcher />
+      <p class="login-subtitle">{{ t('auth.console') }}</p>
+      <p v-if="logoutNotice" class="logout-notice" role="status">{{ t('auth.localLogout') }}</p>
       <form @submit.prevent="submit">
-        <label for="username">Username</label>
+        <label for="username">{{ t('auth.username') }}</label>
         <input id="username" v-model="username" name="username" autocomplete="username" />
-        <label for="password">Password</label>
+        <label for="password">{{ t('auth.password') }}</label>
         <input id="password" v-model="password" name="password" type="password" autocomplete="current-password" />
         <p v-if="error" class="form-error" role="alert">{{ error }}</p>
-        <el-button native-type="submit" type="primary" :loading="loading" class="login-submit">{{ loading ? 'Signing in…' : 'Sign in' }}</el-button>
+        <el-button native-type="submit" type="primary" :loading="loading" class="login-submit">{{ loading ? t('auth.signingIn') : t('auth.signIn') }}</el-button>
       </form>
     </el-card>
   </main>

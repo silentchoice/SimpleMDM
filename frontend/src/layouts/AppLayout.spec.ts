@@ -6,6 +6,7 @@ import AppLayout from './AppLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import { createHttpClient } from '../api/http'
 import type { AxiosAdapter } from 'axios'
+import { i18n, setLocale } from '../i18n'
 
 const { logout, push } = vi.hoisted(() => ({ logout: vi.fn(), push: vi.fn() }))
 
@@ -27,9 +28,11 @@ describe('AppLayout', () => {
     })
     logout.mockReset()
     push.mockReset()
+    localStorage.clear()
+    setLocale('zh-CN')
   })
 
-  const mountLayout = () => mount(AppLayout, { global: { plugins: [ElementPlus], stubs: { RouterView: true } } })
+  const mountLayout = () => mount(AppLayout, { global: { plugins: [ElementPlus, i18n], stubs: { RouterView: true } } })
 
   it('opens a mobile navigation panel with read-only menu entries', async () => {
     const wrapper = mountLayout()
@@ -38,6 +41,18 @@ describe('AppLayout', () => {
 
     expect(wrapper.get('[data-testid="mobile-navigation"]').text()).toContain('Active Metadata')
     expect(wrapper.text()).not.toContain('Submit Change')
+  })
+
+  it('renders the language switcher and updates header text without navigation', async () => {
+    const wrapper = mountLayout()
+
+    expect(wrapper.get('[data-testid="language-switcher"]').text()).toBe('English')
+    expect(wrapper.get('[data-testid="mobile-nav-toggle"]').text()).toBe('菜单')
+
+    await wrapper.get('[data-testid="language-switcher"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="mobile-nav-toggle"]').text()).toBe('Menu')
+    expect(push).not.toHaveBeenCalled()
   })
 
   it('sends the bearer token and clears local access after a successful logout attempt', async () => {
