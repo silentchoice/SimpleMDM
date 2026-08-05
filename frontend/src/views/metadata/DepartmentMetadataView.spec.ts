@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '../../stores/auth'
 import DepartmentMetadataView from './DepartmentMetadataView.vue'
+import { i18n, setLocale } from '../../i18n'
 
 const metadataApi = vi.hoisted(() => ({
   ACTIVE_METADATA_INVALIDATED_EVENT: 'mdm:active-metadata-invalidated',
@@ -15,11 +16,13 @@ vi.mock('../../api/metadata', () => metadataApi)
 const field = { id: 1, ownerTypeId: 41, code: 'SERIAL', displayName: 'Serial number', fieldType: 'TEXT', required: true, options: [], shared: false, sortOrder: 0, status: 'ACTIVE' }
 const subType = { id: 55, masterTypeId: 41, code: 'ACCESSORY', name: 'Accessory', status: 'ACTIVE' }
 
-function mountView(initialTab: 'active' | 'submit' = 'active') { return mount(DepartmentMetadataView, { props: { initialTab }, global: { plugins: [ElementPlus] } }) }
+function mountView(initialTab: 'active' | 'submit' = 'active') { return mount(DepartmentMetadataView, { props: { initialTab }, global: { plugins: [ElementPlus, i18n] } }) }
 
 describe('department ACTIVE metadata workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
+    setLocale('zh-CN')
     setActivePinia(createPinia())
     metadataApi.currentMasterType.mockResolvedValue({ id: 41, code: 'ASSET', name: 'Asset', status: 'ACTIVE' })
     metadataApi.listMasterFields.mockResolvedValue([field])
@@ -47,7 +50,7 @@ describe('department ACTIVE metadata workspace', () => {
     await flushPromises()
 
     expect(wrapper.get('[role="alert"]').text()).toContain(
-      'No master type assignment (Request ID: req-assignment-404)')
+      'No master type assignment（请求 ID：req-assignment-404）')
   })
 
   for (const role of ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] as const) {
@@ -73,5 +76,29 @@ describe('department ACTIVE metadata workspace', () => {
     expect(metadataApi.listMasterFields).toHaveBeenCalledTimes(2)
     expect(metadataApi.listSubTypes).toHaveBeenCalledTimes(2)
     expect(metadataApi.listSubFields).toHaveBeenCalledTimes(2)
+  })
+
+  it('localizes the metadata workspace immediately while preserving enum and owner identifiers', async () => {
+    useAuthStore().setSession({ accessToken: 'token', user: { id: 1, username: 'editor', displayName: 'Editor' }, roles: ['DEPT_EDITOR'], department: { id: 3, code: 'OPS', name: 'Operations' } })
+    const wrapper = mountView('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('部门元数据')
+    expect(wrapper.text()).toContain('当前启用版本')
+    expect(wrapper.text()).toContain('提交变更')
+    expect(wrapper.text()).toContain('主字段')
+    expect(wrapper.text()).toContain('子类型')
+    expect(wrapper.text()).toContain('子字段')
+    expect(wrapper.text()).toContain('刷新')
+
+    await wrapper.get('[data-testid="submit-master-fields"]').trigger('click')
+    await flushPromises()
+    expect(metadataApi.submitMasterFields).toHaveBeenCalledWith(41, [expect.objectContaining({ code: 'SERIAL', fieldType: 'TEXT' })])
+
+    setLocale('en-US')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Department metadata')
+    expect(wrapper.text()).toContain('Current active version')
+    expect(wrapper.text()).toContain('Submit changes')
   })
 })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { getApprovalTask, listApprovalTasks, type ApprovalTask } from '../../api/approval'
 import { invalidateActiveMetadata } from '../../api/metadata'
@@ -8,20 +9,21 @@ import ApprovalActionBar from '../../components/approval/ApprovalActionBar.vue'
 import SnapshotDiff from '../../components/approval/SnapshotDiff.vue'
 
 const route = useRoute()
+const { t } = useI18n()
 const router = useRouter()
 const task = ref<ApprovalTask | null>(null)
 const loading = ref(false)
 const error = ref('')
 const actionError = ref('')
 let loadGeneration = 0
-function message(value: ApiError): string { return value.requestId ? `${value.message} (Request ID: ${value.requestId})` : value.message }
+function message(value: ApiError): string { return value.requestId ? t('common.apiError', { message: value.message, requestId: t('common.requestId', { id: value.requestId }) }) : value.message }
 async function load(clearActionError = false): Promise<void> {
   const taskId = Number(route.params.taskId)
   const generation = ++loadGeneration
   task.value = null
   if (clearActionError) actionError.value = ''
   loading.value = true; error.value = ''
-  if (!Number.isSafeInteger(taskId) || taskId <= 0) { task.value = null; error.value = 'Approval task not found'; loading.value = false; return }
+  if (!Number.isSafeInteger(taskId) || taskId <= 0) { task.value = null; error.value = t('approval.detail.notFound'); loading.value = false; return }
   try { const loaded = await getApprovalTask(taskId); if (generation === loadGeneration) task.value = loaded } catch (cause) { if (generation === loadGeneration) { task.value = null; error.value = message(cause as ApiError) } } finally { if (generation === loadGeneration) loading.value = false }
 }
 async function approved(): Promise<void> { invalidateActiveMetadata(); await router.push({ name: 'approvals' }) }
@@ -33,13 +35,13 @@ watch(() => route.params.taskId, () => load(true))
 
 <template>
   <section class="content-view">
-    <router-link to="/metadata/approvals">Back to approvals</router-link>
-    <p v-if="loading && !task">Loading approval…</p>
+    <router-link to="/metadata/approvals">{{ t('approval.detail.back') }}</router-link>
+    <p v-if="loading && !task">{{ t('approval.detail.loading') }}</p>
     <p v-if="error" role="alert" class="form-error">{{ error }}</p>
     <p v-if="actionError" role="alert" class="form-error">{{ actionError }}</p>
     <template v-if="task">
-      <h1>Metadata approval #{{ task.id }}</h1>
-      <dl><dt>Kind</dt><dd>{{ task.entityKind }}</dd><dt>Entity</dt><dd>{{ task.entityId }}</dd><dt>Status</dt><dd>{{ task.status }}</dd><dt>Submitted by</dt><dd>{{ task.submittedBy }}</dd><dt>Submitted at</dt><dd>{{ task.submittedAt }}</dd><template v-if="task.reviewedBy !== null"><dt>Reviewed by</dt><dd>{{ task.reviewedBy }}</dd><dt>Reviewed at</dt><dd>{{ task.reviewedAt }}</dd><dt>Review comment</dt><dd>{{ task.reviewComment || '—' }}</dd></template></dl>
+      <h1>{{ t('approval.detail.title', { id: task.id }) }}</h1>
+      <dl><dt>{{ t('approval.detail.kind') }}</dt><dd>{{ t(`approval.entityKinds.${task.entityKind}`) }}</dd><dt>{{ t('approval.detail.entity') }}</dt><dd>{{ task.entityId }}</dd><dt>{{ t('common.status') }}</dt><dd>{{ t(`status.${task.status}`) }}</dd><dt>{{ t('approval.detail.submittedBy') }}</dt><dd>{{ task.submittedBy }}</dd><dt>{{ t('approval.detail.submittedAt') }}</dt><dd>{{ task.submittedAt }}</dd><template v-if="task.reviewedBy !== null"><dt>{{ t('approval.detail.reviewedBy') }}</dt><dd>{{ task.reviewedBy }}</dd><dt>{{ t('approval.detail.reviewedAt') }}</dt><dd>{{ task.reviewedAt }}</dd><dt>{{ t('approval.detail.reviewComment') }}</dt><dd>{{ task.reviewComment || '—' }}</dd></template></dl>
       <SnapshotDiff :before-snapshot="task.beforeSnapshot" :after-snapshot="task.afterSnapshot" :entity-kind="task.entityKind" :entity-id="task.entityId" />
       <ApprovalActionBar :key="task.id" :task-id="task.id" :status="task.status" @approved="approved" @rejected="rejected" @conflict="conflict" />
     </template>

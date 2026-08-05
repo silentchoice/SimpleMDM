@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import FieldEditorDrawer from './FieldEditorDrawer.vue'
 import type { ApprovalSubmission, FieldDefinition, FieldSubmission, FieldType, SubType, SubTypeSubmission } from '../../api/metadata'
 import type { ApiError } from '../../types'
@@ -13,6 +14,7 @@ const props = defineProps<{
   activeItems: MetadataItem[]
   onSubmit: (items: FieldSubmission[] | SubTypeSubmission[]) => Promise<ApprovalSubmission>
 }>()
+const { t } = useI18n()
 
 const drafts = ref<MetadataItem[]>([])
 const editIndex = ref<number | null>(null)
@@ -43,7 +45,7 @@ function discard(): void {
 function saveDraft(value: MetadataItem): void {
   if (editIndex.value === null) return
   const duplicate = drafts.value.some((item, index) => index !== editIndex.value && item.code.toLowerCase() === value.code.toLowerCase())
-  if (duplicate) { error.value = 'Duplicate code'; return }
+  if (duplicate) { error.value = t('metadata.editor.duplicateCode'); return }
   drafts.value.splice(editIndex.value, 1, value)
   renumber()
   editIndex.value = null
@@ -67,10 +69,10 @@ function validateBeforeSubmit(): string {
   const orders = new Set<number>()
   for (const item of drafts.value) {
     const code = item.code.toLowerCase()
-    if (codes.has(code)) return 'Duplicate code'
+    if (codes.has(code)) return t('metadata.editor.duplicateCode')
     codes.add(code)
     if ('sortOrder' in item) {
-      if (orders.has(item.sortOrder)) return 'Duplicate sort order'
+      if (orders.has(item.sortOrder)) return t('metadata.editor.duplicateSortOrder')
       orders.add(item.sortOrder)
     }
   }
@@ -81,7 +83,8 @@ function fieldSubmission(item: FieldDefinition): FieldSubmission {
 }
 function errorMessage(reason: unknown): string {
   const apiError = reason as ApiError
-  return apiError.requestId ? `${apiError.message} (Request ID: ${apiError.requestId})` : apiError.message ?? 'Unable to submit changes'
+  const message = apiError.message ?? t('metadata.editor.unableSubmit')
+  return apiError.requestId ? t('common.apiError', { message, requestId: t('common.requestId', { id: apiError.requestId }) }) : message
 }
 async function submit(): Promise<void> {
   if (saving.value) return
@@ -97,13 +100,13 @@ async function submit(): Promise<void> {
 
 <template>
   <section class="metadata-editor">
-    <div class="view-heading"><h2>{{ family === 'master-fields' ? 'Master fields' : family === 'sub-types' ? 'Sub-types' : 'Sub-fields' }}</h2><el-button data-testid="add-item" type="primary" :disabled="saving" @click="add">Add</el-button></div>
+    <div class="view-heading"><h2>{{ t(`metadata.editor.${family === 'master-fields' ? 'masterFields' : family === 'sub-types' ? 'subTypes' : 'subFields'}`) }}</h2><el-button data-testid="add-item" type="primary" :disabled="saving" @click="add">{{ t('metadata.editor.add') }}</el-button></div>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
-    <p v-if="taskId" role="status">Approval task #{{ taskId }} submitted. ACTIVE metadata is unchanged.</p>
+    <p v-if="taskId" role="status">{{ t('metadata.editor.taskSubmitted', { id: taskId }) }}</p>
     <ol>
-      <li v-for="(item, index) in drafts" :key="`${item.id}-${index}`"><span>{{ item.code }} — {{ 'displayName' in item ? item.displayName : item.name }}</span><el-button :data-testid="`edit-${index}`" text :disabled="saving" @click="edit(index)">Edit</el-button><el-button :data-testid="`remove-${index}`" text type="danger" :disabled="saving" @click="remove(index)">Remove</el-button><el-button :data-testid="`move-up-${index}`" text :disabled="saving || index === 0" @click="move(index, -1)">Up</el-button><el-button :data-testid="`move-down-${index}`" text :disabled="saving || index === drafts.length - 1" @click="move(index, 1)">Down</el-button></li>
+      <li v-for="(item, index) in drafts" :key="`${item.id}-${index}`"><span>{{ item.code }} — {{ 'displayName' in item ? item.displayName : item.name }}</span><el-button :data-testid="`edit-${index}`" text :disabled="saving" @click="edit(index)">{{ t('common.edit') }}</el-button><el-button :data-testid="`remove-${index}`" text type="danger" :disabled="saving" @click="remove(index)">{{ t('metadata.editor.remove') }}</el-button><el-button :data-testid="`move-up-${index}`" text :disabled="saving || index === 0" @click="move(index, -1)">{{ t('metadata.editor.up') }}</el-button><el-button :data-testid="`move-down-${index}`" text :disabled="saving || index === drafts.length - 1" @click="move(index, 1)">{{ t('metadata.editor.down') }}</el-button></li>
     </ol>
-    <el-button :data-testid="`submit-${family}`" type="primary" :loading="saving" :disabled="saving" @click="submit">Submit {{ family }}</el-button>
+    <el-button :data-testid="`submit-${family}`" type="primary" :loading="saving" :disabled="saving" @click="submit">{{ t('metadata.editor.submit', { family: t(`metadata.editor.${family === 'master-fields' ? 'masterFields' : family === 'sub-types' ? 'subTypes' : 'subFields'}`) }) }}</el-button>
     <FieldEditorDrawer :open="drawerOpen" :family="family" :draft="editing" @close="discard" @save="saveDraft" />
   </section>
 </template>

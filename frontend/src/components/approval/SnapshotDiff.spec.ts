@@ -1,6 +1,7 @@
-import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { config, flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it } from 'vitest'
 import SnapshotDiff from './SnapshotDiff.vue'
+import { i18n, setLocale } from '../../i18n'
 
 type EntityKind = 'MASTER_FIELDS' | 'SUB_TYPES' | 'SUB_FIELDS'
 
@@ -42,6 +43,12 @@ function without(value: Record<string, unknown>, key: string): Record<string, un
 }
 
 describe('snapshot diff', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setLocale('zh-CN')
+    config.global.plugins = [i18n]
+  })
+
   it.each([
     ['master fields', 'MASTER_FIELDS' as const, field(11, 41, 'SERIAL'), field(0, 41, 'SERIAL')],
     ['sub types', 'SUB_TYPES' as const, subType(55, 'DEVICE'), subType(0, 'DEVICE')],
@@ -78,6 +85,7 @@ describe('snapshot diff', () => {
 
     expect(rows.map((row) => row.attributes('data-code'))).toEqual(['UNCHANGED', 'MODIFIED', 'ADDED', 'REMOVED'])
     expect(rows.map((row) => row.attributes('data-state'))).toEqual(['unchanged', 'modified', 'added', 'removed'])
+    expect(rows.map((row) => row.find('header span').text())).toEqual(['未变化', '修改', '新增', '删除'])
     expect(rows[1].text()).toContain('Old')
     expect(rows[1].text()).toContain('New')
   })
@@ -105,8 +113,8 @@ describe('snapshot diff', () => {
     const rows = wrapper.findAll('[data-testid="diff-row"]')
 
     expect(rows.map((row) => row.attributes('data-state'))).toEqual(['modified', 'modified'])
-    expect(rows[0].text()).toContain('Before position: 2')
-    expect(rows[0].text()).toContain('After position: 1')
+    expect(rows[0].text()).toContain('变更前位置：2')
+    expect(rows[0].text()).toContain('变更后位置：1')
   })
 
   it('renders malformed version-one envelopes as an error state', () => {
@@ -117,7 +125,7 @@ describe('snapshot diff', () => {
       }
     })
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
     expect(wrapper.find('[data-testid="diff-row"]').exists()).toBe(false)
   })
 
@@ -133,7 +141,7 @@ describe('snapshot diff', () => {
       entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
   })
 
   it('rejects an envelope kind that differs from the approval task kind', () => {
@@ -144,7 +152,7 @@ describe('snapshot diff', () => {
       entityId: 41
     } })
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
   })
 
   it.each([
@@ -160,7 +168,7 @@ describe('snapshot diff', () => {
         entityId: 41
       } })
 
-      expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
     })
 
   it('rejects SUB_FIELDS definitions owned by a different subtype than the task entity', () => {
@@ -171,7 +179,7 @@ describe('snapshot diff', () => {
       entityId: 55
     } })
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
   })
 
   it.each([
@@ -185,7 +193,7 @@ describe('snapshot diff', () => {
       entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
   })
 
   it.each([
@@ -209,7 +217,7 @@ describe('snapshot diff', () => {
       entityId: kind === 'SUB_FIELDS' ? 55 : 41
     } })
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
   })
 
   it('rejects case-insensitive duplicate codes', () => {
@@ -222,7 +230,7 @@ describe('snapshot diff', () => {
       entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
   })
 
   it('rejects duplicate field sort orders', () => {
@@ -235,7 +243,7 @@ describe('snapshot diff', () => {
       entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    expect(wrapper.get('[role="alert"]').text()).toContain('无法显示快照差异')
   })
 
   it('uses a safe raw-JSON text fallback for unsupported schema versions', () => {
@@ -249,6 +257,23 @@ describe('snapshot diff', () => {
     expect(wrapper.get('[data-testid="raw-json-fallback"]').text()).toContain('<img src=x onerror=')
     expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.html()).not.toContain('<img src=x')
+  })
+
+  it('switches safe diff presentation to English without translating raw JSON values or state attributes', async () => {
+    const wrapper = mount(SnapshotDiff, { props: {
+      beforeSnapshot: snapshot([field(11, 41, 'SERIAL', { displayName: 'User value' })]),
+      afterSnapshot: snapshot([field(0, 41, 'SERIAL', { displayName: 'Changed value' })]),
+      entityKind: 'MASTER_FIELDS', entityId: 41
+    } })
+
+    expect(wrapper.text()).toContain('修改')
+    expect(wrapper.text()).toContain('Changed value')
+    expect(wrapper.get('[data-testid="diff-row"]').attributes('data-state')).toBe('modified')
+    setLocale('en-US')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Modified')
+    expect(wrapper.text()).toContain('Changed value')
+    expect(wrapper.get('[data-testid="diff-row"]').attributes('data-state')).toBe('modified')
   })
 
   it('escapes displayed definition values instead of creating executable HTML', () => {

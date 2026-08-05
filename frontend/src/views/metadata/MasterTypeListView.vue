@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { assignDepartment, createMasterType, listMasterTypes, type MasterType, type MasterTypeInput } from '../../api/metadata'
 import { listDepartments, type Department } from '../../api/system'
 import DepartmentAssignmentDialog from '../../components/metadata/DepartmentAssignmentDialog.vue'
@@ -7,6 +8,7 @@ import MasterTypeDrawer from '../../components/metadata/MasterTypeDrawer.vue'
 import type { ApiError } from '../../types'
 
 const masterTypes = ref<MasterType[]>([])
+const { t } = useI18n()
 const departments = ref<Department[]>([])
 const selected = ref<MasterType | null>(null)
 const drawerOpen = ref(false)
@@ -17,7 +19,7 @@ const error = ref('')
 
 function errorMessage(reason: unknown): string {
   const apiError = reason as ApiError
-  return apiError.requestId ? `${apiError.message} (Request ID: ${apiError.requestId})` : apiError.message
+  return apiError.requestId ? t('common.apiError', { message: apiError.message, requestId: t('common.requestId', { id: apiError.requestId }) }) : apiError.message
 }
 
 async function load(): Promise<void> {
@@ -62,14 +64,14 @@ onMounted(load)
 
 <template>
   <section class="content-view">
-    <div class="view-heading"><div><h1>Master Type Templates</h1><p>Create reusable master-type templates and assign them to departments.</p></div><el-button data-testid="master-type-create" type="primary" @click="create">Create master type</el-button></div>
+    <div class="view-heading"><div><h1>{{ t('metadata.templates.title') }}</h1><p>{{ t('metadata.templates.description') }}</p></div><el-button data-testid="master-type-create" type="primary" @click="create">{{ t('metadata.templates.create') }}</el-button></div>
     <p v-if="error && !drawerOpen && !assignmentOpen" class="form-error" role="alert">{{ error }}</p>
     <el-table :data="masterTypes" v-loading="loading">
-      <el-table-column prop="code" label="Code" />
-      <el-table-column prop="name" label="Name" />
-      <el-table-column prop="status" label="Status" />
-      <el-table-column label="Actions" width="180">
-        <template #default="scope"><el-button :data-testid="`assign-department-${scope.row.id}`" text type="primary" @click="openAssignment(scope.row)">Assign department</el-button></template>
+      <el-table-column prop="code" :label="t('metadata.templates.code')" />
+      <el-table-column prop="name" :label="t('metadata.templates.name')" />
+      <el-table-column prop="status" :label="t('common.status')"><template #default="scope">{{ scope.row?.status ? t(`status.${scope.row.status}`) : '' }}</template></el-table-column>
+      <el-table-column :label="t('common.actions')" width="180">
+        <template #default="scope"><el-button :data-testid="`assign-department-${scope.row.id}`" text type="primary" @click="openAssignment(scope.row)">{{ t('metadata.templates.assignDepartment') }}</el-button></template>
       </el-table-column>
     </el-table>
     <MasterTypeDrawer :open="drawerOpen" :saving="saving" :error="error" :on-saved="save" @close="drawerOpen = false" />

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ACTIVE_METADATA_INVALIDATED_EVENT, listMasterFields, listSubFields, listSubTypes, type FieldDefinition, type SubType } from '../../api/metadata'
 import type { ApiError } from '../../types'
 
 const props = withDefaults(defineProps<{ masterTypeId?: number }>(), { masterTypeId: 0 })
+const { t } = useI18n()
 const emit = defineEmits<{ loaded: [value: { masterTypeId: number, fields: FieldDefinition[], subTypes: SubType[], subFields: Record<number, FieldDefinition[]> }] }>()
 const fields = ref<FieldDefinition[]>([])
 const subTypes = ref<SubType[]>([])
@@ -11,7 +13,7 @@ const subFields = ref<Record<number, FieldDefinition[]>>({})
 const loading = ref(false)
 const error = ref('')
 let generation = 0
-function message(reason: unknown): string { const value = reason as ApiError; return value.requestId ? `${value.message} (Request ID: ${value.requestId})` : value.message }
+function message(reason: unknown): string { const value = reason as ApiError; return value.requestId ? t('common.apiError', { message: value.message, requestId: t('common.requestId', { id: value.requestId }) }) : value.message }
 function clear(): void { fields.value = []; subTypes.value = []; subFields.value = {}; error.value = '' }
 async function refresh(): Promise<void> {
   const ownerId = props.masterTypeId
@@ -37,12 +39,12 @@ onBeforeUnmount(() => window.removeEventListener(ACTIVE_METADATA_INVALIDATED_EVE
 </script>
 
 <template>
-  <section aria-label="Current active version">
-    <div class="view-heading"><div><h2>Current active version</h2><p>Approved metadata is read-only.</p></div><el-button data-testid="refresh-active" :loading="loading" @click="refresh">Refresh</el-button></div>
-    <p v-if="!masterTypeId">No master type is assigned to this department.</p>
+  <section :aria-label="t('metadata.active.ariaLabel')">
+    <div class="view-heading"><div><h2>{{ t('metadata.active.title') }}</h2><p>{{ t('metadata.active.description') }}</p></div><el-button data-testid="refresh-active" :loading="loading" @click="refresh">{{ t('metadata.active.refresh') }}</el-button></div>
+    <p v-if="!masterTypeId">{{ t('metadata.active.noAssignment') }}</p>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <template v-if="masterTypeId">
-      <h3>Master fields</h3><ul><li v-for="field in fields" :key="field.id">{{ field.displayName }} ({{ field.code }})</li></ul>
+      <h3>{{ t('metadata.active.masterFields') }}</h3><ul><li v-for="field in fields" :key="field.id">{{ field.displayName }} ({{ field.code }})</li></ul>
       <section v-for="type in subTypes" :key="type.id"><h3>{{ type.name }} ({{ type.code }})</h3><ul><li v-for="field in subFields[type.id] ?? []" :key="field.id">{{ field.displayName }} ({{ field.code }})</li></ul></section>
     </template>
   </section>

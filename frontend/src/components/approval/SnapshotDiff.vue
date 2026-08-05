@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { MetadataEntityKind, SnapshotEnvelope } from '../../api/approval'
 
 type Definition = Record<string, unknown> & { code: string }
@@ -25,6 +26,7 @@ const props = defineProps<{
   entityKind: MetadataEntityKind
   entityId: number
 }>()
+const { t } = useI18n()
 const entityKinds = new Set(['MASTER_FIELDS', 'SUB_TYPES', 'SUB_FIELDS'])
 const fingerprintPattern = /^[0-9a-f]{64}$/
 const codePattern = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
@@ -219,13 +221,13 @@ const rows = computed<DiffRow[]>(() => {
 </script>
 
 <template>
-  <section class="snapshot-diff" aria-label="Snapshot differences">
-    <p v-if="hasError" role="alert" class="form-error">Unable to display snapshot diff: malformed snapshot data.</p>
+  <section class="snapshot-diff" :aria-label="t('approval.diff.ariaLabel')">
+    <p v-if="hasError" role="alert" class="form-error">{{ t('approval.diff.malformed') }}</p>
     <div v-else-if="useRawFallback" data-testid="raw-json-fallback" class="raw-json-fallback">
-      <p>Unsupported snapshot schema version. Review the raw JSON below.</p>
+      <p>{{ t('approval.diff.unsupported') }}</p>
       <div class="snapshot-columns">
-        <section><h3>Before</h3><pre>{{ rawBefore }}</pre></section>
-        <section><h3>After</h3><pre>{{ rawAfter }}</pre></section>
+        <section><h3>{{ t('approval.diff.before') }}</h3><pre>{{ rawBefore }}</pre></section>
+        <section><h3>{{ t('approval.diff.after') }}</h3><pre>{{ rawAfter }}</pre></section>
       </div>
     </div>
     <div v-else class="diff-list">
@@ -237,10 +239,10 @@ const rows = computed<DiffRow[]>(() => {
         :data-state="row.state"
         :class="['diff-row', `diff-row--${row.state}`]"
       >
-        <header><strong>{{ row.code }}</strong><span>{{ row.state }}</span></header>
+        <header><strong>{{ row.code }}</strong><span>{{ t(`approval.diff.states.${row.state}`) }}</span></header>
         <div class="snapshot-columns">
-          <section v-if="row.before"><h4>Before position: {{ (row.beforeIndex ?? 0) + 1 }}</h4><pre>{{ formatted(row.before) }}</pre></section>
-          <section v-if="row.after"><h4>After position: {{ (row.afterIndex ?? 0) + 1 }}</h4><pre>{{ formatted(row.after) }}</pre></section>
+          <section v-if="row.before"><h4>{{ t('approval.diff.beforePosition', { position: (row.beforeIndex ?? 0) + 1 }) }}</h4><pre>{{ formatted(row.before) }}</pre></section>
+          <section v-if="row.after"><h4>{{ t('approval.diff.afterPosition', { position: (row.afterIndex ?? 0) + 1 }) }}</h4><pre>{{ formatted(row.after) }}</pre></section>
         </div>
       </article>
     </div>

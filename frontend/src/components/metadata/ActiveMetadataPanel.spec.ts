@@ -1,7 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ActiveMetadataPanel from './ActiveMetadataPanel.vue'
+import { i18n, setLocale } from '../../i18n'
 
 const metadataApi = vi.hoisted(() => ({ ACTIVE_METADATA_INVALIDATED_EVENT: 'mdm:active-metadata-invalidated', listMasterFields: vi.fn(), listSubTypes: vi.fn(), listSubFields: vi.fn() }))
 vi.mock('../../api/metadata', () => metadataApi)
@@ -9,10 +10,17 @@ vi.mock('../../api/metadata', () => metadataApi)
 function deferred<T>() { let resolve!: (value: T) => void; return { promise: new Promise<T>((done) => { resolve = done }), resolve } }
 
 describe('ACTIVE metadata panel', () => {
-  it('describes a missing department assignment without asking for a manual ID', () => {
-    const wrapper = mount(ActiveMetadataPanel, { global: { plugins: [ElementPlus] } })
+  const globals = { plugins: [ElementPlus, i18n] }
 
-    expect(wrapper.text()).toContain('No master type is assigned to this department.')
+  beforeEach(() => {
+    localStorage.clear()
+    setLocale('zh-CN')
+  })
+
+  it('describes a missing department assignment without asking for a manual ID', () => {
+    const wrapper = mount(ActiveMetadataPanel, { global: globals })
+
+    expect(wrapper.text()).toContain('该部门尚未分配主数据类型。')
     expect(wrapper.text()).not.toContain('Enter a master type ID')
     wrapper.unmount()
   })
@@ -21,7 +29,7 @@ describe('ACTIVE metadata panel', () => {
     const oldFields = deferred<any[]>()
     metadataApi.listMasterFields.mockReturnValueOnce(oldFields.promise).mockResolvedValueOnce([{ id: 2, ownerTypeId: 42, code: 'NEW', displayName: 'New field', fieldType: 'TEXT', required: false, options: [], shared: false, sortOrder: 0, status: 'ACTIVE' }])
     metadataApi.listSubTypes.mockResolvedValue([])
-    const wrapper = mount(ActiveMetadataPanel, { props: { masterTypeId: 41 }, global: { plugins: [ElementPlus] } })
+    const wrapper = mount(ActiveMetadataPanel, { props: { masterTypeId: 41 }, global: globals })
     await wrapper.setProps({ masterTypeId: 42 })
     await flushPromises()
     expect(wrapper.text()).toContain('New field')
@@ -36,7 +44,7 @@ describe('ACTIVE metadata panel', () => {
     vi.clearAllMocks()
     metadataApi.listMasterFields.mockResolvedValue([])
     metadataApi.listSubTypes.mockResolvedValue([])
-    const wrapper = mount(ActiveMetadataPanel, { props: { masterTypeId: 41 }, global: { plugins: [ElementPlus] } })
+    const wrapper = mount(ActiveMetadataPanel, { props: { masterTypeId: 41 }, global: globals })
     await flushPromises()
 
     window.dispatchEvent(new Event(metadataApi.ACTIVE_METADATA_INVALIDATED_EVENT))
