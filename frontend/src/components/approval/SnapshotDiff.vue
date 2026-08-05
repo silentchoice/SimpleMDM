@@ -19,7 +19,12 @@ type ParsedSnapshot =
   | { kind: 'unsupported', value: unknown }
   | { kind: 'error' }
 
-const props = defineProps<{ beforeSnapshot: string, afterSnapshot: string }>()
+const props = defineProps<{
+  beforeSnapshot: string
+  afterSnapshot: string
+  entityKind: MetadataEntityKind
+  entityId: number
+}>()
 const entityKinds = new Set(['MASTER_FIELDS', 'SUB_TYPES', 'SUB_FIELDS'])
 const fingerprintPattern = /^[0-9a-f]{64}$/
 const codePattern = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
@@ -48,10 +53,11 @@ function validLabel(value: unknown): value is string {
 }
 
 function validField(value: Record<string, unknown>, kind: MetadataEntityKind,
-  side: SnapshotSide, templateId: number): value is Definition {
+  side: SnapshotSide, templateId: number, entityId: number): value is Definition {
   if (!hasExactKeys(value, fieldKeys) || !validId(value.id, side)
     || !Number.isSafeInteger(value.ownerTypeId) || (value.ownerTypeId as number) <= 0
     || (kind === 'MASTER_FIELDS' && value.ownerTypeId !== templateId)
+    || (kind === 'SUB_FIELDS' && value.ownerTypeId !== entityId)
     || typeof value.code !== 'string' || !codePattern.test(value.code)
     || !validLabel(value.displayName) || typeof value.fieldType !== 'string'
     || !fieldTypes.has(value.fieldType) || typeof value.required !== 'boolean'
@@ -73,7 +79,7 @@ function validSubtype(value: Record<string, unknown>, side: SnapshotSide,
 }
 
 function definitions(value: unknown, kind: MetadataEntityKind, side: SnapshotSide,
-  templateId: number): Definition[] | null {
+  templateId: number, entityId: number): Definition[] | null {
   if (!Array.isArray(value) || (side === 'after' && value.length === 0)) return null
   const seen = new Set<string>()
   const sortOrders = new Set<number>()
@@ -82,7 +88,7 @@ function definitions(value: unknown, kind: MetadataEntityKind, side: SnapshotSid
     if (!isRecord(item)) return null
     if (kind === 'SUB_TYPES') {
       if (!validSubtype(item, side, templateId)) return null
-    } else if (!validField(item, kind, side, templateId)) return null
+    } else if (!validField(item, kind, side, templateId, entityId)) return null
     const definition = item as Definition
     const normalizedCode = definition.code.toLowerCase()
     if (seen.has(normalizedCode)) return null
@@ -100,17 +106,22 @@ function definitions(value: unknown, kind: MetadataEntityKind, side: SnapshotSid
 function parseSnapshot(raw: string, side: SnapshotSide): ParsedSnapshot {
   try {
     const value: unknown = JSON.parse(raw)
-    if (!isRecord(value) || typeof value.schemaVersion !== 'number') return { kind: 'error' }
-    if (value.schemaVersion !== 1) return { kind: 'unsupported', value }
+    if (!Number.isSafeInteger(props.entityId) || props.entityId <= 0
+      || !isRecord(value) || typeof value.schemaVersion !== 'number') return { kind: 'error' }
+    if (value.schemaVersion !== 1) {
+      return value.entityKind === props.entityKind ? { kind: 'unsupported', value } : { kind: 'error' }
+    }
     if (!hasExactKeys(value, envelopeKeys)
       || !Number.isSafeInteger(value.departmentId) || (value.departmentId as number) <= 0
       || !Number.isSafeInteger(value.templateId) || (value.templateId as number) <= 0
       || typeof value.entityKind !== 'string' || !entityKinds.has(value.entityKind)
+      || value.entityKind !== props.entityKind
       || typeof value.baseFingerprint !== 'string' || !fingerprintPattern.test(value.baseFingerprint)
       || !Array.isArray(value.orderedDefinitions)) return { kind: 'error' }
     const entityKind = value.entityKind as MetadataEntityKind
+    if (entityKind !== 'SUB_FIELDS' && value.templateId !== props.entityId) return { kind: 'error' }
     const orderedDefinitions = definitions(value.orderedDefinitions, entityKind, side,
-      value.templateId as number)
+      value.templateId as number, props.entityId)
     if (!orderedDefinitions) return { kind: 'error' }
     return {
       kind: 'supported',

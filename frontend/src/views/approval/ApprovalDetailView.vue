@@ -40,7 +40,7 @@ watch(() => route.params.taskId, () => load(true))
     <template v-if="task">
       <h1>Metadata approval #{{ task.id }}</h1>
       <dl><dt>Kind</dt><dd>{{ task.entityKind }}</dd><dt>Entity</dt><dd>{{ task.entityId }}</dd><dt>Status</dt><dd>{{ task.status }}</dd><dt>Submitted by</dt><dd>{{ task.submittedBy }}</dd><dt>Submitted at</dt><dd>{{ task.submittedAt }}</dd><template v-if="task.reviewedBy !== null"><dt>Reviewed by</dt><dd>{{ task.reviewedBy }}</dd><dt>Reviewed at</dt><dd>{{ task.reviewedAt }}</dd><dt>Review comment</dt><dd>{{ task.reviewComment || '—' }}</dd></template></dl>
-      <SnapshotDiff :before-snapshot="task.beforeSnapshot" :after-snapshot="task.afterSnapshot" />
+      <SnapshotDiff :before-snapshot="task.beforeSnapshot" :after-snapshot="task.afterSnapshot" :entity-kind="task.entityKind" :entity-id="task.entityId" />
       <ApprovalActionBar :key="task.id" :task-id="task.id" :status="task.status" @approved="approved" @rejected="rejected" @conflict="conflict" />
     </template>
   </section>

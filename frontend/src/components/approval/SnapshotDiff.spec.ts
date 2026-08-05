@@ -50,7 +50,9 @@ describe('snapshot diff', () => {
     (_label, kind, beforeDefinition, afterDefinition) => {
       const wrapper = mount(SnapshotDiff, { props: {
         beforeSnapshot: snapshot([beforeDefinition], kind),
-        afterSnapshot: snapshot([afterDefinition], kind)
+        afterSnapshot: snapshot([afterDefinition], kind),
+        entityKind: kind,
+        entityId: kind === 'SUB_FIELDS' ? 55 : 41
       } })
 
       expect(wrapper.find('[role="alert"]').exists()).toBe(false)
@@ -69,7 +71,9 @@ describe('snapshot diff', () => {
       field(0, 41, 'ADDED', { displayName: 'Fresh', sortOrder: 2 })
     ])
 
-    const wrapper = mount(SnapshotDiff, { props: { beforeSnapshot: before, afterSnapshot: after } })
+    const wrapper = mount(SnapshotDiff, { props: {
+      beforeSnapshot: before, afterSnapshot: after, entityKind: 'MASTER_FIELDS', entityId: 41
+    } })
     const rows = wrapper.findAll('[data-testid="diff-row"]')
 
     expect(rows.map((row) => row.attributes('data-code'))).toEqual(['UNCHANGED', 'MODIFIED', 'ADDED', 'REMOVED'])
@@ -85,7 +89,8 @@ describe('snapshot diff', () => {
       fieldType: 'SELECT', displayName: 'SERIAL name', code: 'SERIAL', ownerTypeId: 41, id: 0
     }
     const wrapper = mount(SnapshotDiff, { props: {
-      beforeSnapshot: snapshot([beforeDefinition]), afterSnapshot: snapshot([afterDefinition])
+      beforeSnapshot: snapshot([beforeDefinition]), afterSnapshot: snapshot([afterDefinition]),
+      entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
     expect(wrapper.get('[data-testid="diff-row"]').attributes('data-state')).toBe('unchanged')
@@ -94,7 +99,9 @@ describe('snapshot diff', () => {
   it('marks a pure subtype reorder as modified and displays both positions', () => {
     const before = snapshot([subType(55, 'ALPHA'), subType(56, 'BETA')], 'SUB_TYPES')
     const after = snapshot([subType(0, 'BETA'), subType(0, 'ALPHA')], 'SUB_TYPES')
-    const wrapper = mount(SnapshotDiff, { props: { beforeSnapshot: before, afterSnapshot: after } })
+    const wrapper = mount(SnapshotDiff, { props: {
+      beforeSnapshot: before, afterSnapshot: after, entityKind: 'SUB_TYPES', entityId: 41
+    } })
     const rows = wrapper.findAll('[data-testid="diff-row"]')
 
     expect(rows.map((row) => row.attributes('data-state'))).toEqual(['modified', 'modified'])
@@ -104,7 +111,10 @@ describe('snapshot diff', () => {
 
   it('renders malformed version-one envelopes as an error state', () => {
     const wrapper = mount(SnapshotDiff, {
-      props: { beforeSnapshot: '{not-json', afterSnapshot: JSON.stringify({ schemaVersion: 1 }) }
+      props: {
+        beforeSnapshot: '{not-json', afterSnapshot: JSON.stringify({ schemaVersion: 1 }),
+        entityKind: 'MASTER_FIELDS', entityId: 41
+      }
     })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
@@ -119,7 +129,46 @@ describe('snapshot diff', () => {
   ])('renders %s as a semantically malformed v1 envelope', (_case, overrides) => {
     const wrapper = mount(SnapshotDiff, { props: {
       beforeSnapshot: snapshot([field(11, 41, 'SERIAL')], 'MASTER_FIELDS', 1, overrides),
-      afterSnapshot: snapshot([field(0, 41, 'SERIAL')])
+      afterSnapshot: snapshot([field(0, 41, 'SERIAL')]),
+      entityKind: 'MASTER_FIELDS', entityId: 41
+    } })
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+  })
+
+  it('rejects an envelope kind that differs from the approval task kind', () => {
+    const wrapper = mount(SnapshotDiff, { props: {
+      beforeSnapshot: snapshot([subType(55, 'DEVICE')], 'SUB_TYPES'),
+      afterSnapshot: snapshot([subType(0, 'DEVICE')], 'SUB_TYPES'),
+      entityKind: 'MASTER_FIELDS',
+      entityId: 41
+    } })
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+  })
+
+  it.each([
+    ['MASTER_FIELDS', field(11, 42, 'SERIAL'), field(0, 42, 'SERIAL')],
+    ['SUB_TYPES', subType(55, 'DEVICE', { masterTypeId: 42 }),
+      subType(0, 'DEVICE', { masterTypeId: 42 })]
+  ] as const)('rejects a %s envelope template that differs from task entity ID',
+    (entityKind, beforeDefinition, afterDefinition) => {
+      const wrapper = mount(SnapshotDiff, { props: {
+        beforeSnapshot: snapshot([beforeDefinition], entityKind, 1, { templateId: 42 }),
+        afterSnapshot: snapshot([afterDefinition], entityKind, 1, { templateId: 42 }),
+        entityKind,
+        entityId: 41
+      } })
+
+      expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+    })
+
+  it('rejects SUB_FIELDS definitions owned by a different subtype than the task entity', () => {
+    const wrapper = mount(SnapshotDiff, { props: {
+      beforeSnapshot: snapshot([field(71, 56, 'MODEL')], 'SUB_FIELDS'),
+      afterSnapshot: snapshot([field(0, 56, 'MODEL')], 'SUB_FIELDS'),
+      entityKind: 'SUB_FIELDS',
+      entityId: 55
     } })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
@@ -132,7 +181,8 @@ describe('snapshot diff', () => {
   ])('rejects before/after metadata mismatch in %s', (_field, afterOverrides) => {
     const wrapper = mount(SnapshotDiff, { props: {
       beforeSnapshot: snapshot([field(11, 41, 'SERIAL')]),
-      afterSnapshot: snapshot([field(0, 41, 'SERIAL')], 'MASTER_FIELDS', 1, afterOverrides)
+      afterSnapshot: snapshot([field(0, 41, 'SERIAL')], 'MASTER_FIELDS', 1, afterOverrides),
+      entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
@@ -154,7 +204,9 @@ describe('snapshot diff', () => {
       : field(11, kind === 'SUB_FIELDS' ? 55 : 41, kind === 'SUB_FIELDS' ? 'MODEL' : 'SERIAL')
     const wrapper = mount(SnapshotDiff, { props: {
       beforeSnapshot: snapshot([beforeDefinition], kind),
-      afterSnapshot: snapshot([afterDefinition], kind)
+      afterSnapshot: snapshot([afterDefinition], kind),
+      entityKind: kind,
+      entityId: kind === 'SUB_FIELDS' ? 55 : 41
     } })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
@@ -166,7 +218,8 @@ describe('snapshot diff', () => {
       afterSnapshot: snapshot([
         field(0, 41, 'serial', { sortOrder: 0 }),
         field(0, 41, 'SERIAL', { sortOrder: 1 })
-      ])
+      ]),
+      entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
@@ -178,7 +231,8 @@ describe('snapshot diff', () => {
       afterSnapshot: snapshot([
         field(0, 41, 'SERIAL', { sortOrder: 0 }),
         field(0, 41, 'MODEL', { sortOrder: 0 })
-      ])
+      ]),
+      entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
@@ -188,7 +242,8 @@ describe('snapshot diff', () => {
     const malicious = '<img src=x onerror="globalThis.pwned=true">'
     const wrapper = mount(SnapshotDiff, { props: {
       beforeSnapshot: snapshot([{ code: 'OLD', displayName: malicious }], 'MASTER_FIELDS', 2),
-      afterSnapshot: snapshot([{ code: 'NEW', displayName: malicious }], 'MASTER_FIELDS', 2)
+      afterSnapshot: snapshot([{ code: 'NEW', displayName: malicious }], 'MASTER_FIELDS', 2),
+      entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
     expect(wrapper.get('[data-testid="raw-json-fallback"]').text()).toContain('<img src=x onerror=')
@@ -200,7 +255,8 @@ describe('snapshot diff', () => {
     const malicious = '<script>globalThis.pwned=true</script>'
     const wrapper = mount(SnapshotDiff, { props: {
       beforeSnapshot: snapshot([]),
-      afterSnapshot: snapshot([field(0, 41, 'SAFE', { displayName: malicious })])
+      afterSnapshot: snapshot([field(0, 41, 'SAFE', { displayName: malicious })]),
+      entityKind: 'MASTER_FIELDS', entityId: 41
     } })
 
     expect(wrapper.text()).toContain(malicious)

@@ -166,6 +166,15 @@ describe('metadata approval views', () => {
     expect(wrapper.text()).toContain('2026-08-04T10:00:00')
   })
 
+  it('binds snapshot validation to the loaded task kind and entity', async () => {
+    approvalApi.getApprovalTask.mockResolvedValue({ ...task(), entityKind: 'SUB_TYPES' })
+    const router = await routerAt('/metadata/approvals/91')
+    const wrapper = mount(ApprovalDetailView, { global: { plugins: [ElementPlus, router] } })
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+  })
+
   it('clears the old task and recreates a reset action form while a reused route loads', async () => {
     const nextTask = deferred<ReturnType<typeof task>>()
     approvalApi.getApprovalTask.mockResolvedValueOnce(task()).mockReturnValueOnce(nextTask.promise)
