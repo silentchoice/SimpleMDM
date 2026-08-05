@@ -1,6 +1,7 @@
 package com.example.mdm.record;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.mdm.auth.AuthorizationService;
 import java.time.Clock;
@@ -23,6 +24,16 @@ class CodeRuleServiceTest {
     assertThat(service.allocate(41, LocalDate.of(2026, 8, 5))).isEqualTo("CUS-20260805-0002");
     assertThat(service.allocate(41, LocalDate.of(2026, 8, 6))).isEqualTo("CUS-20260806-0001");
     assertThat(service.allocate(41, LocalDate.of(2026, 8, 5))).isEqualTo("CUS-20260805-0003");
+  }
+
+  @Test void saveRejectsRuleWhoseFixedDatePreviewExceedsRecordCodeLimit() {
+    var service = new CodeRuleService(new InMemoryCodeSequenceRepository(), new CodeRuleParser(),
+        org.mockito.Mockito.mock(AuthorizationService.class),
+        Clock.fixed(Instant.parse("2026-08-05T00:00:00Z"), ZoneOffset.UTC));
+
+    assertThatThrownBy(() -> service.save(41, "X".repeat(53) + "{yyyyMMdd}{0001}"))
+        .isInstanceOf(com.example.mdm.common.error.BusinessException.class)
+        .hasMessage("Generated record code exceeds 64 characters");
   }
 
   static final class InMemoryCodeSequenceRepository implements CodeSequenceRepository {

@@ -1,9 +1,12 @@
 ALTER TABLE master_records
+  ADD INDEX idx_master_records_master_type (master_type_id);
+
+ALTER TABLE master_records
   DROP INDEX uk_master_records_type_code,
   ADD UNIQUE KEY uk_master_records_department_type_code (department_id, master_type_id, record_code);
 
 ALTER TABLE master_record_drafts
-  ADD COLUMN record_action VARCHAR(32) NOT NULL DEFAULT 'CREATE' AFTER record_code,
+  ADD COLUMN record_action VARCHAR(32) NULL AFTER record_code,
   ADD COLUMN base_version BIGINT NULL AFTER version,
   ADD COLUMN delete_reason VARCHAR(1000) NULL AFTER base_version,
   ADD COLUMN approval_task_id BIGINT NULL AFTER delete_reason,
@@ -13,6 +16,15 @@ ALTER TABLE master_record_drafts
     (department_id, master_type_id, active_record_code),
   ADD CONSTRAINT fk_master_drafts_approval_task
     FOREIGN KEY (approval_task_id) REFERENCES approval_tasks (id);
+
+UPDATE master_record_drafts
+SET record_action = CASE
+  WHEN master_record_id IS NULL THEN 'CREATE'
+  ELSE 'UPDATE'
+END;
+
+ALTER TABLE master_record_drafts
+  MODIFY COLUMN record_action VARCHAR(32) NOT NULL DEFAULT 'CREATE';
 
 ALTER TABLE sub_record_drafts
   ADD COLUMN row_order INT NOT NULL DEFAULT 0 AFTER sub_type_id;
