@@ -60,4 +60,20 @@ describe('authenticated router and menu', () => {
     expect(labels).not.toContain('Users')
     expect(labels).not.toContain('Departments')
   })
+
+  it('makes master-type templates available only to super administrators', async () => {
+    useAuthStore().setSession({ ...editorSession, roles: ['SUPER_ADMIN'] })
+    const superAdminRouter = createAppRouter()
+    await superAdminRouter.push('/metadata/templates')
+    await superAdminRouter.isReady()
+
+    expect(superAdminRouter.currentRoute.value.name).toBe('master-type-templates')
+    expect(menuForRoles(['SUPER_ADMIN']).map((item) => item.label)).toContain('Master Type Templates')
+
+    useAuthStore().setSession(editorSession)
+    const editorRouter = createAppRouter()
+    await editorRouter.push('/metadata/templates')
+    await editorRouter.isReady()
+    expect(editorRouter.currentRoute.value.path).toBe('/forbidden')
+  })
 })
