@@ -15,6 +15,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 class JdbcMetadataApprovalRepository implements MetadataApprovalRepository {
+  private static final String METADATA_KINDS =
+      "entity_type IN ('MASTER_FIELDS','SUB_TYPES','SUB_FIELDS')";
   private static final String VIEW_COLUMNS = "id,entity_type,entity_id,status,before_snapshot,"
       + "after_snapshot,submitted_by,reviewed_by,review_comment,submitted_at,reviewed_at";
   private static final RowMapper<ApprovalTaskView> VIEW_MAPPER = (result, row) ->
@@ -58,13 +60,15 @@ class JdbcMetadataApprovalRepository implements MetadataApprovalRepository {
   public ApprovalTask lock(long departmentId, long taskId) {
     var tasks = jdbc.query("SELECT id,department_id,entity_type,entity_id,before_snapshot,"
             + "after_snapshot,status FROM approval_tasks WHERE department_id=:department "
-            + "AND id=:id FOR UPDATE", Map.of("department", departmentId, "id", taskId),
+            + "AND id=:id AND " + METADATA_KINDS + " FOR UPDATE",
+        Map.of("department", departmentId, "id", taskId),
         (result, row) -> new ApprovalTask(result.getLong("id"), result.getLong("department_id"),
             result.getString("entity_type"), result.getLong("entity_id"),
             result.getString("before_snapshot"), result.getString("after_snapshot"),
             result.getString("status")));
     if (tasks.isEmpty()) {
-      Integer matches = jdbc.queryForObject("SELECT COUNT(*) FROM approval_tasks WHERE id=:id",
+      Integer matches = jdbc.queryForObject("SELECT COUNT(*) FROM approval_tasks WHERE id=:id AND "
+              + METADATA_KINDS,
           Map.of("id", taskId), Integer.class);
       if (matches != null && matches > 0) {
         throw BusinessException.forbidden();
@@ -78,6 +82,7 @@ class JdbcMetadataApprovalRepository implements MetadataApprovalRepository {
   public List<ApprovalTaskView> list(long departmentId, String status) {
     return jdbc.query("SELECT " + VIEW_COLUMNS + " FROM approval_tasks "
             + "WHERE department_id=:department AND status=:status "
+            + "AND " + METADATA_KINDS + " "
             + "ORDER BY submitted_at DESC,id DESC",
         Map.of("department", departmentId, "status", status), VIEW_MAPPER);
   }
@@ -85,12 +90,13 @@ class JdbcMetadataApprovalRepository implements MetadataApprovalRepository {
   @Override
   public ApprovalTaskView detail(long departmentId, long taskId) {
     var tasks = jdbc.query("SELECT " + VIEW_COLUMNS + " FROM approval_tasks "
-            + "WHERE department_id=:department AND id=:id",
+            + "WHERE department_id=:department AND id=:id AND " + METADATA_KINDS,
         Map.of("department", departmentId, "id", taskId), VIEW_MAPPER);
     if (!tasks.isEmpty()) {
       return tasks.get(0);
     }
-    Integer matches = jdbc.queryForObject("SELECT COUNT(*) FROM approval_tasks WHERE id=:id",
+    Integer matches = jdbc.queryForObject("SELECT COUNT(*) FROM approval_tasks WHERE id=:id AND "
+            + METADATA_KINDS,
         Map.of("id", taskId), Integer.class);
     if (matches != null && matches > 0) {
       throw BusinessException.forbidden();
@@ -112,7 +118,8 @@ class JdbcMetadataApprovalRepository implements MetadataApprovalRepository {
       String comment) {
     int updated = jdbc.update("UPDATE approval_tasks SET status=:status,reviewed_by=:reviewer,"
             + "review_comment=:comment,reviewed_at=CURRENT_TIMESTAMP "
-            + "WHERE department_id=:department AND id=:id AND status='PENDING'",
+            + "WHERE department_id=:department AND id=:id AND status='PENDING' AND "
+            + METADATA_KINDS,
         new MapSqlParameterSource().addValue("status", status).addValue("reviewer", reviewerId)
             .addValue("comment", comment).addValue("department", departmentId)
             .addValue("id", taskId));

@@ -51,14 +51,15 @@ class MetadataApprovalApplicationServiceTest {
         envelope(7, 41, "MASTER_FIELDS", fingerprint(before), after), "PENDING"));
     when(metadata.findMasterFields(7, 41)).thenReturn(before);
 
-    service.approve(9, "looks good");
+    String comment = "x".repeat(1000);
+    service.approve(9, comment);
 
     var order = inOrder(approvals, metadata);
     order.verify(approvals).lock(7, 9);
     order.verify(metadata).lockTemplateAssignment(7, 41);
     order.verify(metadata).findMasterFields(7, 41);
     order.verify(metadata).replaceMasterFields(7, 41, after);
-    order.verify(approvals).approve(7, 9, 23, "looks good");
+    order.verify(approvals).approve(7, 9, 23, comment);
   }
 
   @Test void crossDepartmentAndNonPendingTasksAreRejectedWithoutWrites() throws Exception {
@@ -67,6 +68,24 @@ class MetadataApprovalApplicationServiceTest {
     when(approvals.lock(7, 10)).thenReturn(task(10, 7, "MASTER_FIELDS", 41, "{}", "{}", "APPROVED"));
     assertStatus(() -> service.approve(10, null), HttpStatus.CONFLICT);
     verify(metadata, never()).replaceMasterFields(any(Long.class), any(Long.class), any());
+  }
+
+  @Test void nonMetadataTaskIsNotFoundForApproveAndRejectWithoutTransition() {
+    when(approvals.lock(7, 9)).thenReturn(
+        task(9, 7, "USER_ACCESS", 41, "{}", "{}", "PENDING"));
+
+    assertStatus(() -> service.approve(9, null), HttpStatus.NOT_FOUND);
+    assertStatus(() -> service.reject(9, "reason"), HttpStatus.NOT_FOUND);
+    verify(approvals, never()).approve(any(Long.class), any(Long.class), any(Long.class), any());
+    verify(approvals, never()).reject(any(Long.class), any(Long.class), any(Long.class), any());
+  }
+
+  @Test void overlongCommentAndReasonAreBadRequestBeforeTaskStorage() {
+    String overlong = "x".repeat(1001);
+
+    assertStatus(() -> service.approve(9, overlong), HttpStatus.BAD_REQUEST);
+    assertStatus(() -> service.reject(9, overlong), HttpStatus.BAD_REQUEST);
+    verify(approvals, never()).lock(any(Long.class), any(Long.class));
   }
 
   @Test void staleBaseFingerprintIsConflictAndNeverApplies() throws Exception {
@@ -167,9 +186,10 @@ class MetadataApprovalApplicationServiceTest {
     when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41, "{}", "{}", "PENDING"));
     assertStatus(() -> service.reject(9, " "), HttpStatus.BAD_REQUEST);
 
-    service.reject(9, "not complete");
+    String reason = "x".repeat(1000);
+    service.reject(9, reason);
 
-    verify(approvals).reject(7, 9, 23, "not complete");
+    verify(approvals).reject(7, 9, 23, reason);
     verify(metadata, never()).lockTemplateAssignment(any(Long.class), any(Long.class));
     verify(metadata, never()).replaceMasterFields(any(Long.class), any(Long.class), any());
   }

@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 import com.example.mdm.common.error.BusinessException;
 import java.sql.ResultSet;
@@ -25,7 +26,7 @@ import org.springframework.jdbc.support.KeyHolder;
 
 class JdbcMetadataApprovalRepositoryTest {
   @SuppressWarnings("unchecked")
-  @Test void listBindsDepartmentAndStatusAndMapsCompleteAuditProjection() throws Exception {
+  @Test void listBindsDepartmentStatusAndMetadataKindsAndMapsCompleteAuditProjection() throws Exception {
     var jdbc = Mockito.mock(NamedParameterJdbcTemplate.class);
     var repository = new JdbcMetadataApprovalRepository(jdbc);
     var result = Mockito.mock(ResultSet.class);
@@ -55,7 +56,8 @@ class JdbcMetadataApprovalRepositoryTest {
     var sql = ArgumentCaptor.forClass(String.class);
     var parameters = ArgumentCaptor.forClass(java.util.Map.class);
     verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
-    assertThat(sql.getValue()).contains("department_id=:department", "status=:status");
+    assertThat(sql.getValue()).contains("department_id=:department", "status=:status",
+        "entity_type IN ('MASTER_FIELDS','SUB_TYPES','SUB_FIELDS')");
     assertThat(parameters.getValue()).containsEntry("department", 7L)
         .containsEntry("status", "APPROVED");
   }
@@ -77,13 +79,36 @@ class JdbcMetadataApprovalRepositoryTest {
     var sql = ArgumentCaptor.forClass(String.class);
     verify(jdbc, Mockito.times(2)).query(sql.capture(), anyMap(), any(RowMapper.class));
     assertThat(sql.getAllValues()).allSatisfy(value ->
-        assertThat(value).contains("department_id=:department", "id=:id"));
+        assertThat(value).contains("department_id=:department", "id=:id",
+            "entity_type IN ('MASTER_FIELDS','SUB_TYPES','SUB_FIELDS')"));
     var existenceSql = ArgumentCaptor.forClass(String.class);
     verify(jdbc, Mockito.times(2)).queryForObject(existenceSql.capture(), anyMap(), eq(Integer.class));
     assertThat(existenceSql.getAllValues()).allSatisfy(value -> {
-      assertThat(value).contains("COUNT(*)", "id=:id");
+      assertThat(value).contains("COUNT(*)", "id=:id",
+          "entity_type IN ('MASTER_FIELDS','SUB_TYPES','SUB_FIELDS')");
       assertThat(value).doesNotContain("snapshot");
     });
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test void nonMetadataTaskIsAbsentForDetailAndActionAndIsNeverUpdated() {
+    var jdbc = Mockito.mock(NamedParameterJdbcTemplate.class);
+    var repository = new JdbcMetadataApprovalRepository(jdbc);
+    when(jdbc.query(anyString(), anyMap(), any(RowMapper.class))).thenReturn(List.of());
+    when(jdbc.queryForObject(anyString(), anyMap(), eq(Integer.class))).thenReturn(0);
+
+    assertThatThrownBy(() -> repository.detail(7, 91))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND));
+    assertThatThrownBy(() -> repository.lock(7, 91))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND));
+
+    var existenceSql = ArgumentCaptor.forClass(String.class);
+    verify(jdbc, Mockito.times(2)).queryForObject(existenceSql.capture(), anyMap(), eq(Integer.class));
+    assertThat(existenceSql.getAllValues()).allSatisfy(value ->
+        assertThat(value).contains("entity_type IN ('MASTER_FIELDS','SUB_TYPES','SUB_FIELDS')"));
+    verify(jdbc, never()).update(anyString(), any(SqlParameterSource.class));
   }
 
   @Test void duplicatePendingTaskMapsToStableConflict() {
@@ -131,7 +156,13 @@ class JdbcMetadataApprovalRepositoryTest {
     var sql = ArgumentCaptor.forClass(String.class);
     verify(jdbc, Mockito.times(2)).query(sql.capture(), anyMap(), any(RowMapper.class));
     assertThat(sql.getAllValues()).allSatisfy(value ->
-        assertThat(value).contains("department_id=:department", "id=:id", "FOR UPDATE"));
+        assertThat(value).contains("department_id=:department", "id=:id", "FOR UPDATE",
+            "entity_type IN ('MASTER_FIELDS','SUB_TYPES','SUB_FIELDS')"));
+    var existenceSql = ArgumentCaptor.forClass(String.class);
+    verify(jdbc, Mockito.times(2)).queryForObject(existenceSql.capture(), anyMap(), eq(Integer.class));
+    assertThat(existenceSql.getAllValues()).allSatisfy(value ->
+        assertThat(value).contains("COUNT(*)",
+            "entity_type IN ('MASTER_FIELDS','SUB_TYPES','SUB_FIELDS')"));
   }
 
   @Test void lostPendingTransitionIsStableConflictAndUpdateIsGuarded() {
@@ -145,6 +176,7 @@ class JdbcMetadataApprovalRepositoryTest {
     var sql = ArgumentCaptor.forClass(String.class);
     verify(jdbc).update(sql.capture(), any(SqlParameterSource.class));
     assertThat(sql.getValue()).contains(
-        "WHERE department_id=:department AND id=:id AND status='PENDING'");
+        "WHERE department_id=:department AND id=:id AND status='PENDING'",
+        "entity_type IN ('MASTER_FIELDS','SUB_TYPES','SUB_FIELDS')");
   }
 }

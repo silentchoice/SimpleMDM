@@ -110,6 +110,40 @@ class MetadataApprovalControllerTest {
     verify(application, never()).reject(Mockito.anyLong(), Mockito.any());
   }
 
+  @Test void approveCommentAllows1000CharactersAndRejects1001BeforeService() throws Exception {
+    String accepted = "x".repeat(1000);
+    String rejected = "x".repeat(1001);
+
+    mvc.perform(post("/api/metadata-approval/91/approve")
+            .requestAttr(RequestId.ATTRIBUTE, "req-comment-long")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"comment\":\"" + rejected + "\"}"))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
+    mvc.perform(post("/api/metadata-approval/91/approve")
+            .requestAttr(RequestId.ATTRIBUTE, "req-comment-boundary")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"comment\":\"" + accepted + "\"}"))
+        .andExpect(status().isOk());
+    verify(application).approve(91, accepted);
+  }
+
+  @Test void rejectReasonAllows1000CharactersAndRejects1001BeforeService() throws Exception {
+    String accepted = "x".repeat(1000);
+    String rejected = "x".repeat(1001);
+
+    mvc.perform(post("/api/metadata-approval/91/reject")
+            .requestAttr(RequestId.ATTRIBUTE, "req-reason-long")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"reason\":\"" + rejected + "\"}"))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
+    mvc.perform(post("/api/metadata-approval/91/reject")
+            .requestAttr(RequestId.ATTRIBUTE, "req-reason-boundary")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"reason\":\"" + accepted + "\"}"))
+        .andExpect(status().isOk());
+    verify(application).reject(91, accepted);
+  }
+
   @Test void missingDetailPropagatesNotFoundEnvelope() throws Exception {
     when(query.detail(404)).thenThrow(BusinessException.notFound("Approval task"));
 

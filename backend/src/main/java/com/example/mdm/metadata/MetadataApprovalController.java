@@ -5,6 +5,7 @@ import com.example.mdm.common.api.RequestId;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,7 +59,7 @@ public class MetadataApprovalController {
     return ApiResponse.success(data, (String) request.getAttribute(RequestId.ATTRIBUTE));
   }
 
-  public record ApproveRequest(String comment) {}
+  public record ApproveRequest(@Size(max = 1000) String comment) {}
 
-  public record RejectRequest(@NotBlank String reason) {}
+  public record RejectRequest(@NotBlank @Size(max = 1000) String reason) {}
 }

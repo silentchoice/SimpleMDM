@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MetadataApprovalApplicationService {
   private static final int SCHEMA_VERSION = 1;
+  private static final int MAX_REVIEW_COMMENT_LENGTH = 1000;
   private static final Pattern FINGERPRINT = Pattern.compile("[0-9a-f]{64}");
   private static final Pattern CODE = Pattern.compile("[A-Za-z][A-Za-z0-9_]{0,63}");
   private static final Set<String> KINDS = Set.of("MASTER_FIELDS", "SUB_TYPES", "SUB_FIELDS");
@@ -46,6 +47,7 @@ public class MetadataApprovalApplicationService {
   @Transactional
   public void approve(long taskId, String comment) {
     UserPrincipal actor = approver();
+    requireReviewLength(comment, "Approval comment");
     var task = approvals.lock(actor.department().id(), taskId);
     requireOwnedPending(task, actor);
     Envelope before = decode(task.beforeSnapshot());
@@ -74,6 +76,7 @@ public class MetadataApprovalApplicationService {
     if (reason == null || reason.isBlank()) {
       throw BusinessException.badRequest("Rejection reason is required");
     }
+    requireReviewLength(reason, "Rejection reason");
     var task = approvals.lock(actor.department().id(), taskId);
     requireOwnedPending(task, actor);
     approvals.reject(actor.department().id(), taskId, actor.id(), reason.trim());
@@ -185,8 +188,15 @@ public class MetadataApprovalApplicationService {
 
   private void requireOwnedPending(MetadataApprovalRepository.ApprovalTask task, UserPrincipal actor) {
     if (task.departmentId() != actor.department().id()) throw BusinessException.forbidden();
+    if (!KINDS.contains(task.entityKind())) throw BusinessException.notFound("Approval task");
     if (!"PENDING".equals(task.status())) {
       throw new BusinessException(HttpStatus.CONFLICT, "Approval task is not pending");
+    }
+  }
+
+  private void requireReviewLength(String value, String field) {
+    if (value != null && value.length() > MAX_REVIEW_COMMENT_LENGTH) {
+      throw BusinessException.badRequest(field + " must not exceed 1000 characters");
     }
   }
 
