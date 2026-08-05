@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
-import { listMasterFields, listSubFields, listSubTypes, type FieldDefinition, type SubType } from '../../api/metadata'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ACTIVE_METADATA_INVALIDATED_EVENT, listMasterFields, listSubFields, listSubTypes, type FieldDefinition, type SubType } from '../../api/metadata'
 import type { ApiError } from '../../types'
 
 const props = withDefaults(defineProps<{ masterTypeId?: number }>(), { masterTypeId: 0 })
@@ -32,7 +32,8 @@ async function refresh(): Promise<void> {
   } finally { if (requestGeneration === generation) loading.value = false }
 }
 watch(() => props.masterTypeId, refresh)
-onMounted(refresh)
+onMounted(() => { window.addEventListener(ACTIVE_METADATA_INVALIDATED_EVENT, refresh); refresh() })
+onBeforeUnmount(() => window.removeEventListener(ACTIVE_METADATA_INVALIDATED_EVENT, refresh))
 </script>
 
 <template>

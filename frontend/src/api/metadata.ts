@@ -57,6 +57,11 @@ export interface ApprovalSubmission {
   approvalTaskId: number
 }
 
+export const ACTIVE_METADATA_INVALIDATED_EVENT = 'mdm:active-metadata-invalidated'
+export function invalidateActiveMetadata(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACTIVE_METADATA_INVALIDATED_EVENT))
+}
+
 export function listMasterTypes(): Promise<MasterType[]> { return http.get<MasterType[]>('/master-type') }
 export function currentMasterType(): Promise<MasterType> { return http.get<MasterType>('/master-type/current') }
 export function createMasterType(body: MasterTypeInput): Promise<MasterType> { return http.post<MasterType>('/master-type', body) }

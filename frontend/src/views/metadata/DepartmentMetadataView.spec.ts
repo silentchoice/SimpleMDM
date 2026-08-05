@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth'
 import DepartmentMetadataView from './DepartmentMetadataView.vue'
 
 const metadataApi = vi.hoisted(() => ({
+  ACTIVE_METADATA_INVALIDATED_EVENT: 'mdm:active-metadata-invalidated',
   currentMasterType: vi.fn(), listMasterFields: vi.fn(), listSubTypes: vi.fn(), listSubFields: vi.fn(),
   submitMasterFields: vi.fn(), submitSubTypes: vi.fn(), submitSubFields: vi.fn()
 }))

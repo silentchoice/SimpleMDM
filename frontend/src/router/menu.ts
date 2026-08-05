@@ -10,7 +10,7 @@ const menu: MenuItem[] = [
   { label: 'Dashboard', to: '/', roles: ['SUPER_ADMIN', 'DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
   { label: 'Active Metadata', to: '/metadata/active', roles: ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
   { label: 'Submit Change', to: '/metadata/changes/new', roles: ['DEPT_EDITOR'] },
-  { label: 'Approvals', to: '/metadata/approvals', roles: ['SUPER_ADMIN', 'DEPT_APPROVER'] },
+  { label: 'Approvals', to: '/metadata/approvals', roles: ['DEPT_APPROVER'] },
   { label: 'Master Type Templates', to: '/metadata/templates', roles: ['SUPER_ADMIN'] },
   { label: 'Users', to: '/system/users', roles: ['SUPER_ADMIN'] },
   { label: 'Departments', to: '/system/departments', roles: ['SUPER_ADMIN'] },

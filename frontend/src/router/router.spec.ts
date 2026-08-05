@@ -76,4 +76,20 @@ describe('authenticated router and menu', () => {
     await editorRouter.isReady()
     expect(editorRouter.currentRoute.value.path).toBe('/forbidden')
   })
+
+  it('makes approval list, detail, and menu available only to department approvers', async () => {
+    useAuthStore().setSession({ ...editorSession, roles: ['DEPT_APPROVER'] })
+    const approverRouter = createAppRouter()
+    await approverRouter.push('/metadata/approvals/91')
+    await approverRouter.isReady()
+    expect(approverRouter.currentRoute.value.name).toBe('approval-detail')
+    expect(menuForRoles(['DEPT_APPROVER']).map((item) => item.label)).toContain('Approvals')
+
+    useAuthStore().setSession({ ...editorSession, roles: ['SUPER_ADMIN'] })
+    const administratorRouter = createAppRouter()
+    await administratorRouter.push('/metadata/approvals')
+    await administratorRouter.isReady()
+    expect(administratorRouter.currentRoute.value.path).toBe('/forbidden')
+    expect(menuForRoles(['SUPER_ADMIN']).map((item) => item.label)).not.toContain('Approvals')
+  })
 })

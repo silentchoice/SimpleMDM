@@ -11,6 +11,8 @@ import RoleListView from '../views/system/RoleListView.vue'
 import UserListView from '../views/system/UserListView.vue'
 import MasterTypeListView from '../views/metadata/MasterTypeListView.vue'
 import DepartmentMetadataView from '../views/metadata/DepartmentMetadataView.vue'
+import ApprovalListView from '../views/approval/ApprovalListView.vue'
+import ApprovalDetailView from '../views/approval/ApprovalDetailView.vue'
 
 declare module 'vue-router' {
   interface RouteMeta extends AppRouteMeta {}
@@ -18,7 +20,6 @@ declare module 'vue-router' {
 
 const allRoles = ['SUPER_ADMIN', 'DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] as const
 const departmentMetadataRoles = ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] as const
-const contentView = (title: string) => ({ template: `<section class="content-view"><h1>${title}</h1><p>This view will be completed in the next delivery.</p></section>` })
 
 export function createAppRouter(history: RouterHistory = import.meta.env.MODE === 'test' ? createMemoryHistory() : createWebHistory()) {
   const router = createRouter({
@@ -30,7 +31,8 @@ export function createAppRouter(history: RouterHistory = import.meta.env.MODE ==
           { path: '', name: 'dashboard', component: DashboardView, meta: { title: 'Dashboard', roles: [...allRoles] } },
           { path: 'metadata/active', name: 'active-metadata', component: DepartmentMetadataView, meta: { title: 'Active Metadata', roles: [...departmentMetadataRoles] } },
           { path: 'metadata/changes/new', name: 'submit-change', component: DepartmentMetadataView, props: { initialTab: 'submit' }, meta: { title: 'Submit Change', roles: ['DEPT_EDITOR'] } },
-          { path: 'metadata/approvals', name: 'approvals', component: contentView('Approvals'), meta: { title: 'Approvals', roles: ['SUPER_ADMIN', 'DEPT_APPROVER'] } },
+          { path: 'metadata/approvals', name: 'approvals', component: ApprovalListView, meta: { title: 'Approvals', roles: ['DEPT_APPROVER'] } },
+          { path: 'metadata/approvals/:taskId', name: 'approval-detail', component: ApprovalDetailView, meta: { title: 'Approval detail', roles: ['DEPT_APPROVER'] } },
           { path: 'metadata/templates', name: 'master-type-templates', component: MasterTypeListView, meta: { title: 'Master Type Templates', roles: ['SUPER_ADMIN'] } },
           { path: 'system/users', name: 'users', component: UserListView, meta: { title: 'Users', roles: ['SUPER_ADMIN'] } },
           { path: 'system/departments', name: 'departments', component: DepartmentListView, meta: { title: 'Departments', roles: ['SUPER_ADMIN'] } },
