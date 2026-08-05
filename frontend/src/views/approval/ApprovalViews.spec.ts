@@ -13,7 +13,7 @@ vi.mock('../../api/approval', () => approvalApi)
 vi.mock('../../api/metadata', () => metadataApi)
 
 function snapshot(definitions: unknown[] = []): string {
-  return JSON.stringify({ schemaVersion: 1, departmentId: 3, templateId: 41, entityKind: 'MASTER_FIELDS', baseFingerprint: 'fp', orderedDefinitions: definitions })
+  return JSON.stringify({ schemaVersion: 1, departmentId: 3, templateId: 41, entityKind: 'MASTER_FIELDS', baseFingerprint: 'a'.repeat(64), orderedDefinitions: definitions })
 }
 function task(status = 'PENDING') {
   return { id: 91, entityKind: 'MASTER_FIELDS', entityId: 41, status, beforeSnapshot: snapshot(), afterSnapshot: snapshot([{ code: 'SERIAL', displayName: 'Serial' }]), submittedBy: 12, reviewedBy: null, reviewComment: null, submittedAt: '2026-08-04T09:30:00', reviewedAt: null }
@@ -54,6 +54,23 @@ describe('metadata approval views', () => {
     await wrapper.get('[name="status"]').setValue('APPROVED')
     await flushPromises()
     expect(approvalApi.listApprovalTasks).toHaveBeenNthCalledWith(2, 'APPROVED')
+  })
+
+  it('does not let a slow previous status response replace the current filtered list', async () => {
+    const slowPending = deferred<ReturnType<typeof task>[]>()
+    approvalApi.listApprovalTasks.mockReturnValueOnce(slowPending.promise).mockResolvedValueOnce([{ ...task('APPROVED'), id: 92 }])
+    const router = await routerAt('/metadata/approvals')
+    const wrapper = mount(ApprovalListView, { global: { plugins: [ElementPlus, router] } })
+    await flushPromises()
+
+    await wrapper.get('[name="status"]').setValue('APPROVED')
+    await flushPromises()
+    expect(wrapper.text()).toContain('#92')
+
+    slowPending.resolve([task('PENDING')])
+    await flushPromises()
+    expect(wrapper.text()).toContain('#92')
+    expect(wrapper.text()).not.toContain('#91')
   })
 
   it('shows API request IDs in list failures', async () => {
@@ -100,8 +117,9 @@ describe('metadata approval views', () => {
     expect(wrapper.text()).toContain('REJECTED')
   })
 
-  it('refreshes task status and retains the request ID when an action returns 409', async () => {
-    approvalApi.getApprovalTask.mockResolvedValueOnce(task()).mockResolvedValueOnce(task('APPROVED'))
+  it('keeps stale actions unavailable until the 409 status refresh resolves', async () => {
+    const refreshed = deferred<ReturnType<typeof task>>()
+    approvalApi.getApprovalTask.mockResolvedValueOnce(task()).mockReturnValueOnce(refreshed.promise)
     approvalApi.approveApprovalTask.mockRejectedValue({ status: 409, message: 'Approval task is not pending', requestId: 'req-409' })
     const router = await routerAt('/metadata/approvals/91')
     const wrapper = mount(ApprovalDetailView, { global: { plugins: [ElementPlus, router] } })
@@ -110,6 +128,12 @@ describe('metadata approval views', () => {
     await flushPromises()
 
     expect(approvalApi.getApprovalTask).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="approve-button"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="reject-button"]').exists()).toBe(false)
+    expect(wrapper.get('[role="alert"]').text()).toContain('req-409')
+
+    refreshed.resolve(task('APPROVED'))
+    await flushPromises()
     expect(wrapper.text()).toContain('APPROVED')
     expect(wrapper.get('[role="alert"]').text()).toContain('req-409')
   })
@@ -138,17 +162,33 @@ describe('metadata approval views', () => {
     expect(wrapper.text()).toContain('2026-08-04T10:00:00')
   })
 
-  it('reloads the reused detail component when the route task ID changes', async () => {
-    approvalApi.getApprovalTask.mockImplementation(async (taskId: number) => ({ ...task(), id: taskId }))
+  it('clears the old task and recreates a reset action form while a reused route loads', async () => {
+    const nextTask = deferred<ReturnType<typeof task>>()
+    approvalApi.getApprovalTask.mockResolvedValueOnce(task()).mockReturnValueOnce(nextTask.promise)
+    approvalApi.rejectApprovalTask.mockRejectedValueOnce({ status: 500, message: 'Action failed', requestId: 'req-action' })
     const router = await routerAt('/metadata/approvals/91')
     const wrapper = mount(ApprovalDetailView, { global: { plugins: [ElementPlus, router] } })
     await flushPromises()
+
+    await wrapper.get('[name="approveComment"]').setValue('comment for 91')
+    await wrapper.get('[name="rejectReason"]').setValue('reason for 91')
+    await wrapper.get('[data-testid="reject-button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('req-action')
 
     await router.push('/metadata/approvals/92')
     await flushPromises()
 
     expect(approvalApi.getApprovalTask).toHaveBeenNthCalledWith(1, 91)
     expect(approvalApi.getApprovalTask).toHaveBeenNthCalledWith(2, 92)
+    expect(wrapper.text()).not.toContain('Metadata approval #91')
+    expect(wrapper.find('[data-testid="approve-button"]').exists()).toBe(false)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+
+    nextTask.resolve({ ...task(), id: 92 })
+    await flushPromises()
     expect(wrapper.text()).toContain('Metadata approval #92')
+    expect((wrapper.get('[name="approveComment"]').element as HTMLTextAreaElement).value).toBe('')
+    expect((wrapper.get('[name="rejectReason"]').element as HTMLTextAreaElement).value).toBe('')
   })
 })

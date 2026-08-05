@@ -2,14 +2,16 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import SnapshotDiff from './SnapshotDiff.vue'
 
-function snapshot(orderedDefinitions: unknown[], schemaVersion = 1): string {
+const fingerprint = 'a'.repeat(64)
+function snapshot(orderedDefinitions: unknown[], schemaVersion = 1, overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     schemaVersion,
     departmentId: 3,
     templateId: 41,
     entityKind: 'MASTER_FIELDS',
-    baseFingerprint: 'fingerprint',
-    orderedDefinitions
+    baseFingerprint: fingerprint,
+    orderedDefinitions,
+    ...overrides
   })
 }
 
@@ -51,6 +53,32 @@ describe('snapshot diff', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
     expect(wrapper.find('[data-testid="diff-row"]').exists()).toBe(false)
+  })
+
+  it.each([
+    ['unknown entity kind', { entityKind: 'RECORDS' }],
+    ['zero department ID', { departmentId: 0 }],
+    ['fractional template ID', { templateId: 41.5 }],
+    ['non-SHA-256 fingerprint', { baseFingerprint: 'fp' }]
+  ])('renders %s as a semantically malformed v1 envelope', (_case, overrides) => {
+    const wrapper = mount(SnapshotDiff, {
+      props: { beforeSnapshot: snapshot([], 1, overrides), afterSnapshot: snapshot([]) }
+    })
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
+  })
+
+  it.each([
+    ['departmentId', { departmentId: 4 }],
+    ['templateId', { templateId: 42 }],
+    ['entityKind', { entityKind: 'SUB_TYPES' }],
+    ['baseFingerprint', { baseFingerprint: 'b'.repeat(64) }]
+  ])('rejects before/after metadata mismatch in %s', (_field, afterOverrides) => {
+    const wrapper = mount(SnapshotDiff, {
+      props: { beforeSnapshot: snapshot([]), afterSnapshot: snapshot([], 1, afterOverrides) }
+    })
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('Unable to display snapshot diff')
   })
 
   it('uses a safe raw-JSON text fallback for unsupported schema versions', () => {

@@ -12,6 +12,8 @@ type ParsedSnapshot =
   | { kind: 'error' }
 
 const props = defineProps<{ beforeSnapshot: string, afterSnapshot: string }>()
+const entityKinds = new Set(['MASTER_FIELDS', 'SUB_TYPES', 'SUB_FIELDS'])
+const fingerprintPattern = /^[0-9a-f]{64}$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -35,12 +37,21 @@ function parseSnapshot(raw: string): ParsedSnapshot {
     if (!isRecord(value) || typeof value.schemaVersion !== 'number') return { kind: 'error' }
     if (value.schemaVersion !== 1) return { kind: 'unsupported', value }
     const orderedDefinitions = definitions(value.orderedDefinitions)
-    if (typeof value.departmentId !== 'number' || typeof value.templateId !== 'number'
-      || typeof value.entityKind !== 'string' || typeof value.baseFingerprint !== 'string'
+    if (!Number.isSafeInteger(value.departmentId) || (value.departmentId as number) <= 0
+      || !Number.isSafeInteger(value.templateId) || (value.templateId as number) <= 0
+      || typeof value.entityKind !== 'string' || !entityKinds.has(value.entityKind)
+      || typeof value.baseFingerprint !== 'string' || !fingerprintPattern.test(value.baseFingerprint)
       || !orderedDefinitions) return { kind: 'error' }
     return {
       kind: 'supported',
-      envelope: { ...value, orderedDefinitions } as SupportedEnvelope
+      envelope: {
+        schemaVersion: 1,
+        departmentId: value.departmentId as number,
+        templateId: value.templateId as number,
+        entityKind: value.entityKind as SupportedEnvelope['entityKind'],
+        baseFingerprint: value.baseFingerprint,
+        orderedDefinitions
+      }
     }
   } catch {
     return { kind: 'error' }
@@ -65,7 +76,13 @@ const parsed = computed(() => ({
   before: parseSnapshot(props.beforeSnapshot),
   after: parseSnapshot(props.afterSnapshot)
 }))
-const hasError = computed(() => parsed.value.before.kind === 'error' || parsed.value.after.kind === 'error')
+function metadataMatches(before: SupportedEnvelope, after: SupportedEnvelope): boolean {
+  return before.departmentId === after.departmentId && before.templateId === after.templateId
+    && before.entityKind === after.entityKind && before.baseFingerprint === after.baseFingerprint
+}
+const hasError = computed(() => parsed.value.before.kind === 'error' || parsed.value.after.kind === 'error'
+  || (parsed.value.before.kind === 'supported' && parsed.value.after.kind === 'supported'
+    && !metadataMatches(parsed.value.before.envelope, parsed.value.after.envelope)))
 const useRawFallback = computed(() => !hasError.value
   && (parsed.value.before.kind === 'unsupported' || parsed.value.after.kind === 'unsupported'))
 const rawBefore = computed(() => parsed.value.before.kind === 'unsupported'

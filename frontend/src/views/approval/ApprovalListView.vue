@@ -7,10 +7,13 @@ const status = ref<ApprovalStatus>('PENDING')
 const tasks = ref<ApprovalTask[]>([])
 const loading = ref(false)
 const error = ref('')
+let loadGeneration = 0
 function message(value: ApiError): string { return value.requestId ? `${value.message} (Request ID: ${value.requestId})` : value.message }
 async function load(): Promise<void> {
+  const requestedStatus = status.value
+  const generation = ++loadGeneration
   loading.value = true; error.value = ''
-  try { tasks.value = await listApprovalTasks(status.value) } catch (cause) { tasks.value = []; error.value = message(cause as ApiError) } finally { loading.value = false }
+  try { const loaded = await listApprovalTasks(requestedStatus); if (generation === loadGeneration) tasks.value = loaded } catch (cause) { if (generation === loadGeneration) { tasks.value = []; error.value = message(cause as ApiError) } } finally { if (generation === loadGeneration) loading.value = false }
 }
 onMounted(load)
 </script>
