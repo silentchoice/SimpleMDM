@@ -12,7 +12,7 @@ const { logout, push } = vi.hoisted(() => ({ logout: vi.fn(), push: vi.fn() }))
 
 vi.mock('../api/auth', () => ({ logout }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ path: '/', meta: { title: 'Dashboard' } }),
+  useRoute: () => ({ path: '/', meta: { titleKey: 'routes.dashboard' } }),
   useRouter: () => ({ push })
 }))
 
@@ -39,7 +39,7 @@ describe('AppLayout', () => {
 
     await wrapper.get('[data-testid="mobile-nav-toggle"]').trigger('click')
 
-    expect(wrapper.get('[data-testid="mobile-navigation"]').text()).toContain('Active Metadata')
+    expect(wrapper.get('[data-testid="mobile-navigation"]').text()).toContain('当前元数据')
     expect(wrapper.text()).not.toContain('Submit Change')
   })
 

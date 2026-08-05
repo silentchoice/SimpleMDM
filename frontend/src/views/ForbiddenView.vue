@@ -1,3 +1,9 @@
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+</script>
+
 <template>
-  <main class="centered-view"><h1>Access denied</h1><p>You do not have access to this page.</p></main>
+  <main class="centered-view"><h1>{{ t('errors.forbiddenTitle') }}</h1><p>{{ t('errors.forbiddenDescription') }}</p></main>
 </template>

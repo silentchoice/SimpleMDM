@@ -4,6 +4,7 @@ import { createAppRouter } from './index'
 import { useAuthStore } from '../stores/auth'
 import { menuForRoles } from './menu'
 import type { Session } from '../types'
+import { i18n, setLocale } from '../i18n'
 
 const editorSession: Session = {
   accessToken: 'token',
@@ -16,6 +17,8 @@ describe('authenticated router and menu', () => {
   beforeEach(() => {
     sessionStorage.clear()
     setActivePinia(createPinia())
+    localStorage.clear()
+    setLocale('zh-CN')
   })
 
   it('redirects an unauthenticated user to login with their intended destination', async () => {
@@ -44,21 +47,24 @@ describe('authenticated router and menu', () => {
     expect(router.currentRoute.value.path).toBe('/forbidden')
   })
 
-  it('includes active verification and change submission in the editor menu', () => {
-    const labels = menuForRoles(['DEPT_EDITOR']).map((item) => item.label)
+  it('shows Chinese navigation labels by default and restores English labels after switching', () => {
+    const labels = () => menuForRoles(['DEPT_EDITOR']).map((item) => i18n.global.t(item.labelKey))
 
-    expect(labels).toContain('Active Metadata')
-    expect(labels).toContain('Submit Change')
+    expect(labels()).toEqual(['仪表盘', '当前元数据', '提交变更'])
+
+    setLocale('en-US')
+
+    expect(labels()).toEqual(['Dashboard', 'Active Metadata', 'Submit Change'])
   })
 
   it('keeps the read-only viewer menu free of change and system actions', () => {
-    const labels = menuForRoles(['DEPT_VIEWER']).map((item) => item.label)
+    const labels = menuForRoles(['DEPT_VIEWER']).map((item) => i18n.global.t(item.labelKey))
 
-    expect(labels).toContain('Active Metadata')
-    expect(labels).not.toContain('Submit Change')
-    expect(labels).not.toContain('Approvals')
-    expect(labels).not.toContain('Users')
-    expect(labels).not.toContain('Departments')
+    expect(labels).toContain('当前元数据')
+    expect(labels).not.toContain('提交变更')
+    expect(labels).not.toContain('审批中心')
+    expect(labels).not.toContain('用户管理')
+    expect(labels).not.toContain('部门管理')
   })
 
   it('makes master-type templates available only to super administrators', async () => {
@@ -68,7 +74,7 @@ describe('authenticated router and menu', () => {
     await superAdminRouter.isReady()
 
     expect(superAdminRouter.currentRoute.value.name).toBe('master-type-templates')
-    expect(menuForRoles(['SUPER_ADMIN']).map((item) => item.label)).toContain('Master Type Templates')
+    expect(menuForRoles(['SUPER_ADMIN']).map((item) => i18n.global.t(item.labelKey))).toContain('主数据类型模板')
 
     useAuthStore().setSession(editorSession)
     const editorRouter = createAppRouter()
@@ -83,13 +89,13 @@ describe('authenticated router and menu', () => {
     await approverRouter.push('/metadata/approvals/91')
     await approverRouter.isReady()
     expect(approverRouter.currentRoute.value.name).toBe('approval-detail')
-    expect(menuForRoles(['DEPT_APPROVER']).map((item) => item.label)).toContain('Approvals')
+    expect(menuForRoles(['DEPT_APPROVER']).map((item) => i18n.global.t(item.labelKey))).toContain('审批中心')
 
     useAuthStore().setSession({ ...editorSession, roles: ['SUPER_ADMIN'] })
     const administratorRouter = createAppRouter()
     await administratorRouter.push('/metadata/approvals')
     await administratorRouter.isReady()
     expect(administratorRouter.currentRoute.value.path).toBe('/forbidden')
-    expect(menuForRoles(['SUPER_ADMIN']).map((item) => item.label)).not.toContain('Approvals')
+    expect(menuForRoles(['SUPER_ADMIN']).map((item) => i18n.global.t(item.labelKey))).not.toContain('审批中心')
   })
 })

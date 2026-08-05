@@ -12,7 +12,7 @@ const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const menu = computed(() => menuForRoles(auth.session?.roles ?? []))
-const pageTitle = computed(() => route.meta.title ?? 'SimpleMDM')
+const pageTitle = computed(() => route.meta.titleKey ? t(route.meta.titleKey) : 'SimpleMDM')
 const mobileMenuOpen = ref(false)
 
 async function signOut(): Promise<void> {
@@ -33,7 +33,7 @@ async function signOut(): Promise<void> {
     <el-aside width="240px" class="app-sidebar">
       <div class="brand">SimpleMDM</div>
       <el-menu :default-active="route.path" router>
-        <el-menu-item v-for="item in menu" :key="item.to" :index="item.to">{{ item.label }}</el-menu-item>
+        <el-menu-item v-for="item in menu" :key="item.to" :index="item.to">{{ t(item.labelKey) }}</el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -49,7 +49,7 @@ async function signOut(): Promise<void> {
       </el-header>
       <nav v-if="mobileMenuOpen" data-testid="mobile-navigation" class="mobile-navigation" :aria-label="t('layout.mainNavigation')">
         <el-menu :default-active="route.path" router @select="mobileMenuOpen = false">
-          <el-menu-item v-for="item in menu" :key="item.to" :index="item.to">{{ item.label }}</el-menu-item>
+          <el-menu-item v-for="item in menu" :key="item.to" :index="item.to">{{ t(item.labelKey) }}</el-menu-item>
         </el-menu>
       </nav>
       <el-main><router-view /></el-main>

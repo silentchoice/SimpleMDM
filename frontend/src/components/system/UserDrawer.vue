@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { CreateUserInput, Department, SystemUser, UpdateUserInput } from '../../api/system'
 import type { Role } from '../../types'
 
@@ -13,6 +14,7 @@ const props = withDefaults(defineProps<{
   onSaved?: (value: UserDrawerInput) => Promise<void> | void
 }>(), { error: '', onSaved: undefined })
 const emit = defineEmits<{ close: [] }>()
+const { t } = useI18n()
 const roles: Role[] = ['SUPER_ADMIN', 'DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER']
 const username = ref('')
 const password = ref('')
@@ -37,13 +39,13 @@ watch(() => props.user, () => { if (props.open) reset() })
 async function submit(): Promise<void> {
   validationError.value = ''
   if (!displayName.value.trim() || (!props.user && (!username.value.trim() || !password.value))) {
-    validationError.value = props.user ? 'Display name is required' : 'Username, password, and display name are required'
+    validationError.value = t(props.user ? 'system.users.validationEdit' : 'system.users.validationCreate')
     return
   }
   if (submitting.value || props.saving) return
   const department = departmentId.value ? Number(departmentId.value) : null
   if (department !== null && !props.departments.some((item) => item.id === department && item.status === 'ACTIVE')) {
-    validationError.value = 'Select an active department before saving'
+    validationError.value = t('system.users.activeDepartmentRequired')
     return
   }
   const value: UserDrawerInput = props.user
@@ -59,30 +61,30 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <aside v-if="open" class="system-drawer" role="dialog" :aria-label="user ? 'Edit user' : 'Create user'">
-    <h2>{{ user ? 'Edit user' : 'Create user' }}</h2>
+  <aside v-if="open" class="system-drawer" role="dialog" :aria-label="user ? t('system.users.editDialog') : t('system.users.createDialog')">
+    <h2>{{ user ? t('system.users.editDialog') : t('system.users.createDialog') }}</h2>
     <form @submit.prevent="submit">
       <template v-if="!user">
-        <label for="user-username">Username</label>
+        <label for="user-username">{{ t('system.users.username') }}</label>
         <input id="user-username" v-model="username" name="username" autocomplete="username" :disabled="saving || submitting" />
-        <label for="user-password">Password</label>
+        <label for="user-password">{{ t('system.users.password') }}</label>
         <input id="user-password" v-model="password" name="password" type="password" autocomplete="new-password" :disabled="saving || submitting" />
       </template>
-      <label for="user-display-name">Display name</label>
+      <label for="user-display-name">{{ t('system.users.displayName') }}</label>
       <input id="user-display-name" v-model="displayName" name="displayName" :disabled="saving || submitting" />
-      <label for="user-department">Department</label>
+      <label for="user-department">{{ t('system.users.department') }}</label>
       <select id="user-department" v-model="departmentId" name="departmentId" :disabled="saving || submitting">
-        <option value="">Global</option>
+        <option value="">{{ t('common.global') }}</option>
         <option v-for="department in departments.filter((item) => item.status === 'ACTIVE')" :key="department.id" :value="department.id.toString()">{{ department.name }}</option>
       </select>
-      <label for="user-roles">Roles</label>
+      <label for="user-roles">{{ t('system.users.roles') }}</label>
       <select id="user-roles" v-model="selectedRoles" name="roles" multiple :disabled="saving || submitting">
         <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
       </select>
       <p v-if="validationError || error" class="form-error" role="alert">{{ validationError || error }}</p>
       <div class="drawer-actions">
-        <el-button data-testid="user-cancel" native-type="button" @click="emit('close')">Cancel</el-button>
-        <el-button native-type="submit" type="primary" :loading="saving || submitting">{{ saving || submitting ? 'Saving…' : 'Save' }}</el-button>
+        <el-button data-testid="user-cancel" native-type="button" @click="emit('close')">{{ t('common.cancel') }}</el-button>
+        <el-button native-type="submit" type="primary" :loading="saving || submitting">{{ saving || submitting ? t('common.saving') : t('common.save') }}</el-button>
       </div>
     </form>
   </aside>

@@ -25,22 +25,22 @@ export function createAppRouter(history: RouterHistory = import.meta.env.MODE ==
   const router = createRouter({
     history,
     routes: [
-      { path: '/login', name: 'login', component: LoginView, meta: { title: 'Sign in' } },
+      { path: '/login', name: 'login', component: LoginView, meta: { titleKey: 'routes.login' } },
       {
         path: '/', component: AppLayout, meta: { requiresAuth: true }, children: [
-          { path: '', name: 'dashboard', component: DashboardView, meta: { title: 'Dashboard', roles: [...allRoles] } },
-          { path: 'metadata/active', name: 'active-metadata', component: DepartmentMetadataView, meta: { title: 'Active Metadata', roles: [...departmentMetadataRoles] } },
-          { path: 'metadata/changes/new', name: 'submit-change', component: DepartmentMetadataView, props: { initialTab: 'submit' }, meta: { title: 'Submit Change', roles: ['DEPT_EDITOR'] } },
-          { path: 'metadata/approvals', name: 'approvals', component: ApprovalListView, meta: { title: 'Approvals', roles: ['DEPT_APPROVER'] } },
-          { path: 'metadata/approvals/:taskId', name: 'approval-detail', component: ApprovalDetailView, meta: { title: 'Approval detail', roles: ['DEPT_APPROVER'] } },
-          { path: 'metadata/templates', name: 'master-type-templates', component: MasterTypeListView, meta: { title: 'Master Type Templates', roles: ['SUPER_ADMIN'] } },
-          { path: 'system/users', name: 'users', component: UserListView, meta: { title: 'Users', roles: ['SUPER_ADMIN'] } },
-          { path: 'system/departments', name: 'departments', component: DepartmentListView, meta: { title: 'Departments', roles: ['SUPER_ADMIN'] } },
-          { path: 'system/roles', name: 'roles', component: RoleListView, meta: { title: 'Roles', roles: ['SUPER_ADMIN'] } }
+          { path: '', name: 'dashboard', component: DashboardView, meta: { titleKey: 'routes.dashboard', roles: [...allRoles] } },
+          { path: 'metadata/active', name: 'active-metadata', component: DepartmentMetadataView, meta: { titleKey: 'routes.activeMetadata', roles: [...departmentMetadataRoles] } },
+          { path: 'metadata/changes/new', name: 'submit-change', component: DepartmentMetadataView, props: { initialTab: 'submit' }, meta: { titleKey: 'routes.submitChange', roles: ['DEPT_EDITOR'] } },
+          { path: 'metadata/approvals', name: 'approvals', component: ApprovalListView, meta: { titleKey: 'routes.approvals', roles: ['DEPT_APPROVER'] } },
+          { path: 'metadata/approvals/:taskId', name: 'approval-detail', component: ApprovalDetailView, meta: { titleKey: 'routes.approvalDetail', roles: ['DEPT_APPROVER'] } },
+          { path: 'metadata/templates', name: 'master-type-templates', component: MasterTypeListView, meta: { titleKey: 'routes.masterTypeTemplates', roles: ['SUPER_ADMIN'] } },
+          { path: 'system/users', name: 'users', component: UserListView, meta: { titleKey: 'routes.users', roles: ['SUPER_ADMIN'] } },
+          { path: 'system/departments', name: 'departments', component: DepartmentListView, meta: { titleKey: 'routes.departments', roles: ['SUPER_ADMIN'] } },
+          { path: 'system/roles', name: 'roles', component: RoleListView, meta: { titleKey: 'routes.roles', roles: ['SUPER_ADMIN'] } }
         ]
       },
-      { path: '/forbidden', name: 'forbidden', component: ForbiddenView, meta: { requiresAuth: true, title: 'Access denied' } },
-      { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { title: 'Page not found' } }
+      { path: '/forbidden', name: 'forbidden', component: ForbiddenView, meta: { requiresAuth: true, titleKey: 'routes.forbidden' } },
+      { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { titleKey: 'routes.notFound' } }
     ]
   })
 

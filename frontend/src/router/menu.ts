@@ -1,20 +1,20 @@
 import type { Role } from '../types'
 
 export interface MenuItem {
-  label: string
+  labelKey: string
   to: string
   roles: Role[]
 }
 
 const menu: MenuItem[] = [
-  { label: 'Dashboard', to: '/', roles: ['SUPER_ADMIN', 'DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
-  { label: 'Active Metadata', to: '/metadata/active', roles: ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
-  { label: 'Submit Change', to: '/metadata/changes/new', roles: ['DEPT_EDITOR'] },
-  { label: 'Approvals', to: '/metadata/approvals', roles: ['DEPT_APPROVER'] },
-  { label: 'Master Type Templates', to: '/metadata/templates', roles: ['SUPER_ADMIN'] },
-  { label: 'Users', to: '/system/users', roles: ['SUPER_ADMIN'] },
-  { label: 'Departments', to: '/system/departments', roles: ['SUPER_ADMIN'] },
-  { label: 'Roles', to: '/system/roles', roles: ['SUPER_ADMIN'] }
+  { labelKey: 'menu.dashboard', to: '/', roles: ['SUPER_ADMIN', 'DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
+  { labelKey: 'menu.activeMetadata', to: '/metadata/active', roles: ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
+  { labelKey: 'menu.submitChange', to: '/metadata/changes/new', roles: ['DEPT_EDITOR'] },
+  { labelKey: 'menu.approvals', to: '/metadata/approvals', roles: ['DEPT_APPROVER'] },
+  { labelKey: 'menu.masterTypeTemplates', to: '/metadata/templates', roles: ['SUPER_ADMIN'] },
+  { labelKey: 'menu.users', to: '/system/users', roles: ['SUPER_ADMIN'] },
+  { labelKey: 'menu.departments', to: '/system/departments', roles: ['SUPER_ADMIN'] },
+  { labelKey: 'menu.roles', to: '/system/roles', roles: ['SUPER_ADMIN'] }
 ]
 
 export function menuForRoles(roles: Role[]): MenuItem[] {

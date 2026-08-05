@@ -36,5 +36,5 @@ export interface ApiError {
 export interface AppRouteMeta {
   requiresAuth?: boolean
   roles?: Role[]
-  title?: string
+  titleKey?: string
 }

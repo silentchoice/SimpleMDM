@@ -8,6 +8,8 @@ import { createAppRouter } from '../../router'
 import { useAuthStore } from '../../stores/auth'
 import DepartmentListView from './DepartmentListView.vue'
 import RoleListView from './RoleListView.vue'
+import UserListView from './UserListView.vue'
+import { i18n, setLocale } from '../../i18n'
 
 const api = vi.hoisted(() => ({
   listDepartments: vi.fn(), getDepartment: vi.fn(), createDepartment: vi.fn(), updateDepartment: vi.fn(), setDepartmentStatus: vi.fn(), deleteDepartment: vi.fn(),
@@ -22,15 +24,19 @@ describe('system administration views', () => {
     api.listDepartments.mockResolvedValue([{ id: 3, code: 'OPS', name: 'Operations', status: 'ACTIVE' }])
     api.listUsers.mockResolvedValue([])
     api.listRoles.mockResolvedValue(['SUPER_ADMIN', 'DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'])
+    localStorage.clear()
+    setLocale('zh-CN')
   })
+
+  const globals = { plugins: [ElementPlus, i18n] }
 
   it('validates a department before saving, refreshes only after success, and resets on close', async () => {
     const saved = vi.fn()
-    const wrapper = mount(DepartmentDrawer, { props: { open: true, department: null, saving: false, onSaved: saved }, global: { plugins: [ElementPlus] } })
+    const wrapper = mount(DepartmentDrawer, { props: { open: true, department: null, saving: false, onSaved: saved }, global: globals })
 
     await wrapper.get('form').trigger('submit')
     expect(saved).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Code and name are required')
+    expect(wrapper.text()).toContain('请输入代码和名称')
 
     await wrapper.get('[name="code"]').setValue('OPS')
     await wrapper.get('[name="name"]').setValue('Operations')
@@ -45,7 +51,7 @@ describe('system administration views', () => {
 
   it('prevents duplicate user submits and passes selected fixed roles to its save handler', async () => {
     const saved = vi.fn((): Promise<void> => new Promise(() => undefined))
-    const wrapper = mount(UserDrawer, { props: { open: true, user: null, departments: [{ id: 3, code: 'OPS', name: 'Operations', status: 'ACTIVE' }], saving: false, onSaved: saved }, global: { plugins: [ElementPlus] } })
+    const wrapper = mount(UserDrawer, { props: { open: true, user: null, departments: [{ id: 3, code: 'OPS', name: 'Operations', status: 'ACTIVE' }], saving: false, onSaved: saved }, global: globals })
 
     await wrapper.get('[name="username"]').setValue('jdoe')
     await wrapper.get('[name="password"]').setValue('secret-123')
@@ -72,18 +78,18 @@ describe('system administration views', () => {
         saving: false,
         onSaved: saved
       },
-      global: { plugins: [ElementPlus] }
+      global: globals
     })
 
     await wrapper.get('form').trigger('submit')
 
     expect(saved).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Select an active department before saving')
+    expect(wrapper.text()).toContain('请选择启用的部门后再保存')
   })
 
   it('shows API errors with request IDs and refreshes departments only after a successful create', async () => {
     api.createDepartment.mockRejectedValueOnce({ message: 'Duplicate department code', requestId: 'req-409' })
-    const wrapper = mount(DepartmentListView, { global: { plugins: [ElementPlus] } })
+    const wrapper = mount(DepartmentListView, { global: globals })
     await flushPromises()
     await wrapper.get('[data-testid="department-create"]').trigger('click')
     await wrapper.get('[name="code"]').setValue('OPS')
@@ -92,7 +98,7 @@ describe('system administration views', () => {
     await flushPromises()
 
     expect(api.listDepartments).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('Duplicate department code (Request ID: req-409)')
+    expect(wrapper.text()).toContain('Duplicate department code（请求 ID：req-409）')
 
     api.createDepartment.mockResolvedValueOnce({ id: 4, code: 'OPS', name: 'Operations', status: 'ACTIVE' })
     await wrapper.get('form').trigger('submit')
@@ -101,12 +107,34 @@ describe('system administration views', () => {
   })
 
   it('renders roles as a read-only list without create or edit controls', async () => {
-    const wrapper = mount(RoleListView, { global: { plugins: [ElementPlus] } })
+    const wrapper = mount(RoleListView, { global: globals })
     await flushPromises()
 
     expect(wrapper.text()).toContain('SUPER_ADMIN')
     expect(wrapper.find('[data-testid="role-create"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="role-edit"]').exists()).toBe(false)
+  })
+
+  it('renders translated system headings, actions, statuses, and switches them to English', async () => {
+    const department = mount(DepartmentListView, { global: globals })
+    const user = mount(UserListView, { global: globals })
+    const roles = mount(RoleListView, { global: globals })
+    await flushPromises()
+
+    expect(department.text()).toContain('部门管理')
+    expect(department.text()).toContain('创建部门')
+    expect(department.text()).toContain('启用')
+    expect(user.text()).toContain('用户管理')
+    expect(roles.text()).toContain('角色管理')
+
+    setLocale('en-US')
+    await flushPromises()
+
+    expect(department.text()).toContain('Departments')
+    expect(department.text()).toContain('Create department')
+    expect(department.text()).toContain('Active')
+    expect(user.text()).toContain('Users')
+    expect(roles.text()).toContain('Roles')
   })
 
   it('prevents department-role users from navigating to every system administration route', async () => {
