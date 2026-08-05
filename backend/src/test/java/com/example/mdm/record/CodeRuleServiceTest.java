@@ -36,6 +36,27 @@ class CodeRuleServiceTest {
         .hasMessage("Generated record code exceeds 64 characters");
   }
 
+  @Test void allocateRejectsExpandedSequenceThatExceedsRecordCodeLimit() {
+    var repository = new FixedSequenceRepository(
+        new CodeRule(41, "X".repeat(52) + "{yyyyMMdd}{0001}", 4), 10_000);
+    var service = new CodeRuleService(repository, new CodeRuleParser(),
+        org.mockito.Mockito.mock(AuthorizationService.class), Clock.systemUTC());
+
+    assertThatThrownBy(() -> service.allocate(41, LocalDate.of(2026, 8, 5)))
+        .isInstanceOf(com.example.mdm.common.error.BusinessException.class)
+        .hasMessage("Generated record code exceeds 64 characters");
+  }
+
+  @Test void allocateAllowsExpandedSequenceWhenRenderedCodeStaysWithinLimit() {
+    var repository = new FixedSequenceRepository(
+        new CodeRule(41, "X".repeat(51) + "{yyyyMMdd}{0001}", 4), 10_000);
+    var service = new CodeRuleService(repository, new CodeRuleParser(),
+        org.mockito.Mockito.mock(AuthorizationService.class), Clock.systemUTC());
+
+    assertThat(service.allocate(41, LocalDate.of(2026, 8, 5)))
+        .isEqualTo("X".repeat(51) + "2026080510000");
+  }
+
   static final class InMemoryCodeSequenceRepository implements CodeSequenceRepository {
     private final Map<Long, CodeRule> rules = new HashMap<>();
     private final Map<String, Integer> nextByDay = new HashMap<>();
@@ -47,5 +68,14 @@ class CodeRuleServiceTest {
       nextByDay.put(key, next + 1);
       return next;
     }
+  }
+
+  static final class FixedSequenceRepository implements CodeSequenceRepository {
+    private final CodeRule rule;
+    private final int sequence;
+    FixedSequenceRepository(CodeRule rule, int sequence) { this.rule = rule; this.sequence = sequence; }
+    @Override public CodeRule findRule(long masterTypeId) { return rule; }
+    @Override public void save(CodeRule saved) { throw new UnsupportedOperationException(); }
+    @Override public int allocate(long masterTypeId, LocalDate sequenceDate) { return sequence; }
   }
 }

@@ -41,9 +41,7 @@ public class CodeRuleService {
   public CodeRule save(long masterTypeId, String pattern) {
     authorization.requireRole(Role.SUPER_ADMIN);
     CodeRule parsed = parser.parse(pattern);
-    if (parsed.render(LocalDate.now(clock), 1).length() > 64) {
-      throw BusinessException.badRequest("Generated record code exceeds 64 characters");
-    }
+    validateRecordCode(parsed.render(LocalDate.now(clock), 1));
     CodeRule rule = new CodeRule(masterTypeId, parsed.pattern(), parsed.sequenceWidth());
     repository.save(rule);
     return rule;
@@ -53,10 +51,15 @@ public class CodeRuleService {
   public String allocate(long masterTypeId, LocalDate sequenceDate) {
     CodeRule rule = repository.findRule(masterTypeId);
     if (rule == null) throw BusinessException.notFound("Code rule");
-    return rule.render(sequenceDate, repository.allocate(masterTypeId, sequenceDate));
+    return validateRecordCode(rule.render(sequenceDate, repository.allocate(masterTypeId, sequenceDate)));
   }
 
   public String preview(CodeRule rule) {
     return rule.render(LocalDate.now(clock), 1);
+  }
+
+  private String validateRecordCode(String code) {
+    if (code.length() > 64) throw BusinessException.badRequest("Generated record code exceeds 64 characters");
+    return code;
   }
 }
