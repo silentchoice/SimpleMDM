@@ -46,7 +46,7 @@ class MetadataApprovalApplicationServiceTest {
   @Test void approvalLocksTaskThenAssignmentAndAppliesOrderedSnapshot() throws Exception {
     var before = List.of(field(1, 41, "old", 1));
     var after = List.of(field(0, 41, "second", 2), field(0, 41, "first", 1));
-    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
         envelope(7, 41, "MASTER_FIELDS", fingerprint(before), before),
         envelope(7, 41, "MASTER_FIELDS", fingerprint(before), after), "PENDING"));
     when(metadata.findMasterFields(7, 41)).thenReturn(before);
@@ -54,17 +54,17 @@ class MetadataApprovalApplicationServiceTest {
     service.approve(9, "looks good");
 
     var order = inOrder(approvals, metadata);
-    order.verify(approvals).lock(9);
+    order.verify(approvals).lock(7, 9);
     order.verify(metadata).lockTemplateAssignment(7, 41);
     order.verify(metadata).findMasterFields(7, 41);
     order.verify(metadata).replaceMasterFields(7, 41, after);
-    order.verify(approvals).approve(9, 23, "looks good");
+    order.verify(approvals).approve(7, 9, 23, "looks good");
   }
 
   @Test void crossDepartmentAndNonPendingTasksAreRejectedWithoutWrites() throws Exception {
-    when(approvals.lock(9)).thenReturn(task(9, 8, "MASTER_FIELDS", 41, "{}", "{}", "PENDING"));
+    when(approvals.lock(7, 9)).thenReturn(task(9, 8, "MASTER_FIELDS", 41, "{}", "{}", "PENDING"));
     assertStatus(() -> service.approve(9, null), HttpStatus.FORBIDDEN);
-    when(approvals.lock(10)).thenReturn(task(10, 7, "MASTER_FIELDS", 41, "{}", "{}", "APPROVED"));
+    when(approvals.lock(7, 10)).thenReturn(task(10, 7, "MASTER_FIELDS", 41, "{}", "{}", "APPROVED"));
     assertStatus(() -> service.approve(10, null), HttpStatus.CONFLICT);
     verify(metadata, never()).replaceMasterFields(any(Long.class), any(Long.class), any());
   }
@@ -72,25 +72,25 @@ class MetadataApprovalApplicationServiceTest {
   @Test void staleBaseFingerprintIsConflictAndNeverApplies() throws Exception {
     var current = List.of(field(1, 41, "changed", 1));
     var submittedBase = List.of(field(1, 41, "old", 1));
-    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
         envelope(7, 41, "MASTER_FIELDS", fingerprint(submittedBase), submittedBase),
         envelope(7, 41, "MASTER_FIELDS", fingerprint(submittedBase), submittedBase), "PENDING"));
     when(metadata.findMasterFields(7, 41)).thenReturn(current);
 
     assertStatus(() -> service.approve(9, null), HttpStatus.CONFLICT);
     verify(metadata, never()).replaceMasterFields(any(Long.class), any(Long.class), any());
-    verify(approvals, never()).approve(any(Long.class), any(Long.class), any());
+    verify(approvals, never()).approve(any(Long.class), any(Long.class), any(Long.class), any());
   }
 
   @Test void malformedOrMismatchedImmutableEnvelopeIsBadRequest() {
-    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41, "{}", "{}", "PENDING"));
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41, "{}", "{}", "PENDING"));
     assertStatus(() -> service.approve(9, null), HttpStatus.BAD_REQUEST);
   }
 
   @Test void malformedFieldMemberWithNullCodeIsBadRequestInsteadOfServerError() throws Exception {
     var malformed = List.of(fieldWithCode(null, 41));
     String base = fingerprint(malformed);
-    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
         envelope(7, 41, "MASTER_FIELDS", base, malformed),
         envelope(7, 41, "MASTER_FIELDS", base, malformed), "PENDING"));
     assertStatus(() -> service.approve(9, null), HttpStatus.BAD_REQUEST);
@@ -101,20 +101,20 @@ class MetadataApprovalApplicationServiceTest {
     var after = List.of(new SubType(55, 41, "retained", "New", MetadataStatus.ACTIVE),
         new SubType(0, 41, "added", "Added", MetadataStatus.ACTIVE));
     String base = fingerprint(before);
-    when(approvals.lock(9)).thenReturn(task(9, 7, "SUB_TYPES", 41,
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "SUB_TYPES", 41,
         envelope(7, 41, "SUB_TYPES", base, before),
         envelope(7, 41, "SUB_TYPES", base, after), "PENDING"));
     when(metadata.findSubTypes(7, 41)).thenReturn(before);
     service.approve(9, null);
     verify(metadata).replaceSubTypes(7, 41, after);
-    verify(approvals).approve(9, 23, null);
+    verify(approvals).approve(7, 9, 23, null);
   }
 
   @Test void subfieldApprovalValidatesSubtypeTemplateAndAppliesOnlyThatSubtype() throws Exception {
     var before = List.of(field(1, 55, "old", 1));
     var after = List.of(field(0, 55, "new", 1));
     String base = fingerprint(before);
-    when(approvals.lock(9)).thenReturn(task(9, 7, "SUB_FIELDS", 55,
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "SUB_FIELDS", 55,
         envelope(7, 41, "SUB_FIELDS", base, before),
         envelope(7, 41, "SUB_FIELDS", base, after), "PENDING"));
     when(approvals.requireSubTypeTemplate(7, 55)).thenReturn(41L);
@@ -125,16 +125,16 @@ class MetadataApprovalApplicationServiceTest {
   }
 
   @Test void missingTaskIsNotFoundAndRepeatedRejectionIsConflict() {
-    when(approvals.lock(404)).thenThrow(BusinessException.notFound("Approval task"));
+    when(approvals.lock(7, 404)).thenThrow(BusinessException.notFound("Approval task"));
     assertStatus(() -> service.approve(404, null), HttpStatus.NOT_FOUND);
-    when(approvals.lock(10)).thenReturn(task(10, 7, "MASTER_FIELDS", 41, "{}", "{}", "REJECTED"));
+    when(approvals.lock(7, 10)).thenReturn(task(10, 7, "MASTER_FIELDS", 41, "{}", "{}", "REJECTED"));
     assertStatus(() -> service.reject(10, "again"), HttpStatus.CONFLICT);
   }
 
   @Test void entityAndTemplateMismatchIsBadRequest() throws Exception {
     var fields = List.of(field(1, 41, "old", 1));
     String base = fingerprint(fields);
-    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
         envelope(7, 42, "MASTER_FIELDS", base, fields),
         envelope(7, 42, "MASTER_FIELDS", base, fields), "PENDING"));
     assertStatus(() -> service.approve(9, null), HttpStatus.BAD_REQUEST);
@@ -144,12 +144,12 @@ class MetadataApprovalApplicationServiceTest {
     var before = List.of(field(1, 41, "old", 1));
     var after = List.of(field(0, 41, "new", 1));
     String base = fingerprint(before);
-    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41,
         envelope(7, 41, "MASTER_FIELDS", base, before),
         envelope(7, 41, "MASTER_FIELDS", base, after), "PENDING"));
     when(metadata.findMasterFields(7, 41)).thenReturn(before);
     Mockito.doThrow(new BusinessException(HttpStatus.CONFLICT, "transition lost"))
-        .when(approvals).approve(9, 23, null);
+        .when(approvals).approve(7, 9, 23, null);
     var transactions = new RecordingTransactionManager();
     var proxyFactory = new ProxyFactory(service);
     proxyFactory.setProxyTargetClass(true);
@@ -164,12 +164,12 @@ class MetadataApprovalApplicationServiceTest {
   }
 
   @Test void rejectionRequiresReasonAndDoesNotTouchActiveMetadata() {
-    when(approvals.lock(9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41, "{}", "{}", "PENDING"));
+    when(approvals.lock(7, 9)).thenReturn(task(9, 7, "MASTER_FIELDS", 41, "{}", "{}", "PENDING"));
     assertStatus(() -> service.reject(9, " "), HttpStatus.BAD_REQUEST);
 
     service.reject(9, "not complete");
 
-    verify(approvals).reject(9, 23, "not complete");
+    verify(approvals).reject(7, 9, 23, "not complete");
     verify(metadata, never()).lockTemplateAssignment(any(Long.class), any(Long.class));
     verify(metadata, never()).replaceMasterFields(any(Long.class), any(Long.class), any());
   }

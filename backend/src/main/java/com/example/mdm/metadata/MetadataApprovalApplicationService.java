@@ -46,7 +46,7 @@ public class MetadataApprovalApplicationService {
   @Transactional
   public void approve(long taskId, String comment) {
     UserPrincipal actor = approver();
-    var task = approvals.lock(taskId);
+    var task = approvals.lock(actor.department().id(), taskId);
     requireOwnedPending(task, actor);
     Envelope before = decode(task.beforeSnapshot());
     Envelope after = decode(task.afterSnapshot());
@@ -65,7 +65,7 @@ public class MetadataApprovalApplicationService {
       case "SUB_FIELDS" -> approveSubFields(task, after);
       default -> throw badSnapshot();
     }
-    approvals.approve(taskId, actor.id(), trimToNull(comment));
+    approvals.approve(actor.department().id(), taskId, actor.id(), trimToNull(comment));
   }
 
   @Transactional
@@ -74,9 +74,9 @@ public class MetadataApprovalApplicationService {
     if (reason == null || reason.isBlank()) {
       throw BusinessException.badRequest("Rejection reason is required");
     }
-    var task = approvals.lock(taskId);
+    var task = approvals.lock(actor.department().id(), taskId);
     requireOwnedPending(task, actor);
-    approvals.reject(taskId, actor.id(), reason.trim());
+    approvals.reject(actor.department().id(), taskId, actor.id(), reason.trim());
   }
 
   private void approveMasterFields(MetadataApprovalRepository.ApprovalTask task, Envelope after) {

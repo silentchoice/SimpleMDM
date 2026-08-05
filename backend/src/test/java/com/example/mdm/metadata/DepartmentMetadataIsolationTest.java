@@ -48,7 +48,7 @@ class DepartmentMetadataIsolationTest {
     String after = envelope(json, 7, 41, base, newA);
     when(authorization.requireRole(Role.DEPT_APPROVER)).thenReturn(new UserPrincipal(23, "approver",
         "Approver", new DepartmentPrincipal(7, "D7", "Department 7"), List.of(Role.DEPT_APPROVER)));
-    when(approvals.lock(9)).thenReturn(new MetadataApprovalRepository.ApprovalTask(
+    when(approvals.lock(7, 9)).thenReturn(new MetadataApprovalRepository.ApprovalTask(
         9, 7, "MASTER_FIELDS", 41, before, after, "PENDING"));
     when(metadata.findMasterFields(Mockito.anyLong(), Mockito.eq(41L)))
         .thenAnswer(invocation -> active.get(invocation.getArgument(0, Long.class)));
