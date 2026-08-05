@@ -12,7 +12,8 @@ const menu: MenuItem[] = [
   { label: 'Submit Change', to: '/metadata/changes/new', roles: ['SUPER_ADMIN', 'DEPT_EDITOR'] },
   { label: 'Approvals', to: '/metadata/approvals', roles: ['SUPER_ADMIN', 'DEPT_APPROVER'] },
   { label: 'Users', to: '/system/users', roles: ['SUPER_ADMIN'] },
-  { label: 'Departments', to: '/system/departments', roles: ['SUPER_ADMIN'] }
+  { label: 'Departments', to: '/system/departments', roles: ['SUPER_ADMIN'] },
+  { label: 'Roles', to: '/system/roles', roles: ['SUPER_ADMIN'] }
 ]
 
 export function menuForRoles(roles: Role[]): MenuItem[] {

@@ -5,6 +5,9 @@ import type { ApiEnvelope, ApiError } from '../types'
 export interface HttpClient {
   get<T>(url: string): Promise<T>
   post<T>(url: string, body?: unknown): Promise<T>
+  put<T>(url: string, body?: unknown): Promise<T>
+  patch<T>(url: string, body?: unknown): Promise<T>
+  delete<T>(url: string): Promise<T>
 }
 
 export interface HttpOptions {
@@ -48,7 +51,7 @@ export function createHttpClient(options: HttpOptions = {}): HttpClient {
     return config
   })
 
-  async function request<T>(method: 'get' | 'post', url: string, data?: unknown): Promise<T> {
+  async function request<T>(method: 'get' | 'post' | 'put' | 'patch' | 'delete', url: string, data?: unknown): Promise<T> {
     try {
       const response = await client.request<ApiEnvelope<T>>({ method, url, data })
       const envelope: unknown = response.data
@@ -67,7 +70,13 @@ export function createHttpClient(options: HttpOptions = {}): HttpClient {
     }
   }
 
-  return { get: <T>(url: string) => request<T>('get', url), post: <T>(url: string, body?: unknown) => request<T>('post', url, body) }
+  return {
+    get: <T>(url: string) => request<T>('get', url),
+    post: <T>(url: string, body?: unknown) => request<T>('post', url, body),
+    put: <T>(url: string, body?: unknown) => request<T>('put', url, body),
+    patch: <T>(url: string, body?: unknown) => request<T>('patch', url, body),
+    delete: <T>(url: string) => request<T>('delete', url)
+  }
 }
 
 export const http = createHttpClient()

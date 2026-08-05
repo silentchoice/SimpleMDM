@@ -37,6 +37,26 @@ describe('http client', () => {
     await expect(client.get<{ id: number }>('/records')).resolves.toEqual({ id: 4 })
   })
 
+  it('supports typed put, patch, and delete requests through the shared envelope client', async () => {
+    const requests: Array<{ method?: string; url?: string; data?: unknown }> = []
+    const client = createHttpClient({
+      adapter: async (config) => {
+        requests.push({ method: config.method, url: config.url, data: config.data })
+        return { data: { code: 0, message: 'OK', data: { saved: true }, requestId: 'req-methods' }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+    })
+
+    await client.put('/departments/7', { name: 'Operations' })
+    await client.patch('/departments/7/status?status=DISABLED')
+    await client.delete('/departments/7')
+
+    expect(requests).toEqual([
+      { method: 'put', url: '/departments/7', data: '{"name":"Operations"}' },
+      { method: 'patch', url: '/departments/7/status?status=DISABLED', data: undefined },
+      { method: 'delete', url: '/departments/7', data: undefined }
+    ])
+  })
+
   it('retains the response request id in API errors', async () => {
     const client = createHttpClient({ adapter: adapter({ code: 4403, message: 'Denied', data: null, requestId: 'server-77' }) })
 
