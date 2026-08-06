@@ -24,6 +24,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.containers.MySQLContainer;
 
 class JdbcRecordApprovalStateTest {
   @Test void submitTaskAndDraftTransitionRollBackAsOneTransaction() throws Exception {
@@ -36,6 +37,69 @@ class JdbcRecordApprovalStateTest {
 
       assertThat(database.approvalTaskCount()).isZero();
       assertThat(database.rawDraftStatus(draftId)).isEqualTo("DRAFT");
+    }
+  }
+
+  @Test void taskCompletionFailureRollsBackActivatedMasterChildrenHistoryAndDraft()
+      throws Exception {
+    try (ApprovalDatabase database = ApprovalDatabase.start()) {
+      long recordId = database.activeRecord();
+      long taskId = database.submitUpdate(recordId, 1, "Rolled back");
+
+      assertThatThrownBy(() -> database.approveWithCompletionFailure(taskId, recordId))
+          .isInstanceOfSatisfying(IllegalStateException.class,
+              error -> assertThat(error.getMessage()).isEqualTo("task completion failed"));
+
+      RecordView formal = database.repository().findRecord(1, recordId);
+      assertThat(formal.version()).isEqualTo(1);
+      assertThat(formal.masterValues()).containsEntry("name", "North");
+      assertThat(formal.children().get(0).rows().get(0).values()).containsEntry("contact", "Li");
+      assertThat(database.historyVersions(recordId)).isEmpty();
+      assertThat(database.rawDraftStatus(database.lastDraftId())).isEqualTo("PENDING");
+      assertThat(database.approvalStatus(taskId)).isEqualTo("PENDING");
+    }
+  }
+
+  @Test void duplicateSubmitAndDuplicateApproveLeaveOneTaskAndOneActivation() throws Exception {
+    try (ApprovalDatabase database = ApprovalDatabase.start()) {
+      long recordId = database.activeRecord();
+      long taskId = database.submitUpdate(recordId, 1, "Approved once");
+
+      assertThatThrownBy(database::duplicateSubmit)
+          .isInstanceOfSatisfying(BusinessException.class,
+              error -> assertThat(error.getMessage()).isEqualTo("Draft is no longer editable"));
+      assertThat(database.approvalTaskCount()).isEqualTo(1);
+
+      database.approve(taskId);
+      assertThatThrownBy(() -> database.approve(taskId))
+          .isInstanceOfSatisfying(BusinessException.class,
+              error -> assertThat(error.getMessage()).isEqualTo("Approval task is not pending"));
+
+      assertThat(database.repository().findRecord(1, recordId).version()).isEqualTo(2);
+      assertThat(database.historyVersions(recordId)).containsExactly(1L);
+      assertThat(database.approvalTaskCount()).isEqualTo(1);
+      assertThat(database.approvalStatus(taskId)).isEqualTo("APPROVED");
+    }
+  }
+
+  @Test void foreignDepartmentCannotSubmitTheDraftOrReviewItsTask() throws Exception {
+    try (ApprovalDatabase database = ApprovalDatabase.start()) {
+      long recordId = database.activeRecord();
+      long draftId = database.createUnsubmittedUpdate(recordId, 1, "Foreign denied");
+
+      assertThatThrownBy(() -> database.submitAsForeignDepartment(draftId))
+          .isInstanceOfSatisfying(BusinessException.class,
+              error -> assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN));
+      assertThat(database.rawDraftStatus(draftId)).isEqualTo("DRAFT");
+      assertThat(database.approvalTaskCount()).isZero();
+
+      long taskId = database.submitExistingUpdate(draftId, recordId, 1);
+      assertThatThrownBy(() -> database.approveAsForeignDepartment(taskId))
+          .isInstanceOfSatisfying(BusinessException.class,
+              error -> assertThat(error.status()).isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN));
+      assertThat(database.rawDraftStatus(draftId)).isEqualTo("PENDING");
+      assertThat(database.approvalStatus(taskId)).isEqualTo("PENDING");
+      assertThat(database.repository().findRecord(1, recordId).version()).isEqualTo(1);
     }
   }
 
@@ -103,6 +167,7 @@ class JdbcRecordApprovalStateTest {
     private final String serverUrl;
     private final String username;
     private final String password;
+    private final MySQLContainer<?> container;
     private final String schema = "mdm_task4_" + UUID.randomUUID().toString().replace("-", "");
     private final DriverManagerDataSource dataSource;
     private final NamedParameterJdbcTemplate jdbc;
@@ -114,10 +179,12 @@ class JdbcRecordApprovalStateTest {
     private final TransactionTemplate transactions;
     private long lastDraftId;
 
-    private ApprovalDatabase(String serverUrl, String username, String password) {
+    private ApprovalDatabase(String serverUrl, String username, String password,
+        MySQLContainer<?> container) {
       this.serverUrl = serverUrl;
       this.username = username;
       this.password = password;
+      this.container = container;
       this.dataSource = new DriverManagerDataSource(schemaUrl(), username, password);
       this.jdbc = new NamedParameterJdbcTemplate(dataSource);
       var json = new ObjectMapper();
@@ -129,12 +196,28 @@ class JdbcRecordApprovalStateTest {
     }
 
     static ApprovalDatabase start() throws Exception {
-      var database = new ApprovalDatabase(
-          System.getProperty("record.approval.mysql.server-url", "jdbc:mysql://127.0.0.1:3306/"),
-          System.getProperty("record.approval.mysql.username", "root"),
-          System.getProperty("record.approval.mysql.password", "01270127"));
+      String localUrl = System.getProperty("record.approval.mysql.server-url");
+      ApprovalDatabase database;
+      if (localUrl == null) {
+        var container = new MySQLContainer<>("mysql:8.0.36");
+        container.start();
+        database = new ApprovalDatabase(container.getJdbcUrl(), "root", container.getPassword(),
+            container);
+      } else {
+        database = new ApprovalDatabase(localUrl,
+            requireLocalProperty("record.approval.mysql.username"),
+            requireLocalProperty("record.approval.mysql.password"), null);
+      }
       database.createAndMigrate();
       return database;
+    }
+
+    private static String requireLocalProperty(String name) {
+      String value = System.getProperty(name);
+      if (value == null || value.isBlank()) {
+        throw new IllegalArgumentException(name + " is required with record.approval.mysql.server-url");
+      }
+      return value;
     }
 
     private void createAndMigrate() throws Exception {
@@ -146,9 +229,12 @@ class JdbcRecordApprovalStateTest {
       Flyway.configure().dataSource(schemaUrl(), username, password)
           .locations("classpath:db/migration").load().migrate();
       jdbc.getJdbcTemplate().update(
-          "INSERT INTO departments(code,name,status) VALUES('D1','Department 1','ACTIVE')");
+          "INSERT INTO departments(code,name,status) VALUES"
+              + "('D1','Department 1','ACTIVE'),('D2','Department 2','ACTIVE')");
       jdbc.getJdbcTemplate().update("INSERT INTO users(username,password_hash,display_name,status) "
-          + "VALUES('editor','x','Editor','ACTIVE'),('approver','x','Approver','ACTIVE')");
+          + "VALUES('editor','x','Editor','ACTIVE'),('approver','x','Approver','ACTIVE'),"
+          + "('foreign-editor','x','Foreign Editor','ACTIVE'),"
+          + "('foreign-approver','x','Foreign Approver','ACTIVE')");
       jdbc.getJdbcTemplate().update("INSERT INTO master_types(code,name,status,created_by) "
           + "VALUES('CUS','Customer','ACTIVE',1)");
       jdbc.getJdbcTemplate().update("INSERT INTO sub_types(master_type_id,department_id,code,name,"
@@ -181,6 +267,11 @@ class JdbcRecordApprovalStateTest {
     }
 
     long submitUpdate(long recordId, long baseVersion, String name) {
+      long draftId = createUnsubmittedUpdate(recordId, baseVersion, name);
+      return submitExistingUpdate(draftId, recordId, baseVersion);
+    }
+
+    long createUnsubmittedUpdate(long recordId, long baseVersion, String name) {
       RecordView current = records.findRecord(1, recordId);
       long childId = current.children().get(0).rows().get(0).id();
       RecordDraft draft = records.saveDraft(1, 1, new RecordDraft(0L, recordId, 1, 1, "CUS-1",
@@ -188,11 +279,14 @@ class JdbcRecordApprovalStateTest {
           List.of(new RecordDraft.ChildRows(1, List.of(new RecordDraft.ChildRow(childId, 0,
               Map.of("contact", "Li " + name))))), RecordStatus.DRAFT, 1, null));
       lastDraftId = draft.id();
+      return draft.id();
+    }
+
+    long submitExistingUpdate(long draftId, long recordId, long baseVersion) {
       locks.put(new EditLock(recordId, 1, 1, "Editor", "token-" + baseVersion,
           Instant.now().plusSeconds(1800)));
       when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor());
-      long taskId = transactions.execute(status -> service.submit(draft.id(), "token-" + baseVersion));
-      return taskId;
+      return transactions.execute(status -> service.submit(draftId, "token-" + baseVersion));
     }
 
     long submitCreate() {
@@ -219,6 +313,39 @@ class JdbcRecordApprovalStateTest {
     RecordView approve(long taskId) {
       when(authorization.requireRole(Role.DEPT_APPROVER)).thenReturn(approver());
       return transactions.execute(status -> service.approve(taskId, "approved"));
+    }
+
+    void approveWithCompletionFailure(long taskId, long recordId) {
+      RecordApprovalRepository failing = Mockito.spy(approvals);
+      Mockito.doAnswer(invocation -> {
+        RecordView activated = records.findRecord(1, recordId);
+        assertThat(activated.version()).isEqualTo(2);
+        assertThat(activated.masterValues()).containsEntry("name", "Rolled back");
+        assertThat(activated.children().get(0).rows().get(0).values())
+            .containsEntry("contact", "Li Rolled back");
+        assertThat(historyVersions(recordId)).containsExactly(1L);
+        assertThat(rawDraftStatus(lastDraftId)).isEqualTo("APPROVED");
+        throw new IllegalStateException("task completion failed");
+      }).when(failing).approve(1, taskId, 2, "approved");
+      var failingService = new RecordApprovalService(failing, records, locks, authorization,
+          new RecordSnapshotCodec(new ObjectMapper()));
+      when(authorization.requireRole(Role.DEPT_APPROVER)).thenReturn(approver());
+      transactions.executeWithoutResult(status -> failingService.approve(taskId, "approved"));
+    }
+
+    void duplicateSubmit() {
+      when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(editor());
+      transactions.executeWithoutResult(status -> service.submit(lastDraftId, "token-1"));
+    }
+
+    void submitAsForeignDepartment(long draftId) {
+      when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(foreignEditor());
+      transactions.executeWithoutResult(status -> service.submit(draftId, "foreign-token"));
+    }
+
+    void approveAsForeignDepartment(long taskId) {
+      when(authorization.requireRole(Role.DEPT_APPROVER)).thenReturn(foreignApprover());
+      transactions.executeWithoutResult(status -> service.approve(taskId, "foreign"));
     }
 
     void reject(long taskId) {
@@ -273,6 +400,11 @@ class JdbcRecordApprovalStateTest {
           "SELECT status FROM master_record_drafts WHERE id=?", String.class, draftId);
     }
 
+    String approvalStatus(long taskId) {
+      return jdbc.getJdbcTemplate().queryForObject(
+          "SELECT status FROM approval_tasks WHERE id=?", String.class, taskId);
+    }
+
     private UserPrincipal editor() {
       return new UserPrincipal(1, "editor", "Editor", department(), List.of(Role.DEPT_EDITOR));
     }
@@ -283,6 +415,20 @@ class JdbcRecordApprovalStateTest {
 
     private DepartmentPrincipal department() {
       return new DepartmentPrincipal(1, "D1", "Department 1");
+    }
+
+    private UserPrincipal foreignEditor() {
+      return new UserPrincipal(3, "foreign-editor", "Foreign Editor", foreignDepartment(),
+          List.of(Role.DEPT_EDITOR));
+    }
+
+    private UserPrincipal foreignApprover() {
+      return new UserPrincipal(4, "foreign-approver", "Foreign Approver", foreignDepartment(),
+          List.of(Role.DEPT_APPROVER));
+    }
+
+    private DepartmentPrincipal foreignDepartment() {
+      return new DepartmentPrincipal(2, "D2", "Department 2");
     }
 
     private String schemaUrl() {
@@ -299,6 +445,8 @@ class JdbcRecordApprovalStateTest {
         if (schema.matches("mdm_task4_[0-9a-f]{32}")) {
           statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
         }
+      } finally {
+        if (container != null) container.stop();
       }
     }
   }
