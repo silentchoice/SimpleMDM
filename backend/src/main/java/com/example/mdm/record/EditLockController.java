@@ -5,7 +5,9 @@ import com.example.mdm.common.api.RequestId;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -38,6 +40,13 @@ public class EditLockController {
       @Valid @RequestBody LockTokenRequest body, HttpServletRequest request) {
     service.release(recordId, body.token());
     return success(null, request);
+  }
+
+  @ExceptionHandler(EditLockConflictException.class)
+  public ResponseEntity<ApiResponse<EditLockConflictException.Details>> conflict(
+      EditLockConflictException exception, HttpServletRequest request) {
+    return ResponseEntity.status(exception.status()).body(new ApiResponse<>(exception.status().value(),
+        exception.getMessage(), exception.details(), (String) request.getAttribute(RequestId.ATTRIBUTE)));
   }
 
   private <T> ApiResponse<T> success(T data, HttpServletRequest request) {

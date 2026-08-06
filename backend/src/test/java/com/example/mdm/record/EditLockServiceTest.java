@@ -64,10 +64,13 @@ class EditLockServiceTest {
     when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(other);
 
     assertThatThrownBy(() -> service.acquire(42L))
-        .isInstanceOfSatisfying(BusinessException.class, error -> {
+        .isInstanceOfSatisfying(EditLockConflictException.class, error -> {
           assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT);
           assertThat(error.getMessage()).contains("Editor", held.expiresAt().toString());
           assertThat(error.getMessage()).doesNotContain(held.token());
+          assertThat(error.details().holderId()).isEqualTo(12L);
+          assertThat(error.details().holderDisplayName()).isEqualTo("Editor");
+          assertThat(error.details().expiresAt()).isEqualTo(held.expiresAt());
         });
   }
 

@@ -75,8 +75,7 @@ public class EditLockService {
     if (current.userId() == actor.id() && current.departmentId() == actor.department().id()) {
       return current;
     }
-    throw new BusinessException(HttpStatus.CONFLICT, "Record is being edited by "
-        + current.displayName() + " until " + current.expiresAt());
+    throw new EditLockConflictException(current);
   }
 
   private void requireOwned(EditLock current, UserPrincipal actor, String token) {
