@@ -31,14 +31,16 @@ public class MetadataApprovalController {
 
   @GetMapping
   public ApiResponse<List<MetadataApprovalRepository.ApprovalTaskView>> list(
-      @RequestParam(defaultValue = "PENDING") String status, HttpServletRequest request) {
-    return success(query.list(status), request);
+      @RequestParam(defaultValue = "PENDING") String status,
+      @RequestParam(required = false) String taskType, HttpServletRequest request) {
+    return success(taskType == null ? query.list(status) : query.list(status, taskType), request);
   }
 
   @GetMapping("/{taskId}")
   public ApiResponse<MetadataApprovalRepository.ApprovalTaskView> detail(
-      @PathVariable long taskId, HttpServletRequest request) {
-    return success(query.detail(taskId), request);
+      @PathVariable long taskId, @RequestParam(required = false) String taskType,
+      HttpServletRequest request) {
+    return success(taskType == null ? query.detail(taskId) : query.detail(taskId, taskType), request);
   }
 
   @PostMapping("/{taskId}/approve")

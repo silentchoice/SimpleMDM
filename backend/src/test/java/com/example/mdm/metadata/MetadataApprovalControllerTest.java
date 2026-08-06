@@ -71,6 +71,21 @@ class MetadataApprovalControllerTest {
     verify(query).list("APPROVED");
   }
 
+  @Test void listPassesRecordTaskTypeAndReturnsTheTypedDiscriminator() throws Exception {
+    var recordTask = new MetadataApprovalRepository.ApprovalTaskView(92, "RECORD", "RECORD", 51,
+        "PENDING", null, "{\"after\":true}", 12, null, null,
+        LocalDateTime.of(2026, 8, 6, 9, 30), null);
+    when(query.list("PENDING", "RECORD")).thenReturn(List.of(recordTask));
+
+    mvc.perform(get("/api/metadata-approval").param("taskType", "RECORD")
+            .requestAttr(RequestId.ATTRIBUTE, "req-record-filter"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].taskType").value("RECORD"))
+        .andExpect(jsonPath("$.data[0].entityKind").value("RECORD"))
+        .andExpect(jsonPath("$.data[0].entityId").value(51));
+    verify(query).list("PENDING", "RECORD");
+  }
+
   @Test void detailReturnsTaskWithoutAcceptingDepartmentOrReviewerIds() throws Exception {
     when(query.detail(91)).thenReturn(task(91, "PENDING"));
 
@@ -80,6 +95,20 @@ class MetadataApprovalControllerTest {
         .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(91))
         .andExpect(jsonPath("$.requestId").value("req-detail"));
     verify(query).detail(91);
+  }
+
+  @Test void detailPassesAnExplicitRecordTaskTypeForCombinedApprovalClients() throws Exception {
+    var recordTask = new MetadataApprovalRepository.ApprovalTaskView(92, "RECORD", "RECORD", 51,
+        "PENDING", null, "{\"after\":true}", 12, null, null,
+        LocalDateTime.of(2026, 8, 6, 9, 30), null);
+    when(query.detail(92, "RECORD")).thenReturn(recordTask);
+
+    mvc.perform(get("/api/metadata-approval/92").param("taskType", "RECORD")
+            .requestAttr(RequestId.ATTRIBUTE, "req-record-detail"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.taskType").value("RECORD"))
+        .andExpect(jsonPath("$.data.entityId").value(51));
+    verify(query).detail(92, "RECORD");
   }
 
   @Test void approveDelegatesOnlyTaskIdAndNullableComment() throws Exception {
