@@ -67,7 +67,7 @@ public class RecordDraftService {
   @Transactional
   public RecordDraft update(long draftId, RecordDraftCommand command) {
     UserPrincipal actor = editor();
-    RecordDraft existing = records.findDraft(actor.department().id(), draftId);
+    RecordDraft existing = ownedDraft(actor, draftId);
     if (existing.status() != RecordStatus.DRAFT) throw notEditable();
     requireCommand(command);
     requireUnchangedPath(existing, command);
@@ -80,13 +80,13 @@ public class RecordDraftService {
 
   public RecordDraft getDraft(long draftId) {
     UserPrincipal actor = editor();
-    return records.findDraft(actor.department().id(), draftId);
+    return ownedDraft(actor, draftId);
   }
 
   @Transactional
   public RecordDraft copyRejected(long draftId) {
     UserPrincipal actor = editor();
-    RecordDraft rejected = records.findDraft(actor.department().id(), draftId);
+    RecordDraft rejected = ownedDraft(actor, draftId);
     if (rejected.status() != RecordStatus.REJECTED) {
       throw new BusinessException(HttpStatus.CONFLICT, "Only rejected drafts can be copied");
     }
@@ -247,6 +247,12 @@ public class RecordDraftService {
 
   private String normalizeReason(String reason) {
     return reason == null ? null : reason.trim();
+  }
+
+  private RecordDraft ownedDraft(UserPrincipal actor, long draftId) {
+    RecordDraft draft = records.findDraft(actor.department().id(), draftId);
+    if (draft.createdBy() != actor.id()) throw BusinessException.forbidden();
+    return draft;
   }
 
   private UserPrincipal editor() {

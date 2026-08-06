@@ -55,7 +55,8 @@ public class RecordQueryService {
     UserPrincipal actor = reader();
     RecordQuery normalized = normalize(query);
     Long departmentId = actor.department() == null ? null : actor.department().id();
-    Comparator<StoredRecord> comparator = SORTS.get(normalized.sortBy());
+    Comparator<StoredRecord> comparator = SORTS.get(normalized.sortBy())
+        .thenComparingLong(item -> item.view().id());
     if ("desc".equals(normalized.sortDirection())) comparator = comparator.reversed();
 
     List<StoredRecord> visible = source.records().stream()
@@ -243,9 +244,14 @@ public class RecordQueryService {
 
     private RecordView withChildren(RecordView header) {
       record Child(long subTypeId, RecordView.ChildRow row) {}
+      boolean deleted = "DELETED".equals(header.status());
+      String childState = deleted
+          ? "status='DELETED' AND version=:childVersion" : "status='ACTIVE'";
+      var parameters = new MapSqlParameterSource("record", header.id());
+      if (deleted) parameters.addValue("childVersion", header.version() - 1);
       List<Child> rows = jdbc.query("SELECT id,sub_type_id,row_order,field_values FROM sub_records "
-              + "WHERE master_record_id=:record AND status='ACTIVE' "
-              + "ORDER BY sub_type_id,row_order,id", Map.of("record", header.id()),
+              + "WHERE master_record_id=:record AND " + childState + " "
+              + "ORDER BY sub_type_id,row_order,id", parameters,
           (result, row) -> new Child(result.getLong("sub_type_id"), new RecordView.ChildRow(
               result.getLong("id"), result.getInt("row_order"),
               readValues(result.getString("field_values")))));

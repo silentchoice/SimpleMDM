@@ -51,6 +51,21 @@ class RecordApprovalServiceTest {
     verify(approvals).markPending(7, 91, 701);
   }
 
+  @Test void peerEditorCannotSubmitAnotherEditorsDraft() {
+    RecordDraft draft = draft(91, RecordAction.CREATE, RecordStatus.DRAFT, null, 0, 12);
+    UserPrincipal peerEditor = new UserPrincipal(13, "peer", "Peer Editor", department(),
+        List.of(Role.DEPT_EDITOR));
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(peerEditor);
+    when(approvals.lockDraft(7, 91)).thenReturn(
+        new RecordApprovalRepository.BoundDraft(draft, null));
+
+    assertThatThrownBy(() -> service.submit(91, null))
+        .isInstanceOfSatisfying(BusinessException.class,
+            error -> assertThat(error.status()).isEqualTo(HttpStatus.FORBIDDEN));
+    verify(approvals, never()).submit(Mockito.anyLong(), Mockito.anyLong(), Mockito.anyLong(),
+        Mockito.any(), Mockito.anyString());
+  }
+
   @Test void updateSubmitValidatesTheHeldTokenAndReleasesOnlyAfterCommit() {
     RecordDraft draft = draft(91, RecordAction.UPDATE, RecordStatus.DRAFT, 81L, 3, 12);
     RecordView formal = formal(81, 3, "ACTIVE");

@@ -128,6 +128,31 @@ class RecordDraftServiceTest {
         });
   }
 
+  @Test void peerEditorCannotReadAnotherEditorsDraft() {
+    var memory = (MemoryRecordRepository) records;
+    memory.draft = draft(21L, RecordStatus.DRAFT, RecordAction.CREATE, null);
+    authenticatePeerEditor();
+
+    assertForbidden(() -> service.getDraft(21L));
+  }
+
+  @Test void peerEditorCannotUpdateAnotherEditorsDraft() {
+    var memory = (MemoryRecordRepository) records;
+    memory.draft = draft(21L, RecordStatus.DRAFT, RecordAction.CREATE, null);
+    authenticatePeerEditor();
+
+    assertForbidden(() -> service.update(21L, new RecordDraftCommand(null, 9L, 0L,
+        RecordAction.CREATE, Map.of("name", "Attacker changed"), List.of(), null)));
+  }
+
+  @Test void peerEditorCannotCopyAnotherEditorsRejectedDraft() {
+    var memory = (MemoryRecordRepository) records;
+    memory.draft = draft(21L, RecordStatus.REJECTED, RecordAction.CREATE, null);
+    authenticatePeerEditor();
+
+    assertForbidden(() -> service.copyRejected(21L));
+  }
+
   @Test void publicCreateRejectsDeleteDrafts() {
     assertThatThrownBy(() -> service.create(new RecordDraftCommand(81L, 9L, 3L,
         RecordAction.DELETE, Map.of("name", "North Supplier"), List.of(), "Duplicate")))
@@ -213,6 +238,16 @@ class RecordDraftServiceTest {
     return new RecordDraftCommand(recordId, 9L, version, RecordAction.UPDATE, Map.of("name", name),
         List.of(new ChildRows(31L, List.of(
             new ChildRowCommand(101L, 0, Map.of("contact", "Li"))))), null);
+  }
+
+  private void authenticatePeerEditor() {
+    when(authorization.requireRole(Role.DEPT_EDITOR)).thenReturn(new UserPrincipal(13L, "peer",
+        "Peer editor", editor.department(), List.of(Role.DEPT_EDITOR)));
+  }
+
+  private void assertForbidden(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {
+    assertThatThrownBy(action).isInstanceOfSatisfying(BusinessException.class,
+        exception -> assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN));
   }
 
   private RecordView formal(long id, long version) {

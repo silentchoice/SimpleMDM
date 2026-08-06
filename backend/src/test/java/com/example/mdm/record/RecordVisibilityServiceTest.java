@@ -127,6 +127,27 @@ class RecordVisibilityServiceTest {
             error -> assertThat(error.status()).isEqualTo(HttpStatus.BAD_REQUEST));
   }
 
+  @Test void tiedSortValuesUseIdAsTheFinalPageBoundaryInBothDirections() {
+    LocalDateTime tied = LocalDateTime.of(2026, 8, 5, 9, 0);
+    var source = new MemorySource(List.of(stored(recordWithId(83, "CUS-3"), tied),
+        stored(recordWithId(81, "CUS-1"), tied), stored(recordWithId(82, "CUS-2"), tied)));
+    var queries = new RecordQueryService(source, visibility, authorization);
+
+    var ascFirst = queries.list(new RecordQueryService.RecordQuery(9L, null, null, null, false,
+        0, 1, "updatedAt", "asc"));
+    var ascSecond = queries.list(new RecordQueryService.RecordQuery(9L, null, null, null, false,
+        1, 1, "updatedAt", "asc"));
+    var descFirst = queries.list(new RecordQueryService.RecordQuery(9L, null, null, null, false,
+        0, 1, "updatedAt", "desc"));
+    var descSecond = queries.list(new RecordQueryService.RecordQuery(9L, null, null, null, false,
+        1, 1, "updatedAt", "desc"));
+
+    assertThat(ascFirst.content()).extracting(RecordView::id).containsExactly(81L);
+    assertThat(ascSecond.content()).extracting(RecordView::id).containsExactly(82L);
+    assertThat(descFirst.content()).extracting(RecordView::id).containsExactly(83L);
+    assertThat(descSecond.content()).extracting(RecordView::id).containsExactly(82L);
+  }
+
   private RecordView record(long departmentId, String status) {
     return new RecordView(81, 9, departmentId, "CUS-20260805-0001",
         Map.of("publicName", "North", "taxId", "CN-SECRET"), List.of(
@@ -137,6 +158,10 @@ class RecordVisibilityServiceTest {
             new RecordView.ChildRows(32, List.of(
                 new RecordView.ChildRow(103, 0, Map.of("privateValue", "hidden"))))),
         3, status);
+  }
+
+  private RecordView recordWithId(long id, String code) {
+    return new RecordView(id, 9, 7, code, Map.of("publicName", code), List.of(), 1, "ACTIVE");
   }
 
   private RecordQueryService.StoredRecord stored(RecordView view, LocalDateTime updatedAt) {

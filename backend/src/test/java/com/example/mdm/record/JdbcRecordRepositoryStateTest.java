@@ -2,7 +2,13 @@ package com.example.mdm.record;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
+import com.example.mdm.auth.AuthorizationService;
+import com.example.mdm.auth.DepartmentPrincipal;
+import com.example.mdm.auth.Role;
+import com.example.mdm.auth.UserPrincipal;
+import com.example.mdm.metadata.MetadataRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.DriverManager;
 import java.util.List;
@@ -10,6 +16,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.MySQLContainer;
@@ -117,6 +124,37 @@ class JdbcRecordRepositoryStateTest {
     }
   }
 
+  @Test void deletedRecordQueriesReturnOnlyTheChildrenRetainedAtDeletion() throws Exception {
+    try (RepositoryDatabase database = RepositoryDatabase.start()) {
+      JdbcRecordRepository repository = database.repository();
+      long recordId = database.activeRecord("North", "Old child");
+      var update = repository.saveDraft(1L, 1L, new RecordDraft(0L, recordId, 1L, 1L,
+          "CUS-1", RecordAction.UPDATE, 1L, Map.of("name", "North 2"),
+          List.of(new RecordDraft.ChildRows(1L, List.of(
+              new RecordDraft.ChildRow(null, 0, Map.of("contact", "Retained child"))))),
+          RecordStatus.DRAFT, 1L, null));
+      database.pending(update.id());
+      RecordView current = repository.activate(update.id(), 1L);
+      var deletion = repository.saveDraft(1L, 1L, new RecordDraft(0L, recordId, 1L, 1L,
+          "CUS-1", RecordAction.DELETE, 2L, current.masterValues(), List.of(),
+          RecordStatus.DRAFT, 1L, "Duplicate"));
+      database.pending(deletion.id());
+      repository.activate(deletion.id(), 1L);
+
+      RecordQueryService queries = database.queryService();
+      RecordView detail = queries.detail(recordId);
+      var page = queries.list(new RecordQueryService.RecordQuery(1L, null, null, null, true,
+          0, 20, "id", "asc"));
+
+      assertThat(detail.status()).isEqualTo("DELETED");
+      assertThat(detail.children()).singleElement().satisfies(group ->
+          assertThat(group.rows()).singleElement().satisfies(row ->
+              assertThat(row.values()).containsEntry("contact", "Retained child")));
+      assertThat(page.content()).singleElement().satisfies(record ->
+          assertThat(record.children().get(0).rows()).hasSize(1));
+    }
+  }
+
   private static final class RepositoryDatabase implements AutoCloseable {
     private final String serverUrl;
     private final String username;
@@ -165,6 +203,16 @@ class JdbcRecordRepositoryStateTest {
 
     JdbcRecordRepository repository() {
       return new JdbcRecordRepository(jdbc(), json, new RecordSnapshotCodec(json));
+    }
+
+    RecordQueryService queryService() {
+      var authorization = Mockito.mock(AuthorizationService.class);
+      when(authorization.requireRole(Role.SUPER_ADMIN, Role.DEPT_EDITOR, Role.DEPT_APPROVER,
+          Role.DEPT_VIEWER)).thenReturn(new UserPrincipal(1L, "editor", "Editor",
+              new DepartmentPrincipal(1L, "D1", "Department 1"), List.of(Role.DEPT_EDITOR)));
+      var visibility = new RecordVisibilityService(Mockito.mock(MetadataRepository.class));
+      return new RecordQueryService(jdbc(), json, new RecordSnapshotCodec(json), visibility,
+          authorization);
     }
 
     long activeRecord(String name, String contact) {
