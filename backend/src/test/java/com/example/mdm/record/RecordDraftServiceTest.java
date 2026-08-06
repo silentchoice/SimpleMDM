@@ -128,6 +128,40 @@ class RecordDraftServiceTest {
         });
   }
 
+  @Test void publicCreateRejectsDeleteDrafts() {
+    assertThatThrownBy(() -> service.create(new RecordDraftCommand(81L, 9L, 3L,
+        RecordAction.DELETE, Map.of("name", "North Supplier"), List.of(), "Duplicate")))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST));
+  }
+
+  @Test void updateAndLogicalDeleteRejectAFormalRecordThatIsNotActive() {
+    var memory = (MemoryRecordRepository) records;
+    memory.formal = formal(81L, 3L, "DELETED");
+
+    assertThatThrownBy(() -> service.create(updateCommand(81L, 3L, "North Supplier")))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT));
+    assertThatThrownBy(() -> service.logicalDelete(81L, "Duplicate supplier"))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT));
+  }
+
+  @Test void duplicateExistingChildIdsAreRejectedAcrossTheEntireDraft() {
+    var memory = (MemoryRecordRepository) records;
+    memory.formal = formal(81L, 3L);
+    var command = new RecordDraftCommand(81L, 9L, 3L, RecordAction.UPDATE,
+        Map.of("name", "North Supplier"), List.of(new ChildRows(31L, List.of(
+            new ChildRowCommand(101L, 0, Map.of("contact", "Li")),
+            new ChildRowCommand(101L, 1, Map.of("contact", "Wang"))))), null);
+
+    assertThatThrownBy(() -> service.create(command))
+        .isInstanceOfSatisfying(BusinessException.class, exception -> {
+          assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+          assertThat(exception.getMessage()).contains("Duplicate child record id: 101");
+        });
+  }
+
   @Test void logicalDeleteRequiresANonBlankReasonAndCopiesTheCurrentFormalSnapshot() {
     var memory = (MemoryRecordRepository) records;
     memory.formal = formal(81L, 3L);
@@ -155,6 +189,16 @@ class RecordDraftServiceTest {
     assertThat(copy.masterValues()).containsEntry("name", "North Supplier");
   }
 
+  @Test void copyingARejectedDeleteRechecksThatTheCurrentFormalVersionIsActive() {
+    var memory = (MemoryRecordRepository) records;
+    memory.draft = draft(21L, RecordStatus.REJECTED, RecordAction.DELETE, 81L);
+    memory.formal = formal(81L, 0L, "DELETED");
+
+    assertThatThrownBy(() -> service.copyRejected(21L))
+        .isInstanceOfSatisfying(BusinessException.class,
+            exception -> assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT));
+  }
+
   @Test void templateAndFormalRecordIdsCannotCrossTheAuthenticatedDepartment() {
     var memory = (MemoryRecordRepository) records;
     memory.foreignRecord = true;
@@ -172,10 +216,14 @@ class RecordDraftServiceTest {
   }
 
   private RecordView formal(long id, long version) {
+    return formal(id, version, "ACTIVE");
+  }
+
+  private RecordView formal(long id, long version, String status) {
     return new RecordView(id, 9L, 7L, "CUS-EXISTING", Map.of("name", "North Supplier"),
         List.of(new RecordView.ChildRows(31L, List.of(
             new RecordView.ChildRow(101L, 0, Map.of("contact", "Li"))))),
-        version, "ACTIVE");
+        version, status);
   }
 
   private RecordDraft draft(long id, RecordStatus status, RecordAction action, Long recordId) {

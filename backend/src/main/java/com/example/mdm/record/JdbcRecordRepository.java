@@ -164,17 +164,24 @@ public class JdbcRecordRepository implements RecordRepository {
     RecordDraft draft = toDraft(header, findDraftChildren(header.id()));
     if (draft.status() != RecordStatus.PENDING) throw notEditable();
 
-    RecordView activated = switch (draft.action()) {
-      case CREATE -> activateCreate(draft, actorId);
-      case UPDATE -> activateUpdate(draft, actorId);
-      case DELETE -> activateDelete(draft, actorId);
-    };
+    RecordView previous = null;
+    RecordView activated;
+    if (draft.action() == RecordAction.CREATE) {
+      activated = activateCreate(draft, actorId);
+    } else {
+      RecordHeader current = lockRecord(draft);
+      previous = toView(current, findRecordChildren(current.id()));
+      activated = draft.action() == RecordAction.UPDATE
+          ? activateUpdate(draft, current, actorId) : activateDelete(draft, current, actorId);
+    }
     int transitioned = jdbc.update("UPDATE master_record_drafts SET status='APPROVED',"
             + "updated_at=CURRENT_TIMESTAMP WHERE id=:id AND status='PENDING'",
         new MapSqlParameterSource("id", draftId));
     if (transitioned != 1) throw notEditable();
-    insertHistory(draft, activated, actorId);
-    retainLatestHistory(activated.id(), 3);
+    if (previous != null) {
+      insertHistory(draft, previous, actorId);
+      retainLatestHistory(previous.id(), 3);
+    }
     return activated;
   }
 
@@ -198,12 +205,11 @@ public class JdbcRecordRepository implements RecordRepository {
         draft.masterValues(), children, 1L, "ACTIVE");
   }
 
-  private RecordView activateUpdate(RecordDraft draft, long actorId) {
-    RecordHeader current = lockRecord(draft);
+  private RecordView activateUpdate(RecordDraft draft, RecordHeader current, long actorId) {
     long version = current.version() + 1;
     int updated = jdbc.update("UPDATE master_records SET field_values=:values,version=:next,"
             + "status='ACTIVE',deleted_at=NULL WHERE id=:id AND department_id=:department "
-            + "AND version=:base",
+            + "AND version=:base AND status='ACTIVE'",
         new MapSqlParameterSource().addValue("values", writeValues(draft.masterValues()))
             .addValue("next", version).addValue("id", current.id())
             .addValue("department", draft.departmentId()).addValue("base", draft.baseVersion()));
@@ -213,17 +219,16 @@ public class JdbcRecordRepository implements RecordRepository {
         draft.recordCode(), draft.masterValues(), children, version, "ACTIVE");
   }
 
-  private RecordView activateDelete(RecordDraft draft, long actorId) {
-    RecordHeader current = lockRecord(draft);
+  private RecordView activateDelete(RecordDraft draft, RecordHeader current, long actorId) {
     long version = current.version() + 1;
     int updated = jdbc.update("UPDATE master_records SET version=:next,status='DELETED',"
             + "deleted_at=CURRENT_TIMESTAMP WHERE id=:id AND department_id=:department "
-            + "AND version=:base",
+            + "AND version=:base AND status='ACTIVE'",
         new MapSqlParameterSource().addValue("next", version).addValue("id", current.id())
             .addValue("department", draft.departmentId()).addValue("base", draft.baseVersion()));
     if (updated != 1) throw versionConflict();
     jdbc.update("UPDATE sub_records SET status='DELETED',deleted_at=CURRENT_TIMESTAMP "
-            + "WHERE master_record_id=:record",
+            + "WHERE master_record_id=:record AND status='ACTIVE'",
         new MapSqlParameterSource("record", current.id()));
     var children = draft.children().stream().map(group -> new RecordView.ChildRows(
         group.subTypeId(), group.rows().stream().filter(row -> row.recordId() != null)
@@ -241,6 +246,7 @@ public class JdbcRecordRepository implements RecordRepository {
     RecordHeader current = found.get(0);
     if (current.masterTypeId() != draft.masterTypeId()
         || current.version() != draft.baseVersion()) throw versionConflict();
+    if (!"ACTIVE".equals(current.status())) throw inactiveRecord();
     return current;
   }
 
@@ -248,7 +254,7 @@ public class JdbcRecordRepository implements RecordRepository {
       List<RecordDraft.ChildRows> groups, long version, long actorId, boolean replace) {
     if (replace) {
       jdbc.update("UPDATE sub_records SET status='DELETED',deleted_at=CURRENT_TIMESTAMP "
-              + "WHERE master_record_id=:record",
+              + "WHERE master_record_id=:record AND status='ACTIVE'",
           new MapSqlParameterSource("record", recordId));
     }
     var result = new ArrayList<RecordView.ChildRows>();
@@ -285,19 +291,19 @@ public class JdbcRecordRepository implements RecordRepository {
     return List.copyOf(result);
   }
 
-  private void insertHistory(RecordDraft draft, RecordView activated, long actorId) {
-    var historyChildren = activated.children().stream().map(group -> new RecordDraft.ChildRows(
+  private void insertHistory(RecordDraft draft, RecordView previous, long actorId) {
+    var historyChildren = previous.children().stream().map(group -> new RecordDraft.ChildRows(
         group.subTypeId(), group.rows().stream().map(row ->
             new RecordDraft.ChildRow(row.id(), row.rowOrder(), row.values())).toList())).toList();
-    var history = new RecordDraft(draft.id(), activated.id(), activated.masterTypeId(),
-        activated.departmentId(), activated.recordCode(), draft.action(), draft.baseVersion(),
-        activated.masterValues(), historyChildren, RecordStatus.APPROVED, draft.createdBy(),
+    var history = new RecordDraft(draft.id(), previous.id(), previous.masterTypeId(),
+        previous.departmentId(), previous.recordCode(), draft.action(), previous.version(),
+        previous.masterValues(), historyChildren, RecordStatus.APPROVED, draft.createdBy(),
         draft.deleteReason());
     jdbc.update("INSERT INTO master_record_history(master_record_id,version,snapshot,status,changed_by) "
             + "VALUES(:record,:version,:snapshot,:status,:actor)",
-        new MapSqlParameterSource().addValue("record", activated.id())
-            .addValue("version", activated.version()).addValue("snapshot", snapshots.encode(history))
-            .addValue("status", activated.status()).addValue("actor", actorId));
+        new MapSqlParameterSource().addValue("record", previous.id())
+            .addValue("version", previous.version()).addValue("snapshot", snapshots.encode(history))
+            .addValue("status", previous.status()).addValue("actor", actorId));
   }
 
   @Override
@@ -386,6 +392,10 @@ public class JdbcRecordRepository implements RecordRepository {
 
   private BusinessException versionConflict() {
     return new BusinessException(HttpStatus.CONFLICT, "Record version changed");
+  }
+
+  private BusinessException inactiveRecord() {
+    return new BusinessException(HttpStatus.CONFLICT, "Record is no longer active");
   }
 
   private BusinessException notEditable() {

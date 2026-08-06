@@ -105,6 +105,7 @@ public class RecordDraftService {
     if (deleteReason.length() > 1000) throw BusinessException.badRequest("Delete reason is too long");
     RecordView formal = records.findRecord(actor.department().id(), recordId);
     requireAssignedTemplate(actor, formal.masterTypeId());
+    requireActive(formal);
     var children = formal.children().stream().map(group -> new RecordDraft.ChildRows(
         group.subTypeId(), group.rows().stream().map(row ->
             new RecordDraft.ChildRow(row.id(), row.rowOrder(), row.values())).toList())).toList();
@@ -140,6 +141,7 @@ public class RecordDraftService {
       }
     }
     Map<Long, Long> formalRowTypes = formalRowTypes(formal);
+    Set<Long> childRecordIds = new HashSet<>();
     var result = new ArrayList<RecordDraft.ChildRows>();
     for (SubType type : active.values()) {
       var group = groups.get(type.id());
@@ -150,6 +152,9 @@ public class RecordDraftService {
         if (row == null) throw BusinessException.badRequest("Child row is required");
         if (row.rowOrder() < 0 || !orders.add(row.rowOrder())) {
           throw BusinessException.badRequest("Invalid child row order: " + row.rowOrder());
+        }
+        if (row.recordId() != null && !childRecordIds.add(row.recordId())) {
+          throw BusinessException.badRequest("Duplicate child record id: " + row.recordId());
         }
         requireChildIdentity(action, type.id(), row.recordId(), formalRowTypes);
         validator.validate(metadata.findSubFields(departmentId, type.id()), row.values());
@@ -194,6 +199,7 @@ public class RecordDraftService {
         || formal.departmentId() != departmentId) {
       throw BusinessException.forbidden();
     }
+    requireActive(formal);
     if (formal.version() != command.baseVersion()) {
       throw new BusinessException(HttpStatus.CONFLICT, "Record version changed");
     }
@@ -209,13 +215,18 @@ public class RecordDraftService {
     }
   }
 
+  private void requireActive(RecordView formal) {
+    if (!"ACTIVE".equals(formal.status())) {
+      throw new BusinessException(HttpStatus.CONFLICT, "Record is no longer active");
+    }
+  }
+
   private void requireCommand(RecordDraftCommand command) {
     if (command == null || command.action() == null) {
       throw BusinessException.badRequest("Draft command is required");
     }
-    if (command.action() == RecordAction.DELETE
-        && (command.deleteReason() == null || command.deleteReason().isBlank())) {
-      throw BusinessException.badRequest("Delete reason is required");
+    if (command.action() == RecordAction.DELETE) {
+      throw BusinessException.badRequest("Delete drafts must be created through logical delete");
     }
   }
 
