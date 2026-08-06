@@ -117,6 +117,30 @@ class MetadataRepositoryContractTest {
     assertThat(parameters.getValue().getValue("department")).isEqualTo(7L);
   }
 
+  @Test
+  void bindsAndSelectsMasterFieldSharingConfiguration() {
+    var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
+    when(jdbc.queryForObject(contains("FROM department_master_types"), anyMap(),
+        org.mockito.ArgumentMatchers.eq(Integer.class))).thenReturn(1);
+    when(jdbc.update(contains("INSERT INTO master_fields"), any(MapSqlParameterSource.class),
+        any(GeneratedKeyHolder.class))).thenThrow(new DataIntegrityViolationException("stop"));
+    var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());
+    var shared = new FieldDefinition(0, 19, "publicName", "Public name", FieldType.TEXT,
+        false, List.of(), true, 0, MetadataStatus.ACTIVE);
+
+    assertThatThrownBy(() -> repository.createMasterField(7, shared))
+        .isInstanceOf(BusinessException.class);
+    repository.findMasterFields(7, 19);
+
+    var parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+    verify(jdbc).update(contains("INSERT INTO master_fields"), parameters.capture(),
+        any(GeneratedKeyHolder.class));
+    assertThat(parameters.getValue().getValue("shared")).isEqualTo(true);
+    var sql = ArgumentCaptor.forClass(String.class);
+    verify(jdbc).query(sql.capture(), anyMap(), any(RowMapper.class));
+    assertThat(sql.getValue()).contains("share_config", "FROM master_fields");
+  }
+
   @Test void subtypeReplacementUpdatesRetainedIdentityAndInsertsOnlyNewCodes() {
     var jdbc = org.mockito.Mockito.mock(NamedParameterJdbcTemplate.class);
     var repository = new JdbcMetadataRepository(jdbc, new ObjectMapper());

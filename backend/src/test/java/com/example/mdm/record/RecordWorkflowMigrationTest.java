@@ -27,6 +27,8 @@ class RecordWorkflowMigrationTest {
       assertThat(database.columnExists("master_record_drafts", "approval_task_id")).isTrue();
       assertThat(database.columnExists("sub_record_drafts", "row_order")).isTrue();
       assertThat(database.columnExists("sub_records", "row_order")).isTrue();
+      assertThat(database.columnExists("master_fields", "share_config")).isTrue();
+      assertThat(database.columnDefault("master_fields", "share_config")).isEqualTo("0");
       assertThat(database.indexColumns("master_record_drafts", "uk_master_record_drafts_active"))
           .containsExactly("department_id", "master_type_id", "active_record_code");
       assertThat(database.uniqueIndex("master_record_drafts", "uk_master_record_drafts_active")).isTrue();
@@ -116,6 +118,11 @@ class RecordWorkflowMigrationTest {
     String columnType(String table, String column) throws Exception {
       return queryString("SELECT data_type FROM information_schema.columns WHERE table_schema='" + schema
           + "' AND table_name='" + table + "' AND column_name='" + column + "'");
+    }
+
+    String columnDefault(String table, String column) throws Exception {
+      return queryString("SELECT column_default FROM information_schema.columns WHERE table_schema='"
+          + schema + "' AND table_name='" + table + "' AND column_name='" + column + "'");
     }
 
     java.util.List<String> indexColumns(String table, String index) throws Exception {

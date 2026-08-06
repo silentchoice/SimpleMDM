@@ -95,8 +95,8 @@ class JdbcMetadataRepository implements MetadataRepository {
   }
   private FieldDefinition createField(long departmentId,String table,String ownerColumn,FieldDefinition field) {
     var key=new GeneratedKeyHolder();
-    String shared = table.equals("sub_fields") ? ",share_config" : "";
-    String sharedValue = table.equals("sub_fields") ? ",:shared" : "";
+    String shared = ",share_config";
+    String sharedValue = ",:shared";
     var params=new MapSqlParameterSource().addValue("department",departmentId).addValue("owner",field.ownerTypeId()).addValue("code",field.code())
         .addValue("name",field.displayName()).addValue("type",field.fieldType().name())
         .addValue("required",field.required()).addValue("options",writeOptions(field.options()))
@@ -126,7 +126,7 @@ class JdbcMetadataRepository implements MetadataRepository {
     return assignments.get(0);
   }
   @Override public List<FieldDefinition> findMasterFields(long departmentId,long masterTypeId) {
-    return fields("master_fields","master_type_id",departmentId,masterTypeId,false);
+    return fields("master_fields","master_type_id",departmentId,masterTypeId);
   }
   @Override public List<SubType> findSubTypes(long departmentId,long masterTypeId) {
     return jdbc.query("SELECT id,master_type_id,code,name,status FROM sub_types WHERE department_id=:department "
@@ -134,7 +134,7 @@ class JdbcMetadataRepository implements MetadataRepository {
         new SubType(rs.getLong("id"),rs.getLong("master_type_id"),rs.getString("code"),rs.getString("name"),MetadataStatus.valueOf(rs.getString("status"))));
   }
   @Override public List<FieldDefinition> findSubFields(long departmentId,long subTypeId) {
-    return fields("sub_fields","sub_type_id",departmentId,subTypeId,true);
+    return fields("sub_fields","sub_type_id",departmentId,subTypeId);
   }
   @Override public void replaceMasterFields(long departmentId,long masterTypeId,List<FieldDefinition> fields) {
     try {
@@ -205,14 +205,14 @@ class JdbcMetadataRepository implements MetadataRepository {
         +"AND master_type_id=:owner AND id=:id",parameters);
     if (deleted!=1) throw new BusinessException(HttpStatus.CONFLICT,"Metadata subtype changed");
   }
-  private List<FieldDefinition> fields(String table,String owner,long departmentId,long id,boolean shared) {
-    String sharedColumn=shared?",share_config":"";
+  private List<FieldDefinition> fields(String table,String owner,long departmentId,long id) {
+    String sharedColumn=",share_config";
     return jdbc.query("SELECT id,"+owner+",code,display_name,field_type,required_flag,options,sort_order,status"+sharedColumn+
         " FROM "+table+" WHERE department_id=:department AND "+owner+"=:id AND status='ACTIVE' ORDER BY sort_order,id",
         Map.of("department",departmentId,"id",id),(rs,n)->
         new FieldDefinition(rs.getLong("id"),rs.getLong(owner),rs.getString("code"),rs.getString("display_name"),
             FieldType.valueOf(rs.getString("field_type")),rs.getBoolean("required_flag"),readOptions(rs.getString("options")),
-            shared&&rs.getBoolean("share_config"),rs.getInt("sort_order"),MetadataStatus.valueOf(rs.getString("status"))));
+            rs.getBoolean("share_config"),rs.getInt("sort_order"),MetadataStatus.valueOf(rs.getString("status"))));
   }
   private void requireSubType(long departmentId,long subTypeId) {
     Integer subTypes=jdbc.queryForObject("SELECT COUNT(*) FROM sub_types WHERE department_id=:department AND id=:id "

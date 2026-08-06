@@ -85,6 +85,19 @@ class MetadataControllerTest {
   }
 
   @Test
+  void editorCanMarkAMasterFieldSharedWhileOmittedFlagRemainsFalse() throws Exception {
+    when(service.submitMasterFields(anyList())).thenReturn(704L);
+
+    mvc.perform(post("/api/master-field/41").requestAttr(RequestId.ATTRIBUTE, "req-shared")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("[{\"code\":\"publicName\",\"displayName\":\"Public name\","
+                + "\"fieldType\":\"TEXT\",\"shared\":true,\"sortOrder\":0}]"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.approvalTaskId").value(704));
+    verify(service).submitMasterFields(org.mockito.ArgumentMatchers.argThat(fields ->
+        fields.size() == 1 && fields.get(0).shared()));
+  }
+
+  @Test
   void editorSubmitsSubTypesAndReceivesTaskId() throws Exception {
     when(service.submitSubTypes(anyList())).thenReturn(702L);
     mvc.perform(post("/api/sub-type/41").requestAttr(RequestId.ATTRIBUTE, "req-subtype")

@@ -1,0 +1,2 @@
+ALTER TABLE master_fields
+  ADD COLUMN share_config BOOLEAN NOT NULL DEFAULT FALSE AFTER options;

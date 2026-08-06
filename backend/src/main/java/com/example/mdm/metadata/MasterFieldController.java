@@ -33,7 +33,7 @@ public class MasterFieldController {
   @PostMapping("/{masterTypeId}")
   public ApiResponse<SubmissionResponse> submit(@PathVariable long masterTypeId,
       @Valid @RequestBody List<@Valid FieldRequest> body, HttpServletRequest request) {
-    var fields = body.stream().map(field -> field.definition(masterTypeId, false)).toList();
+    var fields = body.stream().map(field -> field.definition(masterTypeId, true)).toList();
     return success(new SubmissionResponse(service.submitMasterFields(fields)), request);
   }
 
