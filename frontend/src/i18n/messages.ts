@@ -103,6 +103,7 @@ export const messages = {
         code: '代码',
         name: '名称',
         codeRule: '编码规则',
+        pattern: '规则模板',
         assignDepartment: '分配部门'
       },
       masterTypeDrawer: {
@@ -360,6 +361,7 @@ export const messages = {
         code: 'Code',
         name: 'Name',
         codeRule: 'Code rule',
+        pattern: 'Pattern',
         assignDepartment: 'Assign department'
       },
       masterTypeDrawer: {

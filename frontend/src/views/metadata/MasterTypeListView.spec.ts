@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+﻿import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MasterTypeListView from './MasterTypeListView.vue'
@@ -95,6 +95,21 @@ describe('master-type template list', () => {
 
     expect(metadataApi.updateCodeRule).toHaveBeenCalledWith(7, { pattern: 'SUP-{yyyyMMdd}-{0001}' })
     expect(wrapper.text()).toContain('SUP-20260805-0001')
+  })
+
+  it('localizes the code-rule pattern label for both locales', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid=edit-code-rule-7]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('规则模板')
+    expect(wrapper.text()).not.toContain('Pattern')
+
+    setLocale('en-US')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Pattern')
   })
 
   it('shows duplicate assignment conflicts and leaves the list unrefreshed', async () => {

@@ -103,7 +103,7 @@ onMounted(load)
     <DepartmentAssignmentDialog :open="assignmentOpen" :master-type="selected" :departments="departments" :saving="saving" :error="error" :on-assigned="assign" @close="assignmentOpen = false" />
     <aside v-if="codeRuleOpen" class="system-drawer" role="dialog" :aria-label="t('metadata.templates.codeRule')">
       <h2>{{ t('metadata.templates.codeRule') }}</h2>
-      <label>Pattern <input v-model="codeRulePattern" name="pattern" /></label>
+      <label>{{ t('metadata.templates.pattern') }} <input v-model="codeRulePattern" name="pattern" /></label>
       <p>{{ codeRulePreview }}</p>
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
       <div class="drawer-actions"><el-button native-type="button" @click="codeRuleOpen = false">{{ t('common.cancel') }}</el-button><el-button data-testid="code-rule-save" native-type="button" type="primary" :loading="saving" :disabled="saving" @click="saveCodeRule">{{ t('common.save') }}</el-button></div>
