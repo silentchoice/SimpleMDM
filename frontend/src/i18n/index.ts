@@ -3,6 +3,7 @@ import { createI18n } from 'vue-i18n'
 import en from 'element-plus/es/locale/lang/en'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { messages } from './messages'
+import { recordMessages } from './recordMessages'
 
 export type SupportedLocale = 'zh-CN' | 'en-US'
 
@@ -14,11 +15,16 @@ export function resolveInitialLocale(): SupportedLocale {
   return stored === 'en-US' || stored === 'zh-CN' ? stored : 'zh-CN'
 }
 
+const mergedMessages = {
+  'zh-CN': { ...messages['zh-CN'], ...recordMessages['zh-CN'] },
+  'en-US': { ...messages['en-US'], ...recordMessages['en-US'] }
+}
+
 export const i18n = createI18n({
   legacy: false,
   locale: resolveInitialLocale(),
   fallbackLocale: 'zh-CN',
-  messages
+  messages: mergedMessages
 })
 
 export function setLocale(locale: SupportedLocale): void {

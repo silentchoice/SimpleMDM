@@ -13,6 +13,9 @@ import MasterTypeListView from '../views/metadata/MasterTypeListView.vue'
 import DepartmentMetadataView from '../views/metadata/DepartmentMetadataView.vue'
 import ApprovalListView from '../views/approval/ApprovalListView.vue'
 import ApprovalDetailView from '../views/approval/ApprovalDetailView.vue'
+import RecordListView from '../views/records/RecordListView.vue'
+import RecordDetailView from '../views/records/RecordDetailView.vue'
+import RecordEditorView from '../views/records/RecordEditorView.vue'
 
 declare module 'vue-router' {
   interface RouteMeta extends AppRouteMeta {}
@@ -32,9 +35,9 @@ export function createAppRouter(history: RouterHistory = import.meta.env.MODE ==
           { path: '', name: 'dashboard', component: DashboardView, meta: { titleKey: 'routes.dashboard', roles: [...allRoles] } },
           { path: 'metadata/active', name: 'active-metadata', component: DepartmentMetadataView, meta: { titleKey: 'routes.activeMetadata', roles: [...departmentMetadataRoles] } },
           { path: 'metadata/changes/new', name: 'submit-change', component: DepartmentMetadataView, props: { initialTab: 'submit' }, meta: { titleKey: 'routes.submitChange', roles: ['DEPT_EDITOR'] } },
-          { path: 'records', name: 'records', component: DashboardView, meta: { titleKey: 'routes.records', roles: [...businessDataRoles] } },
-          { path: 'records/:recordId', name: 'record-detail', component: DashboardView, meta: { titleKey: 'routes.recordDetail', roles: [...businessDataRoles] } },
-          { path: 'records/drafts/:draftId', name: 'record-draft', component: DashboardView, meta: { titleKey: 'routes.recordDraft', roles: ['DEPT_EDITOR'] } },
+          { path: 'records', name: 'records', component: RecordListView, meta: { titleKey: 'routes.records', roles: [...businessDataRoles] } },
+          { path: 'records/:recordId', name: 'record-detail', component: RecordDetailView, meta: { titleKey: 'routes.recordDetail', roles: [...businessDataRoles] } },
+          { path: 'records/drafts/:draftId', name: 'record-draft', component: RecordEditorView, meta: { titleKey: 'routes.recordDraft', roles: ['DEPT_EDITOR'] } },
           { path: 'metadata/approvals', name: 'approvals', component: ApprovalListView, meta: { titleKey: 'routes.approvals', roles: ['DEPT_APPROVER'] } },
           { path: 'metadata/approvals/:taskId', name: 'approval-detail', component: ApprovalDetailView, meta: { titleKey: 'routes.approvalDetail', roles: ['DEPT_APPROVER'] } },
           { path: 'metadata/templates', name: 'master-type-templates', component: MasterTypeListView, meta: { titleKey: 'routes.masterTypeTemplates', roles: ['SUPER_ADMIN'] } },

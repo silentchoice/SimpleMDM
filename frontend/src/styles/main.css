@@ -24,4 +24,26 @@ body { margin: 0; min-width: 320px; }
 .form-error { margin: 0; color: #c0392b; }
 .logout-notice { margin: 0 0 16px; color: #8a5a00; }
 .centered-view { display: grid; min-height: 100vh; padding: 24px; place-content: center; text-align: center; }
+.view-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.record-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.record-filters label, .dynamic-form__field { display: grid; gap: 6px; }
+.record-filters__toggle { align-items: center; grid-template-columns: auto 1fr; }
+.records-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+.records-table th, .records-table td { padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+.records-table__actions { white-space: nowrap; }
+.records-pagination, .record-editor__actions, .record-editor__subtypes, .record-tabs, .child-table__actions, .child-table__header, .record-detail__actions, .record-detail__delete { display: flex; gap: 12px; align-items: center; }
+.records-pagination, .record-editor__actions, .record-detail__delete { margin-top: 16px; }
+.dynamic-form { display: grid; gap: 16px; margin: 16px 0; }
+.dynamic-form input, .dynamic-form select, .record-detail__delete input, .record-filters input, .record-filters select { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font: inherit; }
+.dynamic-form__switch { display: flex; gap: 8px; align-items: center; }
+.record-detail__summary { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.record-detail__grid, .record-history__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; background: white; padding: 16px; border-radius: 8px; }
+.record-detail__grid dt, .record-history__grid dt { font-weight: 600; }
+.record-detail__grid dd, .record-history__grid dd { margin: 0; }
+.record-history { display: grid; gap: 16px; }
+.record-history__version { background: white; border-radius: 8px; padding: 16px; }
+.record-history__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.child-table { margin-top: 16px; padding: 16px; background: white; border-radius: 8px; }
+.child-table__row { display: grid; gap: 12px; padding: 12px 0; border-top: 1px solid #e5e7eb; }
+.child-table__row:first-of-type { border-top: 0; }
 @media (max-width: 700px) { .app-sidebar { display: none; } .app-header { align-items: flex-start; height: auto; min-height: 72px; padding: 16px; } .mobile-nav-toggle { display: block; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 4px; background: white; color: #1f2937; font: inherit; } .mobile-navigation { display: block; } .account-summary { align-items: flex-end; flex-direction: column; gap: 4px; } }
