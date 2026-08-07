@@ -74,3 +74,44 @@ SELF-REVIEW / CONCERNS
 - The new record surface is covered by focused view/component tests plus router regression and a full frontend build.
 - Lock tokens remain in component memory only and are never written to local/session storage.
 - Concern: build completed with pre-existing Vite chunk-size warnings and `@vueuse/core` PURE-comment warnings; no new build failure was introduced.
+
+FIX ROUND 1
+
+RED EVIDENCE
+
+1. Child FieldType coverage and unknown-value preservation
+- Command: `cd frontend && npm test -- --run src/components/records/DynamicRecordEditor.spec.ts`
+- RED evidence:
+  - `expected 'text' to be 'number'` for child NUMBER field rendering
+  - Chinese localization assertions failed on `Add row`
+
+2. Frontend-owned text localization
+- Command: `cd frontend && npm test -- --run src/views/records/RecordViews.spec.ts src/components/records/RecordHistoryTable.spec.ts`
+- RED evidence:
+  - `expected ... to contain '关键字'` because filter labels remained hardcoded English
+  - `expected ... to contain '版本 4'` because history version labels remained hardcoded English
+
+3. Create/edit/delete draft error handling
+- Command: `cd frontend && npm test -- --run src/views/records/RecordViews.spec.ts`
+- RED evidence:
+  - `Unable to get [role="alert"]`
+  - Vitest `Unhandled Rejection` for `Create failed` / `Draft conflict`, proving page actions leaked rejected promises instead of surfacing request IDs
+
+GREEN / REGRESSION RESULTS
+
+- `cd frontend && npm test -- --run src/views/records/RecordViews.spec.ts src/components/records/DynamicRecordEditor.spec.ts src/components/records/RecordHistoryTable.spec.ts`
+  - PASS (`3 passed`, `14 passed`)
+- `cd frontend && npm test -- --run src/router/router.spec.ts`
+  - PASS (`1 passed`, `8 passed`)
+
+BUILD / DIFF-CHECK
+
+- `cd frontend && npm run build`
+  - PASS
+  - Existing Vite chunk-size warnings and `@vueuse/core` PURE-comment warnings remain
+- `git diff --check`
+  - PASS
+
+FIX ROUND 1 COMMIT SHA
+
+- `520314a` (`fix: address record workspace review feedback`)
