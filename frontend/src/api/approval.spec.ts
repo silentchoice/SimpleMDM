@@ -62,15 +62,15 @@ describe('metadata approval API client', () => {
   it('sends an optional approval comment as a nullable body field', async () => {
     http.post.mockResolvedValue(undefined)
 
-    await approveApprovalTask(91, 'Looks correct')
-    await approveApprovalTask(92)
+    await approveApprovalTask(91, 'METADATA', 'Looks correct')
+    await approveApprovalTask(92, 'RECORD')
 
     expect(http.post).toHaveBeenNthCalledWith(1, '/metadata-approval/91/approve', { comment: 'Looks correct' })
-    expect(http.post).toHaveBeenNthCalledWith(2, '/metadata-approval/92/approve', { comment: null })
+    expect(http.post).toHaveBeenNthCalledWith(2, '/record-approval/92/approve', { comment: null })
   })
 
   it('requires a nonblank rejection reason before making the request', async () => {
-    await expect(rejectApprovalTask(91, '   ')).rejects.toMatchObject({ message: 'Rejection reason is required' })
+    await expect(rejectApprovalTask(91, 'METADATA', '   ')).rejects.toMatchObject({ message: 'Rejection reason is required' })
 
     expect(http.post).not.toHaveBeenCalled()
   })
@@ -78,9 +78,9 @@ describe('metadata approval API client', () => {
   it('sends the required rejection reason', async () => {
     http.post.mockResolvedValue(undefined)
 
-    await rejectApprovalTask(91, 'Stale definition')
+    await rejectApprovalTask(91, 'RECORD', 'Stale definition')
 
-    expect(http.post).toHaveBeenCalledWith('/metadata-approval/91/reject', { reason: 'Stale definition' })
+    expect(http.post).toHaveBeenCalledWith('/record-approval/91/reject', { reason: 'Stale definition' })
   })
 
   it.each([
@@ -95,7 +95,7 @@ describe('metadata approval API client', () => {
       ? listApprovalTasks('PENDING')
       : operation === 'detail'
         ? getApprovalTask(91)
-        : approveApprovalTask(91)
+        : approveApprovalTask(91, 'METADATA')
 
     await expect(request).rejects.toEqual(error)
   })

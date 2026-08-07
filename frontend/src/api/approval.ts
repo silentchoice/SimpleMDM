@@ -10,7 +10,7 @@ export interface ApprovalTask {
   entityKind: MetadataEntityKind
   entityId: number
   status: ApprovalStatus
-  beforeSnapshot: string
+  beforeSnapshot: string | null
   afterSnapshot: string
   submittedBy: number
   reviewedBy: number | null
@@ -32,19 +32,27 @@ function taskTypeQuery(taskType?: ApprovalTaskType): string {
   return taskType ? `&taskType=${encodeURIComponent(taskType)}` : ''
 }
 
-export function listApprovalTasks(status: ApprovalStatus = 'PENDING', taskType?: ApprovalTaskType): Promise<ApprovalTask[]> {
-  return http.get<ApprovalTask[]>(`/metadata-approval?status=${encodeURIComponent(status)}${taskTypeQuery(taskType)}`)
+function normalizedTaskType(taskType: ApprovalTaskType = 'METADATA'): ApprovalTaskType {
+  return taskType
 }
 
-export function getApprovalTask(taskId: number, taskType?: ApprovalTaskType): Promise<ApprovalTask> {
-  return http.get<ApprovalTask>(`/metadata-approval/${taskId}${taskType ? `?taskType=${encodeURIComponent(taskType)}` : ''}`)
+function approvalActionBase(taskType: ApprovalTaskType): '/metadata-approval' | '/record-approval' {
+  return taskType === 'RECORD' ? '/record-approval' : '/metadata-approval'
 }
 
-export function approveApprovalTask(taskId: number, comment?: string): Promise<void> {
-  return http.post<void>(`/metadata-approval/${taskId}/approve`, { comment: comment ?? null })
+export function listApprovalTasks(status: ApprovalStatus = 'PENDING', taskType: ApprovalTaskType = 'METADATA'): Promise<ApprovalTask[]> {
+  return http.get<ApprovalTask[]>(`/metadata-approval?status=${encodeURIComponent(status)}${taskTypeQuery(taskType === 'METADATA' ? undefined : taskType)}`)
 }
 
-export function rejectApprovalTask(taskId: number, reason: string): Promise<void> {
+export function getApprovalTask(taskId: number, taskType: ApprovalTaskType = 'METADATA'): Promise<ApprovalTask> {
+  return http.get<ApprovalTask>(`/metadata-approval/${taskId}${taskType === 'METADATA' ? '' : `?taskType=${encodeURIComponent(taskType)}`}`)
+}
+
+export function approveApprovalTask(taskId: number, taskType: ApprovalTaskType = 'METADATA', comment?: string): Promise<void> {
+  return http.post<void>(`${approvalActionBase(normalizedTaskType(taskType))}/${taskId}/approve`, { comment: comment ?? null })
+}
+
+export function rejectApprovalTask(taskId: number, taskType: ApprovalTaskType = 'METADATA', reason: string): Promise<void> {
   if (!reason.trim()) return Promise.reject({ message: 'Rejection reason is required' })
-  return http.post<void>(`/metadata-approval/${taskId}/reject`, { reason })
+  return http.post<void>(`${approvalActionBase(normalizedTaskType(taskType))}/${taskId}/reject`, { reason })
 }

@@ -24,7 +24,7 @@ export const messages = {
       signIn: '登录',
       signingIn: '登录中…',
       required: '请输入用户名和密码',
-      localLogout: '已在本地退出，无法确认服务器退出状态。'
+      localLogout: '已在本地退出，无法确认服务端退出状态。'
     },
     layout: {
       menu: '菜单',
@@ -62,7 +62,25 @@ export const messages = {
     },
     dashboard: {
       title: '仪表盘',
-      description: '请从导航中选择一个区域来管理主数据。'
+      description: '从导航中选择一个区域来管理主数据。',
+      refresh: '刷新',
+      metrics: {
+        formalCount: '正式记录',
+        myDraftCount: '我的草稿',
+        pendingApprovalCount: '待审批',
+        activatedThisMonth: '本月启用'
+      },
+      shortcuts: {
+        title: '快捷入口'
+      },
+      recent: {
+        title: '最近任务',
+        empty: '暂无最近任务。',
+        task: '任务',
+        type: '类型',
+        entity: '实体',
+        submitted: '提交时间'
+      }
     },
     errors: {
       forbiddenTitle: '拒绝访问',
@@ -100,7 +118,7 @@ export const messages = {
         title: '主数据类型模板',
         description: '创建可复用的主数据类型模板并分配给部门。',
         create: '创建主数据类型',
-        code: '代码',
+        code: '编码',
         name: '名称',
         codeRule: '编码规则',
         pattern: '规则模板',
@@ -139,13 +157,13 @@ export const messages = {
         ariaLabel: '编辑元数据项',
         field: '字段',
         subType: '子类型',
-        code: '代码',
+        code: '编码',
         name: '名称',
         type: '类型',
         selectType: '请选择类型',
         required: '必填',
         shared: '共享',
-        options: '选项（以逗号分隔）',
+        options: '选项（用逗号分隔）',
         saveDraft: '保存草稿',
         invalidCode: '代码必须以字母开头，且只能包含字母、数字或下划线',
         nameRequired: '名称为必填项',
@@ -168,11 +186,15 @@ export const messages = {
       list: {
         title: '元数据审批',
         description: '审核您所在部门的元数据变更。',
+        tabs: {
+          metadata: '元数据',
+          record: '业务数据'
+        },
         filterStatus: '状态',
         loading: '正在加载审批…',
-        empty: '没有符合此状态的元数据审批任务。',
+        empty: '没有符合此状态的审批任务。',
         task: '任务',
-        metadataKind: '元数据类型',
+        metadataKind: '类型',
         entity: '实体',
         submitted: '提交时间'
       },
@@ -181,6 +203,7 @@ export const messages = {
         loading: '正在加载审批…',
         notFound: '未找到审批任务',
         title: '元数据审批 #{id}',
+        recordTitle: '业务数据审批 #{id}',
         kind: '类型',
         entity: '实体',
         submittedBy: '提交人',
@@ -195,12 +218,13 @@ export const messages = {
         approve: '批准',
         rejectionReason: '拒绝原因',
         reject: '拒绝',
-        rejectionRequired: '拒绝原因为必填项'
+        rejectionRequired: '拒绝原因为必填项',
+        selfApprovalRecord: '不能审批自己提交的业务数据'
       },
       diff: {
         ariaLabel: '快照差异',
         malformed: '无法显示快照差异：快照数据格式错误。',
-        unsupported: '不支持此快照架构版本。请查看下方原始 JSON。',
+        unsupported: '不支持此快照版本。请查看下方原始 JSON。',
         before: '变更前',
         after: '变更后',
         beforePosition: '变更前位置：{position}',
@@ -215,7 +239,24 @@ export const messages = {
       entityKinds: {
         MASTER_FIELDS: '主字段',
         SUB_TYPES: '子类型',
-        SUB_FIELDS: '子字段'
+        SUB_FIELDS: '子字段',
+        RECORD: '业务数据'
+      },
+      recordDiff: {
+        ariaLabel: '业务数据快照差异',
+        malformed: '无法显示业务数据快照差异：快照数据格式错误。',
+        unsupported: '不支持此业务数据快照版本。请查看原始 JSON。',
+        masterTitle: '主记录字段差异',
+        noMasterChanges: '主记录没有变更',
+        childTitle: '子表行差异',
+        noChildChanges: '子表行没有变更',
+        subType: '子类型 #{id}',
+        states: {
+          added: '新增',
+          removed: '删除',
+          modified: '修改',
+          reordered: '重排'
+        }
       }
     },
     system: {
@@ -225,7 +266,7 @@ export const messages = {
         create: '创建部门',
         createDialog: '创建部门',
         editDialog: '编辑部门',
-        code: '代码',
+        code: '编码',
         name: '名称',
         validation: '请输入代码和名称',
         activateConfirm: '确定要启用 {name} 吗？',
@@ -234,7 +275,7 @@ export const messages = {
       },
       users: {
         title: '用户管理',
-        description: '管理用户账户、部门和固定角色。',
+        description: '管理用户账号、部门和固定角色。',
         create: '创建用户',
         createDialog: '创建用户',
         editDialog: '编辑用户',
@@ -320,7 +361,25 @@ export const messages = {
     },
     dashboard: {
       title: 'Dashboard',
-      description: 'Choose an area from the navigation to manage master data.'
+      description: 'Choose an area from the navigation to manage master data.',
+      refresh: 'Refresh',
+      metrics: {
+        formalCount: 'Formal records',
+        myDraftCount: 'My drafts',
+        pendingApprovalCount: 'Pending approvals',
+        activatedThisMonth: 'Activated this month'
+      },
+      shortcuts: {
+        title: 'Quick shortcuts'
+      },
+      recent: {
+        title: 'Recent tasks',
+        empty: 'No recent tasks',
+        task: 'Task',
+        type: 'Type',
+        entity: 'Entity',
+        submitted: 'Submitted'
+      }
     },
     errors: {
       forbiddenTitle: 'Access denied',
@@ -426,6 +485,10 @@ export const messages = {
       list: {
         title: 'Metadata approvals',
         description: 'Review metadata changes for your department.',
+        tabs: {
+          metadata: 'Metadata',
+          record: 'Business Data'
+        },
         filterStatus: 'Status',
         loading: 'Loading approvals…',
         empty: 'No metadata approval tasks match this status.',
@@ -439,6 +502,7 @@ export const messages = {
         loading: 'Loading approval…',
         notFound: 'Approval task not found',
         title: 'Metadata approval #{id}',
+        recordTitle: 'Record approval #{id}',
         kind: 'Kind',
         entity: 'Entity',
         submittedBy: 'Submitted by',
@@ -453,7 +517,8 @@ export const messages = {
         approve: 'Approve',
         rejectionReason: 'Rejection reason',
         reject: 'Reject',
-        rejectionRequired: 'Rejection reason is required'
+        rejectionRequired: 'Rejection reason is required',
+        selfApprovalRecord: 'You cannot approve your own record submission'
       },
       diff: {
         ariaLabel: 'Snapshot differences',
@@ -473,7 +538,24 @@ export const messages = {
       entityKinds: {
         MASTER_FIELDS: 'Master fields',
         SUB_TYPES: 'Sub-types',
-        SUB_FIELDS: 'Sub-fields'
+        SUB_FIELDS: 'Sub-fields',
+        RECORD: 'Business Data'
+      },
+      recordDiff: {
+        ariaLabel: 'Record snapshot differences',
+        malformed: 'Unable to display record snapshot diff: malformed snapshot data.',
+        unsupported: 'Unsupported record snapshot schema version. Review the raw JSON below.',
+        masterTitle: 'Master field changes',
+        noMasterChanges: 'No master-field changes',
+        childTitle: 'Child row changes',
+        noChildChanges: 'No child-row changes',
+        subType: 'Sub-type #{id}',
+        states: {
+          added: 'Added',
+          removed: 'Removed',
+          modified: 'Modified',
+          reordered: 'Reordered'
+        }
       }
     },
     system: {
