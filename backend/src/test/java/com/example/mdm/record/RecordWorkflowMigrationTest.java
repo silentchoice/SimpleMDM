@@ -66,11 +66,9 @@ class RecordWorkflowMigrationTest {
     }
 
     static MigrationDatabase start() {
-      String localUrl = System.getProperty("record.migration.mysql.server-url");
-      if (localUrl != null) {
-        return new MigrationDatabase(localUrl,
-            System.getProperty("record.migration.mysql.username", "root"),
-            System.getProperty("record.migration.mysql.password", ""), null);
+      WorkflowTestEnvironment.MySqlSettings local = WorkflowTestEnvironment.mysql();
+      if (local != null) {
+        return new MigrationDatabase(local.serverUrl(), local.username(), local.password(), null);
       }
       var container = new MySQLContainer<>("mysql:8.0.36");
       container.start();
@@ -158,12 +156,16 @@ class RecordWorkflowMigrationTest {
     }
 
     @Override public void close() throws Exception {
-      try (var connection = DriverManager.getConnection(serverUrl, username, password);
-          var statement = connection.createStatement()) {
-        if (schema.matches("mdm_task1_[0-9a-f]{32}")) statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
-      } finally {
-        if (container != null) container.stop();
-      }
+      WorkflowTestEnvironment.cleanup(
+          () -> {
+            try (var connection = DriverManager.getConnection(serverUrl, username, password);
+                var statement = connection.createStatement()) {
+              if (schema.matches("mdm_task1_[0-9a-f]{32}")) {
+                statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
+              }
+            }
+          },
+          () -> { if (container != null) container.stop(); });
     }
   }
 }

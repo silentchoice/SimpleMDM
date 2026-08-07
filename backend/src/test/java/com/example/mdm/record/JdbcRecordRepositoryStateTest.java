@@ -172,11 +172,9 @@ class JdbcRecordRepositoryStateTest {
     }
 
     static RepositoryDatabase start() throws Exception {
-      String localUrl = System.getProperty("record.repository.mysql.server-url");
-      RepositoryDatabase database = localUrl == null
-          ? containerDatabase() : new RepositoryDatabase(localUrl,
-              System.getProperty("record.repository.mysql.username", "root"),
-              System.getProperty("record.repository.mysql.password", "01270127"), null);
+      WorkflowTestEnvironment.MySqlSettings local = WorkflowTestEnvironment.mysql();
+      RepositoryDatabase database = local == null ? containerDatabase()
+          : new RepositoryDatabase(local.serverUrl(), local.username(), local.password(), null);
       database.createAndMigrate();
       return database;
     }
@@ -267,12 +265,16 @@ class JdbcRecordRepositoryStateTest {
     }
 
     @Override public void close() throws Exception {
-      try (var connection = DriverManager.getConnection(serverUrl, username, password);
-          var statement = connection.createStatement()) {
-        if (schema.matches("mdm_task2_[0-9a-f]{32}")) statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
-      } finally {
-        if (container != null) container.stop();
-      }
+      WorkflowTestEnvironment.cleanup(
+          () -> {
+            try (var connection = DriverManager.getConnection(serverUrl, username, password);
+                var statement = connection.createStatement()) {
+              if (schema.matches("mdm_task2_[0-9a-f]{32}")) {
+                statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
+              }
+            }
+          },
+          () -> { if (container != null) container.stop(); });
     }
   }
 }

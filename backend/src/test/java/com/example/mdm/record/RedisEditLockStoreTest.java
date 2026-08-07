@@ -4,12 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.ServerSocket;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,15 +18,15 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 class RedisEditLockStoreTest {
   private LettuceConnectionFactory connections;
   private RedisServer server;
-  private Path executable;
+  private WorkflowTestEnvironment.RedisExecutable executable;
   private StringRedisTemplate redis;
   private RedisEditLockStore store;
   private long recordId;
 
   @BeforeEach void setUp() {
     int port = availablePort();
-    executable = redisExecutable();
-    server = new RedisServer(executable.toFile(), port);
+    executable = WorkflowTestEnvironment.redisExecutable();
+    server = new RedisServer(executable.path().toFile(), port);
     server.start();
     connections = new LettuceConnectionFactory("127.0.0.1", port);
     connections.afterPropertiesSet();
@@ -39,11 +36,16 @@ class RedisEditLockStoreTest {
     recordId = ThreadLocalRandom.current().nextLong(1_000_000_000_000L, Long.MAX_VALUE);
   }
 
-  @AfterEach void tearDown() throws IOException {
-    if (redis != null) redis.delete(key());
-    if (connections != null) connections.destroy();
-    if (server != null) server.stop();
-    if (executable != null) Files.deleteIfExists(executable);
+  @AfterEach void tearDown() throws Exception {
+    WorkflowTestEnvironment.cleanup(
+        () -> { if (redis != null) redis.delete(key()); },
+        () -> { if (connections != null) connections.destroy(); },
+        () -> { if (server != null) server.stop(); },
+        () -> {
+          if (executable != null && executable.temporary()) {
+            Files.deleteIfExists(executable.path());
+          }
+        });
   }
 
   @Test void redisExecutesCompareScriptsAtomicallyAndExpiresTheActualLockKey() throws Exception {
@@ -88,16 +90,4 @@ class RedisEditLockStoreTest {
     }
   }
 
-  private Path redisExecutable() {
-    try (InputStream source = RedisServer.class.getResourceAsStream("/redis-server-2.8.19.exe")) {
-      if (source == null) throw new IllegalStateException("Embedded Redis executable is unavailable");
-      Path result = Files.createTempFile("mdm-redis-", ".exe");
-      Files.copy(source, result, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-      File file = result.toFile();
-      if (!file.setExecutable(true)) throw new IllegalStateException("Embedded Redis executable is not runnable");
-      return result;
-    } catch (IOException exception) {
-      throw new IllegalStateException("Unable to extract embedded Redis executable", exception);
-    }
-  }
 }

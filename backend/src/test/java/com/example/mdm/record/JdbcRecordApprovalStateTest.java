@@ -196,28 +196,18 @@ class JdbcRecordApprovalStateTest {
     }
 
     static ApprovalDatabase start() throws Exception {
-      String localUrl = System.getProperty("record.approval.mysql.server-url");
+      WorkflowTestEnvironment.MySqlSettings local = WorkflowTestEnvironment.mysql();
       ApprovalDatabase database;
-      if (localUrl == null) {
+      if (local == null) {
         var container = new MySQLContainer<>("mysql:8.0.36");
         container.start();
         database = new ApprovalDatabase(container.getJdbcUrl(), "root", container.getPassword(),
             container);
       } else {
-        database = new ApprovalDatabase(localUrl,
-            requireLocalProperty("record.approval.mysql.username"),
-            requireLocalProperty("record.approval.mysql.password"), null);
+        database = new ApprovalDatabase(local.serverUrl(), local.username(), local.password(), null);
       }
       database.createAndMigrate();
       return database;
-    }
-
-    private static String requireLocalProperty(String name) {
-      String value = System.getProperty(name);
-      if (value == null || value.isBlank()) {
-        throw new IllegalArgumentException(name + " is required with record.approval.mysql.server-url");
-      }
-      return value;
     }
 
     private void createAndMigrate() throws Exception {
@@ -440,14 +430,16 @@ class JdbcRecordApprovalStateTest {
     }
 
     @Override public void close() throws Exception {
-      try (var connection = DriverManager.getConnection(serverUrl, username, password);
-          var statement = connection.createStatement()) {
-        if (schema.matches("mdm_task4_[0-9a-f]{32}")) {
-          statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
-        }
-      } finally {
-        if (container != null) container.stop();
-      }
+      WorkflowTestEnvironment.cleanup(
+          () -> {
+            try (var connection = DriverManager.getConnection(serverUrl, username, password);
+                var statement = connection.createStatement()) {
+              if (schema.matches("mdm_task4_[0-9a-f]{32}")) {
+                statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
+              }
+            }
+          },
+          () -> { if (container != null) container.stop(); });
     }
   }
 

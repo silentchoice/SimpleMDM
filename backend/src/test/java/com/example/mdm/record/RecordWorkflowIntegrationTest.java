@@ -19,12 +19,9 @@ import com.example.mdm.metadata.MetadataRepository;
 import com.example.mdm.metadata.MetadataStatus;
 import com.example.mdm.metadata.SubType;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.ServerSocket;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -144,7 +141,7 @@ final class WorkflowHarness implements AutoCloseable {
   private RedisServer redisServer;
   private LettuceConnectionFactory redisConnections;
   private StringRedisTemplate redis;
-  private Path redisExecutable;
+  private WorkflowTestEnvironment.RedisExecutable redisExecutable;
 
   private WorkflowHarness(String serverUrl, String username, String password,
       MySQLContainer<?> container) {
@@ -155,17 +152,14 @@ final class WorkflowHarness implements AutoCloseable {
   }
 
   static WorkflowHarness start() throws Exception {
-    String localUrl = System.getProperty("record.repository.mysql.server-url");
-    WorkflowHarness harness = localUrl == null ? containerDatabase()
-        : new WorkflowHarness(localUrl,
-            System.getProperty("record.repository.mysql.username", "root"),
-            requiredProperty("record.repository.mysql.password"), null);
+    WorkflowTestEnvironment.MySqlSettings local = WorkflowTestEnvironment.mysql();
+    WorkflowHarness harness = local == null ? containerDatabase()
+        : new WorkflowHarness(local.serverUrl(), local.username(), local.password(), null);
     try {
       harness.initialize();
       return harness;
     } catch (Exception failure) {
-      harness.close();
-      throw failure;
+      throw WorkflowTestEnvironment.withCleanupFailure(failure, harness::close);
     }
   }
 
@@ -173,12 +167,6 @@ final class WorkflowHarness implements AutoCloseable {
     var container = new MySQLContainer<>("mysql:8.0.36");
     container.start();
     return new WorkflowHarness(container.getJdbcUrl(), "root", container.getPassword(), container);
-  }
-
-  private static String requiredProperty(String name) {
-    String value = System.getProperty(name);
-    if (value == null || value.isBlank()) throw new IllegalStateException(name + " is required");
-    return value;
   }
 
   private void initialize() throws Exception {
@@ -410,8 +398,8 @@ final class WorkflowHarness implements AutoCloseable {
 
   private void startRedis() throws IOException {
     int port = availablePort();
-    redisExecutable = redisExecutable();
-    redisServer = new RedisServer(redisExecutable.toFile(), port);
+    redisExecutable = WorkflowTestEnvironment.redisExecutable();
+    redisServer = new RedisServer(redisExecutable.path().toFile(), port);
     redisServer.start();
     redisConnections = new LettuceConnectionFactory("127.0.0.1", port);
     redisConnections.afterPropertiesSet();
@@ -425,17 +413,6 @@ final class WorkflowHarness implements AutoCloseable {
     }
   }
 
-  private Path redisExecutable() throws IOException {
-    try (InputStream source = RedisServer.class.getResourceAsStream("/redis-server-2.8.19.exe")) {
-      if (source == null) throw new IllegalStateException("Embedded Redis executable is unavailable");
-      Path result = Files.createTempFile("mdm-task9-redis-", ".exe");
-      Files.copy(source, result, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-      File file = result.toFile();
-      if (!file.setExecutable(true)) throw new IllegalStateException("Embedded Redis is not runnable");
-      return result;
-    }
-  }
-
   private String schemaUrl() {
     int query = serverUrl.indexOf('?');
     String parameters = query < 0 ? "" : serverUrl.substring(query);
@@ -445,23 +422,28 @@ final class WorkflowHarness implements AutoCloseable {
   }
 
   @Override public void close() throws Exception {
-    RuntimeException cleanupFailure = null;
-    try {
-      if (redis != null) redis.getConnectionFactory().getConnection().serverCommands().flushDb();
-    } catch (RuntimeException failure) {
-      cleanupFailure = failure;
-    }
-    if (redisConnections != null) redisConnections.destroy();
-    if (redisServer != null) redisServer.stop();
-    if (redisExecutable != null) Files.deleteIfExists(redisExecutable);
-    try (var connection = DriverManager.getConnection(serverUrl, username, password);
-        var statement = connection.createStatement()) {
-      if (schema.matches("mdm_task9_[0-9a-f]{32}")) {
-        statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
-      }
-    } finally {
-      if (container != null) container.stop();
-    }
-    if (cleanupFailure != null) throw cleanupFailure;
+    WorkflowTestEnvironment.cleanup(
+        () -> {
+          if (redis == null) return;
+          try (var connection = redis.getConnectionFactory().getConnection()) {
+            connection.serverCommands().flushDb();
+          }
+        },
+        () -> { if (redisConnections != null) redisConnections.destroy(); },
+        () -> { if (redisServer != null) redisServer.stop(); },
+        () -> {
+          if (redisExecutable != null && redisExecutable.temporary()) {
+            Files.deleteIfExists(redisExecutable.path());
+          }
+        },
+        () -> {
+          try (var connection = DriverManager.getConnection(serverUrl, username, password);
+              var statement = connection.createStatement()) {
+            if (schema.matches("mdm_task9_[0-9a-f]{32}")) {
+              statement.execute("DROP DATABASE IF EXISTS `" + schema + "`");
+            }
+          }
+        },
+        () -> { if (container != null) container.stop(); });
   }
 }
