@@ -109,6 +109,12 @@ describe('record list and detail views', () => {
       sortDirection: 'desc'
     })
     expect(wrapper.text()).toContain('Business Data')
+    expect(wrapper.text()).toContain('Record code')
+    expect(wrapper.text()).toContain('Keyword')
+    expect(wrapper.text()).toContain('Status')
+    expect(wrapper.text()).toContain('All')
+    expect(wrapper.text()).toContain('Include deleted')
+    expect(wrapper.text()).toContain('Search')
     expect(wrapper.text()).toContain('Name')
     expect(wrapper.text()).toContain('Enabled')
     expect(wrapper.text()).toContain('AST-0001')
@@ -151,6 +157,29 @@ describe('record list and detail views', () => {
     expect(viewer.wrapper.find('[data-testid="record-create"]').exists()).toBe(false)
     expect(viewer.wrapper.find('[data-testid="record-delete-81"]').exists()).toBe(false)
     expect(viewer.wrapper.get('[data-testid="record-view-81"]').text()).toContain('View')
+  })
+
+  it('localizes record filter labels and actions in Chinese by default and switches them back to English', async () => {
+    setLocale('zh-CN')
+    const { wrapper } = await mountAt('/records')
+
+    expect(wrapper.text()).toContain('业务数据')
+    expect(wrapper.text()).toContain('编码')
+    expect(wrapper.text()).toContain('关键字')
+    expect(wrapper.text()).toContain('状态')
+    expect(wrapper.text()).toContain('全部')
+    expect(wrapper.text()).toContain('包含已删除')
+    expect(wrapper.text()).toContain('查询')
+
+    setLocale('en-US')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Business Data')
+    expect(wrapper.text()).toContain('Record code')
+    expect(wrapper.text()).toContain('Keyword')
+    expect(wrapper.text()).toContain('Status')
+    expect(wrapper.text()).toContain('All')
+    expect(wrapper.text()).toContain('Include deleted')
+    expect(wrapper.text()).toContain('Search')
   })
 
   it('shows loading, empty, and request-id error states for the list without leaking stale results', async () => {
@@ -207,5 +236,36 @@ describe('record list and detail views', () => {
     metadataApi.currentMasterType.mockRejectedValueOnce({ status: 404, message: 'No active metadata', requestId: 'req-meta' })
     const list = await mountAt('/records')
     expect(list.wrapper.get('[role="alert"]').text()).toContain('req-meta')
+  })
+
+  it('shows request-id errors on create draft failures instead of leaving rejected promises unhandled', async () => {
+    recordsApi.createRecordDraft.mockRejectedValueOnce({ status: 500, message: 'Create failed', requestId: 'req-create' })
+    const { wrapper, router } = await mountAt('/records')
+
+    await wrapper.get('[data-testid="record-create"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('Create failed')
+    expect(wrapper.get('[role="alert"]').text()).toContain('req-create')
+    expect(router.currentRoute.value.fullPath).toBe('/records')
+  })
+
+  it('shows request-id errors when edit or delete draft creation fails from the detail view', async () => {
+    recordsApi.createRecordDraft.mockRejectedValueOnce({ status: 409, message: 'Draft conflict', requestId: 'req-edit' })
+    const edit = await mountAt('/records/81')
+
+    await edit.wrapper.get('[data-testid="record-edit-81"]').trigger('click')
+    await flushPromises()
+    expect(edit.wrapper.get('[role="alert"]').text()).toContain('req-edit')
+    expect(edit.router.currentRoute.value.fullPath).toBe('/records/81')
+
+    recordsApi.requestRecordDeletion.mockRejectedValueOnce({ status: 500, message: 'Delete failed', requestId: 'req-delete' })
+    const deletion = await mountAt('/records/81')
+    await deletion.wrapper.get('[name="deleteReason"]').setValue('Duplicate record')
+    await deletion.wrapper.get('[data-testid="record-delete-81"]').trigger('click')
+    await flushPromises()
+    expect(deletion.wrapper.get('[role="alert"]').text()).toContain('Delete failed')
+    expect(deletion.wrapper.get('[role="alert"]').text()).toContain('req-delete')
+    expect(deletion.router.currentRoute.value.fullPath).toBe('/records/81')
   })
 })

@@ -96,6 +96,7 @@ async function loadMetadataAndRecords(): Promise<void> {
 
 async function createDraft(): Promise<void> {
   if (!masterTypeId.value) return
+  error.value = ''
   const body: RecordDraftCommand = {
     recordId: null,
     masterTypeId: masterTypeId.value,
@@ -105,8 +106,12 @@ async function createDraft(): Promise<void> {
     children: [],
     deleteReason: null
   }
-  const draft = await createRecordDraft(clone(body))
-  await router.push(`/records/drafts/${draft.id}`)
+  try {
+    const draft = await createRecordDraft(clone(body))
+    await router.push(`/records/drafts/${draft.id}`)
+  } catch (reason) {
+    error.value = errorMessage(reason)
+  }
 }
 
 onMounted(loadMetadataAndRecords)

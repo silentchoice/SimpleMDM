@@ -68,6 +68,7 @@ async function load(): Promise<void> {
 
 async function createEditDraft(): Promise<void> {
   if (!record.value) return
+  error.value = ''
   const body: RecordDraftCommand = {
     recordId: record.value.id,
     masterTypeId: record.value.masterTypeId,
@@ -80,14 +81,23 @@ async function createEditDraft(): Promise<void> {
     })),
     deleteReason: null
   }
-  const draft = await createRecordDraft(body)
-  await router.push(`/records/drafts/${draft.id}`)
+  try {
+    const draft = await createRecordDraft(body)
+    await router.push(`/records/drafts/${draft.id}`)
+  } catch (reason) {
+    error.value = errorMessage(reason)
+  }
 }
 
 async function requestDelete(): Promise<void> {
   if (!record.value || !deleteReason.value.trim()) return
-  const draft = await requestRecordDeletion(record.value.id, deleteReason.value.trim())
-  await router.push(`/records/drafts/${draft.id}`)
+  error.value = ''
+  try {
+    const draft = await requestRecordDeletion(record.value.id, deleteReason.value.trim())
+    await router.push(`/records/drafts/${draft.id}`)
+  } catch (reason) {
+    error.value = errorMessage(reason)
+  }
 }
 
 onMounted(load)

@@ -44,9 +44,15 @@ const subTypes = [
 const subTypeFields: Record<number, any[]> = {
   301: [
     { id: 401, ownerTypeId: 301, code: 'email', displayName: 'Email', fieldType: 'TEXT', required: true, options: [], shared: false, sortOrder: 0, status: 'ACTIVE' },
-    { id: 402, ownerTypeId: 301, code: 'kind', displayName: 'Kind', fieldType: 'SELECT', required: false, options: ['WORK', 'HOME'], shared: false, sortOrder: 1, status: 'ACTIVE' }
+    { id: 402, ownerTypeId: 301, code: 'amount', displayName: 'Amount', fieldType: 'NUMBER', required: false, options: [], shared: false, sortOrder: 1, status: 'ACTIVE' },
+    { id: 403, ownerTypeId: 301, code: 'startDate', displayName: 'Start date', fieldType: 'DATE', required: false, options: [], shared: false, sortOrder: 2, status: 'ACTIVE' },
+    { id: 404, ownerTypeId: 301, code: 'changedAt', displayName: 'Changed at', fieldType: 'DATETIME', required: false, options: [], shared: false, sortOrder: 3, status: 'ACTIVE' },
+    { id: 405, ownerTypeId: 301, code: 'kind', displayName: 'Kind', fieldType: 'SELECT', required: false, options: ['WORK', 'HOME'], shared: false, sortOrder: 4, status: 'ACTIVE' },
+    { id: 406, ownerTypeId: 301, code: 'tone', displayName: 'Tone', fieldType: 'RADIO', required: false, options: ['WORK', 'HOME'], shared: false, sortOrder: 5, status: 'ACTIVE' },
+    { id: 407, ownerTypeId: 301, code: 'labels', displayName: 'Labels', fieldType: 'MULTISELECT', required: false, options: ['VIP', 'PRIMARY'], shared: false, sortOrder: 6, status: 'ACTIVE' },
+    { id: 408, ownerTypeId: 301, code: 'primary', displayName: 'Primary', fieldType: 'SWITCH', required: false, options: [], shared: false, sortOrder: 7, status: 'ACTIVE' }
   ],
-  302: [{ id: 403, ownerTypeId: 302, code: 'body', displayName: 'Body', fieldType: 'TEXT', required: false, options: [], shared: false, sortOrder: 0, status: 'ACTIVE' }]
+  302: [{ id: 409, ownerTypeId: 302, code: 'body', displayName: 'Body', fieldType: 'TEXT', required: false, options: [], shared: false, sortOrder: 0, status: 'ACTIVE' }]
 }
 const draft = {
   id: 91,
@@ -67,7 +73,23 @@ const draft = {
     enabled: true
   },
   children: [
-    { subTypeId: 301, rows: [{ recordId: 900, rowOrder: 0, values: { email: 'ops@example.com', kind: 'WORK' } }] },
+    {
+      subTypeId: 301,
+      rows: [{
+        recordId: 900,
+        rowOrder: 0,
+        values: {
+          email: 'ops@example.com',
+          amount: 5,
+          startDate: '2026-08-02',
+          changedAt: '2026-08-02T10:45:00',
+          kind: 'LEGACY_KIND<script>',
+          tone: 'HOME',
+          labels: ['VIP'],
+          primary: true
+        }
+      }]
+    },
     { subTypeId: 302, rows: [{ recordId: 901, rowOrder: 0, values: { body: 'Existing note' } }] }
   ],
   status: 'DRAFT',
@@ -173,11 +195,28 @@ describe('dynamic record editor', () => {
     expect(wrapper.get('[data-testid="subtype-tab-301"]').text()).toContain('Contacts')
     expect(wrapper.get('[data-testid="subtype-tab-302"]').text()).toContain('Notes')
     expect((wrapper.get('[name="child-301-row-0-email"]').element as HTMLInputElement).value).toBe('ops@example.com')
+    expect(wrapper.get('[name="child-301-row-0-amount"]').attributes('type')).toBe('number')
+    expect(wrapper.get('[name="child-301-row-0-startDate"]').attributes('type')).toBe('date')
+    expect(wrapper.get('[name="child-301-row-0-changedAt"]').attributes('type')).toBe('datetime-local')
+    expect(wrapper.get('[name="child-301-row-0-kind"]').element).toBeInstanceOf(HTMLSelectElement)
+    expect(wrapper.get('[name="child-301-row-0-tone"]').element).toBeInstanceOf(HTMLFieldSetElement)
+    expect(wrapper.get('[name="child-301-row-0-labels"]').element).toBeInstanceOf(HTMLSelectElement)
+    expect(wrapper.get('[name="child-301-row-0-primary"]').attributes('type')).toBe('checkbox')
+    expect(wrapper.text()).toContain('LEGACY_KIND<script>')
+    expect(wrapper.findAll('script')).toHaveLength(0)
+    expect(wrapper.get('[data-testid="child-301-add"]').text()).toContain('Add row')
     await wrapper.get('[data-testid="child-301-add"]').trigger('click')
     await wrapper.get('[name="child-301-row-1-email"]').setValue('new@example.com')
+    await wrapper.get('[name="child-301-row-1-amount"]').setValue('7')
+    await wrapper.get('[name="child-301-row-1-startDate"]').setValue('2026-08-03')
+    await wrapper.get('[name="child-301-row-1-changedAt"]').setValue('2026-08-03T11:00')
     await wrapper.get('[name="child-301-row-1-kind"]').setValue('HOME')
+    await wrapper.get('[name="child-301-row-1-labels"]').setValue(['PRIMARY'])
+    await wrapper.get('[data-testid="child-301-row-1-home-radio"]').setValue()
+    await wrapper.get('[name="child-301-row-1-primary"]').setValue(true)
     await wrapper.get('[data-testid="child-301-row-1-up"]').trigger('click')
     await wrapper.get('[data-testid="subtype-tab-302"]').trigger('click')
+    expect(wrapper.get('[data-testid="child-302-row-0-delete"]').text()).toContain('Delete')
     await wrapper.get('[data-testid="child-302-row-0-delete"]').trigger('click')
     await wrapper.get('[data-testid="record-save"]').trigger('click')
     await flushPromises()
@@ -202,8 +241,34 @@ describe('dynamic record editor', () => {
         {
           subTypeId: 301,
           rows: [
-            { recordId: null, rowOrder: 0, values: { email: 'new@example.com', kind: 'HOME' } },
-            { recordId: 900, rowOrder: 1, values: { email: 'ops@example.com', kind: 'WORK' } }
+            {
+              recordId: null,
+              rowOrder: 0,
+              values: {
+                email: 'new@example.com',
+                amount: 7,
+                startDate: '2026-08-03',
+                changedAt: '2026-08-03T11:00',
+                kind: 'HOME',
+                tone: 'HOME',
+                labels: ['PRIMARY'],
+                primary: true
+              }
+            },
+            {
+              recordId: 900,
+              rowOrder: 1,
+              values: {
+                email: 'ops@example.com',
+                amount: 5,
+                startDate: '2026-08-02',
+                changedAt: '2026-08-02T10:45:00',
+                kind: 'LEGACY_KIND<script>',
+                tone: 'HOME',
+                labels: ['VIP'],
+                primary: true
+              }
+            }
           ]
         },
         { subTypeId: 302, rows: [] }
@@ -212,6 +277,24 @@ describe('dynamic record editor', () => {
     })
     expect(original.children[0].rows).toHaveLength(1)
     expect(original.children[0].rows[0].values).toMatchObject({ email: 'ops@example.com' })
+  })
+
+  it('localizes child table actions in Chinese and English without routing user values through translations', async () => {
+    setLocale('zh-CN')
+    const { wrapper } = await mountEditor()
+
+    expect(wrapper.get('[data-testid="child-301-add"]').text()).toContain('添加行')
+    expect(wrapper.get('[data-testid="child-301-row-0-up"]').text()).toContain('上移')
+    expect(wrapper.get('[data-testid="child-301-row-0-down"]').text()).toContain('下移')
+    expect(wrapper.get('[data-testid="child-301-row-0-delete"]').text()).toContain('删除')
+    expect(wrapper.text()).toContain('LEGACY_KIND<script>')
+
+    setLocale('en-US')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="child-301-add"]').text()).toContain('Add row')
+    expect(wrapper.get('[data-testid="child-301-row-0-up"]').text()).toContain('Up')
+    expect(wrapper.get('[data-testid="child-301-row-0-down"]').text()).toContain('Down')
+    expect(wrapper.get('[data-testid="child-301-row-0-delete"]').text()).toContain('Delete')
   })
 
   it('freezes repeated save and submit actions, requires delete reasons, and shows refresh guidance on version conflicts', async () => {

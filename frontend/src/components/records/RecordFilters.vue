@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 export interface RecordFilterModel {
   recordCode: string
   keyword: string
@@ -11,6 +13,7 @@ const emit = defineEmits<{
   'update:modelValue': [RecordFilterModel]
   search: []
 }>()
+const { t } = useI18n()
 
 function update<K extends keyof RecordFilterModel>(key: K, value: RecordFilterModel[K]): void {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
@@ -20,25 +23,25 @@ function update<K extends keyof RecordFilterModel>(key: K, value: RecordFilterMo
 <template>
   <form class="record-filters" @submit.prevent="emit('search')">
     <label>
-      <span>Record code</span>
+      <span>{{ t('record.filters.recordCode') }}</span>
       <input name="recordCode" :value="modelValue.recordCode" @input="update('recordCode', ($event.target as HTMLInputElement).value)">
     </label>
     <label>
-      <span>Keyword</span>
+      <span>{{ t('record.filters.keyword') }}</span>
       <input name="keyword" :value="modelValue.keyword" @input="update('keyword', ($event.target as HTMLInputElement).value)">
     </label>
     <label>
-      <span>Status</span>
+      <span>{{ t('record.filters.status') }}</span>
       <select name="status" :value="modelValue.status" @change="update('status', ($event.target as HTMLSelectElement).value)">
-        <option value="">All</option>
+        <option value="">{{ t('record.filters.all') }}</option>
         <option value="ACTIVE">ACTIVE</option>
         <option value="DELETED">DELETED</option>
       </select>
     </label>
     <label class="record-filters__toggle">
       <input name="includeDeleted" type="checkbox" :checked="modelValue.includeDeleted" @change="update('includeDeleted', ($event.target as HTMLInputElement).checked)">
-      <span>Include deleted</span>
+      <span>{{ t('record.filters.includeDeleted') }}</span>
     </label>
-    <el-button native-type="submit" type="primary">Search</el-button>
+    <el-button native-type="submit" type="primary">{{ t('record.filters.search') }}</el-button>
   </form>
 </template>

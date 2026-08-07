@@ -1,6 +1,23 @@
 export const recordMessages = {
   'zh-CN': {
     record: {
+      filters: {
+        recordCode: '编码',
+        keyword: '关键字',
+        status: '状态',
+        all: '全部',
+        includeDeleted: '包含已删除',
+        search: '查询'
+      },
+      child: {
+        addRow: '添加行',
+        up: '上移',
+        down: '下移',
+        delete: '删除'
+      },
+      history: {
+        version: '版本 {version}'
+      },
       status: {
         ACTIVE: '启用',
         DELETED: '已删除',
@@ -48,6 +65,23 @@ export const recordMessages = {
   },
   'en-US': {
     record: {
+      filters: {
+        recordCode: 'Record code',
+        keyword: 'Keyword',
+        status: 'Status',
+        all: 'All',
+        includeDeleted: 'Include deleted',
+        search: 'Search'
+      },
+      child: {
+        addRow: 'Add row',
+        up: 'Up',
+        down: 'Down',
+        delete: 'Delete'
+      },
+      history: {
+        version: 'Version {version}'
+      },
       status: {
         ACTIVE: 'Active',
         DELETED: 'Deleted',

@@ -54,7 +54,7 @@ describe('record history presentation', () => {
     vi.clearAllMocks()
     localStorage.clear()
     sessionStorage.clear()
-    setLocale('en-US')
+    setLocale('zh-CN')
     metadataApi.currentMasterType.mockResolvedValue({ id: 41, code: 'ASSET', name: 'Asset', status: 'ACTIVE' })
     metadataApi.listMasterFields.mockResolvedValue([{ id: 101, ownerTypeId: 41, code: 'name', displayName: 'Name', fieldType: 'TEXT', required: true, options: [], shared: false, sortOrder: 0, status: 'ACTIVE' }])
     metadataApi.listSubTypes.mockResolvedValue([])
@@ -67,16 +67,20 @@ describe('record history presentation', () => {
     ])
   })
 
-  it('shows only the latest three versions and renders raw values as escaped text when history is opened', async () => {
+  it('shows only the latest three versions, localizes the version label, and renders raw values as escaped text when history is opened', async () => {
     const wrapper = await mountDetail()
 
     await wrapper.get('[data-testid="detail-tab-history"]').trigger('click')
     await flushPromises()
     expect(wrapper.findAll('[data-testid^="history-version-"]')).toHaveLength(3)
-    expect(wrapper.text()).toContain('Version 4')
-    expect(wrapper.text()).toContain('Version 3')
-    expect(wrapper.text()).toContain('Version 2')
-    expect(wrapper.text()).not.toContain('Version 1')
+    expect(wrapper.text()).toContain('版本 4')
+    expect(wrapper.text()).toContain('版本 3')
+    expect(wrapper.text()).toContain('版本 2')
+    expect(wrapper.text()).not.toContain('版本 1')
     expect(wrapper.html()).not.toContain('<img src=x onerror=alert(1)>')
+
+    setLocale('en-US')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Version 4')
   })
 })
