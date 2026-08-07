@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class RecordQueryService {
   private final RecordVisibilityService visibility;
   private final AuthorizationService authorization;
 
+  @Autowired
   public RecordQueryService(NamedParameterJdbcTemplate jdbc, ObjectMapper json,
       RecordSnapshotCodec snapshots, RecordVisibilityService visibility,
       AuthorizationService authorization) {

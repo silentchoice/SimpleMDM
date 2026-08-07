@@ -1,5 +1,6 @@
 package com.example.mdm.record;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -12,12 +13,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.mdm.common.api.RequestId;
 import com.example.mdm.common.error.GlobalExceptionHandler;
+import com.example.mdm.auth.AuthorizationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.MediaType;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -107,6 +112,25 @@ class RecordControllerTest {
     mvc.perform(delete("/api/master-record/81")
             .requestAttr(RequestId.ATTRIBUTE, "req-no-delete"))
         .andExpect(status().isMethodNotAllowed());
+  }
+
+  @Test void springConstructsTheProductionRecordQueryServiceBean() {
+    try (var context = new AnnotationConfigApplicationContext()) {
+      context.registerBean(NamedParameterJdbcTemplate.class,
+          () -> Mockito.mock(NamedParameterJdbcTemplate.class));
+      context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
+      context.registerBean(RecordSnapshotCodec.class,
+          () -> new RecordSnapshotCodec(context.getBean(ObjectMapper.class)));
+      context.registerBean(RecordVisibilityService.class,
+          () -> Mockito.mock(RecordVisibilityService.class));
+      context.registerBean(AuthorizationService.class,
+          () -> Mockito.mock(AuthorizationService.class));
+      context.registerBean(RecordQueryService.class);
+
+      context.refresh();
+
+      assertThat(context.getBean(RecordQueryService.class)).isNotNull();
+    }
   }
 
   private RecordView view() {
