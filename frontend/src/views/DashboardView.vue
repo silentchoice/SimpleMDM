@@ -65,6 +65,8 @@ const shortcuts = computed(() => {
   return items
 })
 
+const canOpenApprovalDetails = computed(() => hasRole('DEPT_APPROVER'))
+
 onMounted(load)
 </script>
 
@@ -97,7 +99,7 @@ onMounted(load)
       <section class="dashboard-recent">
         <h2>{{ t('dashboard.recent.title') }}</h2>
         <p v-if="summary.recentTasks.length === 0">{{ t('dashboard.recent.empty') }}</p>
-        <RecentTasksTable v-else :tasks="summary.recentTasks" />
+        <RecentTasksTable v-else :tasks="summary.recentTasks" :can-open-approval-details="canOpenApprovalDetails" />
       </section>
     </template>
   </section>

@@ -8,13 +8,37 @@ import type { ApiError } from '../../types'
 const route = useRoute()
 const router = useRouter()
 const status = ref<ApprovalStatus>('PENDING')
-const { t } = useI18n()
+const { locale, t } = useI18n()
 const tasks = ref<ApprovalTask[]>([])
 const loading = ref(false)
 const error = ref('')
 let loadGeneration = 0
 
 const taskType = computed<ApprovalTaskType>(() => route.query.taskType === 'RECORD' ? 'RECORD' : 'METADATA')
+const isChinese = computed(() => locale.value === 'zh-CN')
+const listCopy = computed(() => {
+  if (taskType.value === 'RECORD') {
+    return isChinese.value
+      ? {
+          title: '业务数据审批',
+          description: '审核您所在部门提交的业务数据变更。',
+          empty: '没有符合此状态的业务数据审批任务。',
+          kindHeader: '记录类型'
+        }
+      : {
+          title: 'Record approvals',
+          description: 'Review submitted business-data changes for your department.',
+          empty: 'No record approval tasks match this status.',
+          kindHeader: 'Record kind'
+        }
+  }
+  return {
+    title: t('approval.list.title'),
+    description: t('approval.list.description'),
+    empty: t('approval.list.empty'),
+    kindHeader: t('approval.list.metadataKind')
+  }
+})
 
 function message(value: ApiError): string {
   return value.requestId
@@ -53,8 +77,8 @@ watch(() => route.query.taskType, load)
   <section class="content-view">
     <div class="view-heading">
       <div>
-        <h1>{{ t('approval.list.title') }}</h1>
-        <p>{{ t('approval.list.description') }}</p>
+        <h1>{{ listCopy.title }}</h1>
+        <p>{{ listCopy.description }}</p>
       </div>
     </div>
 
@@ -78,12 +102,12 @@ watch(() => route.query.taskType, load)
 
     <p v-if="error" role="alert" class="form-error">{{ error }}</p>
     <p v-else-if="loading">{{ t('approval.list.loading') }}</p>
-    <p v-else-if="tasks.length === 0">{{ t('approval.list.empty') }}</p>
+    <p v-else-if="tasks.length === 0">{{ listCopy.empty }}</p>
     <table v-else class="records-table">
       <thead>
         <tr>
           <th>{{ t('approval.list.task') }}</th>
-          <th>{{ t('approval.list.metadataKind') }}</th>
+          <th>{{ listCopy.kindHeader }}</th>
           <th>{{ t('approval.list.entity') }}</th>
           <th>{{ t('common.status') }}</th>
           <th>{{ t('approval.list.submitted') }}</th>

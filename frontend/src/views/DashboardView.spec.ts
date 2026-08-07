@@ -24,6 +24,11 @@ const approverSession: Session = {
   roles: ['DEPT_APPROVER']
 }
 
+const viewerSession: Session = {
+  ...editorSession,
+  roles: ['DEPT_VIEWER']
+}
+
 const adminSession: Session = {
   accessToken: 'token',
   user: { id: 1, username: 'admin', displayName: 'Admin' },
@@ -113,6 +118,24 @@ describe('dashboard view', () => {
     expect(admin.wrapper.text()).toContain('Departments')
     expect(admin.wrapper.text()).toContain('Roles')
     expect(admin.wrapper.text()).not.toContain('Submit Change')
+  })
+
+  it('keeps recent tasks clickable only for approvers and renders plain task text for editor/viewer roles', async () => {
+    const approver = await mountDashboard(approverSession)
+    const approverLinks = approver.wrapper.findAll('.dashboard-recent tbody a')
+    expect(approverLinks).toHaveLength(2)
+    expect(approverLinks[0].attributes('href')).toContain('/metadata/approvals/91')
+    expect(approverLinks[1].attributes('href')).toContain('/metadata/approvals/92')
+
+    const editor = await mountDashboard(editorSession)
+    expect(editor.wrapper.text()).toContain('#91')
+    expect(editor.wrapper.text()).toContain('#92')
+    expect(editor.wrapper.findAll('.dashboard-recent tbody a')).toHaveLength(0)
+
+    const viewer = await mountDashboard(viewerSession)
+    expect(viewer.wrapper.text()).toContain('#91')
+    expect(viewer.wrapper.text()).toContain('#92')
+    expect(viewer.wrapper.findAll('.dashboard-recent tbody a')).toHaveLength(0)
   })
 
   it('shows loading, empty, and request-id error states from the single summary request', async () => {

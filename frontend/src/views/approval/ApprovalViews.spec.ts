@@ -171,6 +171,34 @@ describe('approval views', () => {
     expect(link.attributes('href')).toContain('taskType=RECORD')
   })
 
+  it('shows record-specific list copy for the RECORD tab and switches it live between English and Chinese', async () => {
+    approvalApi.listApprovalTasks.mockResolvedValueOnce([recordTask()])
+    const router = await routerAt('/metadata/approvals?taskType=RECORD')
+    const wrapper = mountWithSession(ApprovalListView, router)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Record approvals')
+    expect(wrapper.text()).toContain('Review submitted business-data changes for your department.')
+    expect(wrapper.text()).toContain('Record kind')
+
+    setLocale('zh-CN')
+    await flushPromises()
+    expect(wrapper.text()).toContain('业务数据审批')
+    expect(wrapper.text()).toContain('审核您所在部门提交的业务数据变更。')
+    expect(wrapper.text()).toContain('记录类型')
+  })
+
+  it('keeps metadata list copy for METADATA tasks and uses the metadata empty state', async () => {
+    approvalApi.listApprovalTasks.mockResolvedValueOnce([])
+    const router = await routerAt('/metadata/approvals')
+    const wrapper = mountWithSession(ApprovalListView, router)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Metadata approvals')
+    expect(wrapper.text()).toContain('Review metadata changes for your department.')
+    expect(wrapper.text()).toContain('No metadata approval tasks match this status.')
+  })
+
   it('does not let a slow previous status response replace the current filtered list', async () => {
     const slowPending = deferred<ReturnType<typeof metadataTask>[]>()
     approvalApi.listApprovalTasks.mockReturnValueOnce(slowPending.promise).mockResolvedValueOnce([{ ...metadataTask('APPROVED'), id: 93 }])

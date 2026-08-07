@@ -5,6 +5,7 @@ import type { DashboardRecentTask } from '../../api/dashboard'
 
 const props = defineProps<{
   tasks: DashboardRecentTask[]
+  canOpenApprovalDetails: boolean
 }>()
 
 const { t } = useI18n()
@@ -30,7 +31,10 @@ const rows = computed(() => props.tasks.map((task) => ({
     </thead>
     <tbody>
       <tr v-for="task in rows" :key="task.id">
-        <td><router-link :to="task.detailTo">#{{ task.id }}</router-link></td>
+        <td>
+          <router-link v-if="canOpenApprovalDetails" :to="task.detailTo">#{{ task.id }}</router-link>
+          <span v-else>#{{ task.id }}</span>
+        </td>
         <td>{{ task.taskType }}</td>
         <td>{{ task.entityId }}</td>
         <td>{{ t(`status.${task.status}`) }}</td>
