@@ -13,6 +13,7 @@ import {
   getRecord,
   getRecordDraft,
   listRecordHistory,
+  listRecordDrafts,
   listRecords,
   releaseRecordLock,
   renewRecordLock,
@@ -65,7 +66,7 @@ const draft: RecordDraft = {
 
 const page: Paged<RecordSummary> = {
   content: [record],
-  number: 0,
+  page: 0,
   size: 20,
   totalElements: 1,
   totalPages: 1
@@ -113,8 +114,18 @@ describe('record API client', () => {
     expect(http.get).toHaveBeenNthCalledWith(2, '/master-record/81/history')
   })
 
+  it('loads only the authenticated editor draft collection endpoint', async () => {
+    http.get.mockResolvedValueOnce([draft])
+
+    await expect(listRecordDrafts()).resolves.toEqual([draft])
+
+    expect(http.get).toHaveBeenCalledWith('/master-record-draft')
+  })
+
   it('creates, updates, reads, copies, submits, and logically deletes drafts through their exact endpoints', async () => {
-    http.post.mockResolvedValueOnce(draft).mockResolvedValueOnce({ ...draft, id: 92 }).mockResolvedValueOnce(undefined).mockResolvedValueOnce({ ...draft, id: 93, action: 'DELETE', deleteReason: 'Duplicate supplier' })
+    http.post.mockResolvedValueOnce(draft).mockResolvedValueOnce({ ...draft, id: 92 })
+      .mockResolvedValueOnce({ approvalTaskId: 701 })
+      .mockResolvedValueOnce({ ...draft, id: 93, action: 'DELETE', deleteReason: 'Duplicate supplier' })
     http.put.mockResolvedValue(draft)
     http.get.mockResolvedValue(draft)
 
@@ -122,14 +133,14 @@ describe('record API client', () => {
     await expect(updateRecordDraft(91, draftCommand)).resolves.toEqual(draft)
     await expect(getRecordDraft(91)).resolves.toEqual(draft)
     await expect(copyRecordDraft(91)).resolves.toEqual({ ...draft, id: 92 })
-    await expect(submitRecordDraft(91)).resolves.toBeUndefined()
+    await expect(submitRecordDraft(91, 'held-token')).resolves.toEqual({ approvalTaskId: 701 })
     await expect(requestRecordDeletion(81, 'Duplicate supplier')).resolves.toEqual({ ...draft, id: 93, action: 'DELETE', deleteReason: 'Duplicate supplier' })
 
     expect(http.post).toHaveBeenNthCalledWith(1, '/master-record-draft', draftCommand)
     expect(http.put).toHaveBeenCalledWith('/master-record-draft/91', draftCommand)
     expect(http.get).toHaveBeenCalledWith('/master-record-draft/91')
     expect(http.post).toHaveBeenNthCalledWith(2, '/master-record-draft/91/copy')
-    expect(http.post).toHaveBeenNthCalledWith(3, '/master-record-draft/91/submit')
+    expect(http.post).toHaveBeenNthCalledWith(3, '/master-record-draft/91/submit', { token: 'held-token' })
     expect(http.post).toHaveBeenNthCalledWith(4, '/master-record/81/delete-request', { reason: 'Duplicate supplier' })
   })
 

@@ -73,6 +73,10 @@ export const messages = {
       shortcuts: {
         title: '快捷入口'
       },
+      taskTypes: {
+        RECORD: '业务数据',
+        METADATA: '元数据'
+      },
       recent: {
         title: '最近任务',
         empty: '暂无最近任务。',
@@ -371,6 +375,10 @@ export const messages = {
       },
       shortcuts: {
         title: 'Quick shortcuts'
+      },
+      taskTypes: {
+        RECORD: 'Business Data',
+        METADATA: 'Metadata'
       },
       recent: {
         title: 'Recent tasks',

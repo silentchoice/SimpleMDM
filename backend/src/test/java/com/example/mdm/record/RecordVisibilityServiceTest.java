@@ -3,6 +3,8 @@ package com.example.mdm.record;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.example.mdm.auth.AuthorizationService;
 import com.example.mdm.auth.DepartmentPrincipal;
@@ -87,6 +89,18 @@ class RecordVisibilityServiceTest {
     assertThat(includingDeleted.totalElements()).isEqualTo(2);
   }
 
+  @Test void oneListPageReusesRecordScopeMetadataAcrossRows() {
+    var source = new MemorySource(List.of(
+        stored(recordWithIdAndDepartment(81, "CUS-1", 8), LocalDateTime.of(2026, 8, 4, 10, 0)),
+        stored(recordWithIdAndDepartment(82, "CUS-2", 8), LocalDateTime.of(2026, 8, 5, 10, 0))));
+    var queries = new RecordQueryService(source, visibility, authorization);
+
+    assertThat(queries.list(new RecordQueryService.RecordQuery(9L, null, null, null,
+        false, 0, 20, "id", "asc")).content()).hasSize(2);
+
+    verify(metadata, times(1)).findMasterFields(8, 9);
+  }
+
   @Test void paginationIsCappedSortingIsWhitelistedAndHistoryReadsAtMostThreeSnapshots() {
     var source = new MemorySource(List.of(stored(record(8, "ACTIVE"),
         LocalDateTime.of(2026, 8, 4, 10, 0))));
@@ -100,11 +114,15 @@ class RecordVisibilityServiceTest {
         null, false, 0, 20, "field_values; DROP TABLE users", "asc")))
         .isInstanceOfSatisfying(BusinessException.class,
             error -> assertThat(error.status()).isEqualTo(HttpStatus.BAD_REQUEST));
+    Mockito.clearInvocations(metadata);
     assertThat(queries.history(81)).hasSize(3).allSatisfy(history -> {
       assertThat(history.masterValues()).doesNotContainKey("taxId");
       assertThat(history.children()).allSatisfy(group -> group.rows().forEach(row ->
           assertThat(row.values()).doesNotContainKey("privateNote")));
     });
+    verify(metadata, times(1)).findMasterFields(8, 9);
+    verify(metadata, times(1)).findSubFields(8, 31);
+    verify(metadata, times(1)).findSubFields(8, 32);
     assertThat(source.historyLimit).isEqualTo(3);
   }
 
@@ -162,6 +180,11 @@ class RecordVisibilityServiceTest {
 
   private RecordView recordWithId(long id, String code) {
     return new RecordView(id, 9, 7, code, Map.of("publicName", code), List.of(), 1, "ACTIVE");
+  }
+
+  private RecordView recordWithIdAndDepartment(long id, String code, long departmentId) {
+    return new RecordView(id, 9, departmentId, code,
+        Map.of("publicName", code, "taxId", "private"), List.of(), 1, "ACTIVE");
   }
 
   private RecordQueryService.StoredRecord stored(RecordView view, LocalDateTime updatedAt) {

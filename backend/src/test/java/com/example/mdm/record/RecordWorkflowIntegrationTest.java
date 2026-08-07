@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.sql.DriverManager;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -87,6 +88,13 @@ class RecordWorkflowIntegrationTest {
 
       assertThat(updated.version()).isEqualTo(2);
       assertThat(updated.masterValues()).containsEntry("name", "Updated 2");
+      assertThat(workflow.historyAs(workflow.foreignViewer(), updated.id())).singleElement()
+          .satisfies(previous -> {
+            assertThat(previous.masterValues()).containsExactlyEntriesOf(Map.of("name", "Original"));
+            assertThat(previous.children()).singleElement().satisfies(group ->
+                assertThat(group.rows()).singleElement().satisfies(row ->
+                    assertThat(row.values()).containsExactlyEntriesOf(Map.of("phone", "1000"))));
+          });
       RecordDraft deletion = workflow.logicalDelete(updated.id(), "duplicate entry");
       String deleteToken = workflow.acquireAs(workflow.editor(), updated.id()).token();
 
@@ -114,6 +122,43 @@ class RecordWorkflowIntegrationTest {
       assertThat(workflow.historyAs(workflow.departmentViewer(), current.id()))
           .extracting(RecordView::version).containsExactly(4L, 3L, 2L);
       assertThat(workflow.historyRowCount(current.id())).isEqualTo(3);
+    }
+  }
+
+  @Test void sqlPaginationCountsOnlyVisibilitySafeKeywordMatchesAndBatchesTheCurrentPage()
+      throws Exception {
+    try (WorkflowHarness workflow = WorkflowHarness.start()) {
+      RecordView first = workflow.createAndApprove("First");
+      RecordView second = workflow.createAndApprove("Second");
+      assertThat(first.recordCode()).matches("CUS-\\d{8}-0001");
+      assertThat(second.recordCode()).matches("CUS-\\d{8}-0002").isNotEqualTo(first.recordCode());
+
+      var firstPage = workflow.queryAs(workflow.foreignViewer(),
+          new RecordQueryService.RecordQuery(1L, null, "1000", null, false,
+              0, 1, "recordCode", "asc"));
+      var secondPage = workflow.queryAs(workflow.foreignViewer(),
+          new RecordQueryService.RecordQuery(1L, null, "1000", null, false,
+              1, 1, "recordCode", "asc"));
+      var privateSearch = workflow.queryAs(workflow.foreignViewer(),
+          new RecordQueryService.RecordQuery(1L, null, "private", null, false,
+              0, 20, "recordCode", "asc"));
+      var databaseFiltered = workflow.queryAs(workflow.foreignViewer(),
+          new RecordQueryService.RecordQuery(1L, "CUS-", null, "ACTIVE", true,
+              0, 20, "updatedAt", "desc", LocalDateTime.of(2020, 1, 1, 0, 0),
+              LocalDateTime.of(2030, 1, 1, 0, 0)));
+
+      assertThat(firstPage.totalElements()).isEqualTo(2);
+      assertThat(firstPage.totalPages()).isEqualTo(2);
+      assertThat(firstPage.content()).singleElement().satisfies(record ->
+          assertThat(record.children()).singleElement().satisfies(group ->
+              assertThat(group.rows()).singleElement().satisfies(row ->
+                  assertThat(row.values()).containsExactlyEntriesOf(Map.of("phone", "1000")))));
+      assertThat(secondPage.content()).singleElement().satisfies(record ->
+          assertThat(record.recordCode()).isEqualTo(second.recordCode()));
+      assertThat(privateSearch.totalElements()).isZero();
+      assertThat(databaseFiltered.totalElements()).isEqualTo(2);
+      assertThat(databaseFiltered.content()).hasSize(2).allMatch(record ->
+          "ACTIVE".equals(record.status()));
     }
   }
 }
@@ -247,6 +292,12 @@ final class WorkflowHarness implements AutoCloseable {
   List<RecordView> historyAs(UserPrincipal principal, long recordId) {
     as(principal);
     return queries.history(recordId);
+  }
+
+  RecordQueryService.Paged<RecordView> queryAs(UserPrincipal principal,
+      RecordQueryService.RecordQuery query) {
+    as(principal);
+    return queries.list(query);
   }
 
   RecordDraft createUpdateAs(UserPrincipal principal, RecordView formal, String name) {
@@ -393,7 +444,18 @@ final class WorkflowHarness implements AutoCloseable {
     sql.update("INSERT INTO master_types(id,code,name,status,created_by) VALUES(1,'CUS','Customer','ACTIVE',1)");
     sql.update("INSERT INTO department_master_types(department_id,master_type_id,status) VALUES(1,1,'ACTIVE'),(2,1,'ACTIVE')");
     sql.update("INSERT INTO sub_types(id,master_type_id,department_id,code,name,sort_order,status) VALUES(1,1,1,'CONTACT','Contact',0,'ACTIVE'),(2,1,1,'ADDRESS','Address',1,'ACTIVE')");
-    sql.update("INSERT INTO master_type_code_rules(master_type_id,pattern,sequence_width) VALUES(1,'CUS-{YYYYMMDD}-{SEQ:4}',4)");
+    sql.update("INSERT INTO master_fields(id,master_type_id,department_id,code,display_name,"
+        + "field_type,required_flag,sort_order,status,share_config) VALUES"
+        + "(1,1,1,'name','Name','TEXT',TRUE,0,'ACTIVE',TRUE),"
+        + "(2,1,1,'internalNote','Internal note','TEXT',TRUE,1,'ACTIVE',FALSE)");
+    sql.update("INSERT INTO sub_fields(id,sub_type_id,department_id,code,display_name,field_type,"
+        + "required_flag,sort_order,status,share_config) VALUES"
+        + "(3,1,1,'phone','Phone','TEXT',TRUE,0,'ACTIVE',TRUE),"
+        + "(4,1,1,'privateNote','Private note','TEXT',TRUE,1,'ACTIVE',FALSE),"
+        + "(5,2,1,'city','City','TEXT',TRUE,0,'ACTIVE',TRUE),"
+        + "(6,2,1,'doorCode','Door code','TEXT',TRUE,1,'ACTIVE',FALSE)");
+    sql.update("INSERT INTO master_type_code_rules(master_type_id,pattern,sequence_width) "
+        + "VALUES(1,'CUS-{yyyyMMdd}-{0001}',4)");
   }
 
   private void startRedis() throws IOException {

@@ -2,11 +2,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { listMasterFields, type FieldDefinition } from '../../api/metadata'
+import { listMasterFields, listSubFields, listSubTypes, type FieldDefinition, type SubType } from '../../api/metadata'
 import { createRecordDraft, getRecord, listRecordHistory, requestRecordDeletion, type HistorySnapshot, type RecordDraftCommand, type RecordDetail } from '../../api/records'
 import { useAuthStore } from '../../stores/auth'
 import RecordHistoryTable from '../../components/records/RecordHistoryTable.vue'
 import RecordStatusTag from '../../components/records/RecordStatusTag.vue'
+import RecordSnapshotTables from '../../components/records/RecordSnapshotTables.vue'
 import type { ApiError } from '../../types'
 
 const route = useRoute()
@@ -19,10 +20,15 @@ const error = ref('')
 const record = ref<RecordDetail | null>(null)
 const history = ref<HistorySnapshot[]>([])
 const fields = ref<FieldDefinition[]>([])
+const subTypes = ref<SubType[]>([])
+const subFields = ref<Record<number, FieldDefinition[]>>({})
 const activeTab = ref<'current' | 'diff' | 'history'>('current')
 const deleteReason = ref('')
 
 const isEditor = computed(() => auth.hasAnyRole(['DEPT_EDITOR']))
+const canMutate = computed(() => isEditor.value
+  && record.value?.status === 'ACTIVE'
+  && record.value.departmentId === auth.session?.department?.id)
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -35,16 +41,7 @@ function errorMessage(reason: unknown): string {
     : value.message
 }
 
-function displayValue(values: Record<string, unknown>, code: string): string {
-  const value = values[code]
-  if (Array.isArray(value)) return value.join(', ')
-  if (typeof value === 'boolean') return value ? 'true' : 'false'
-  return value == null ? '—' : String(value)
-}
-
 const previousVersion = computed(() => history.value.find((item) => item.version !== record.value?.version) ?? null)
-const diffFields = computed(() => fields.value.filter((field) => displayValue(record.value?.masterValues ?? {}, field.code) !== displayValue(previousVersion.value?.masterValues ?? {}, field.code)))
-
 async function load(): Promise<void> {
   loading.value = true
   error.value = ''
@@ -53,12 +50,27 @@ async function load(): Promise<void> {
   try {
     const detail = await getRecord(Number(route.params.recordId))
     record.value = detail
-    const [fieldDefinitions, versions] = await Promise.all([
-      listMasterFields(detail.masterTypeId),
-      listRecordHistory(detail.id)
-    ])
-    fields.value = fieldDefinitions
-    history.value = versions
+    history.value = await listRecordHistory(detail.id)
+    try {
+      if (detail.departmentId === auth.session?.department?.id) {
+        const [fieldDefinitions, types] = await Promise.all([
+          listMasterFields(detail.masterTypeId), listSubTypes(detail.masterTypeId)
+        ])
+        fields.value = fieldDefinitions
+        subTypes.value = types
+        const children = await Promise.all(types.map(async (type) =>
+          [type.id, await listSubFields(type.id)] as const))
+        subFields.value = Object.fromEntries(children)
+      } else {
+        fields.value = []
+        subTypes.value = []
+        subFields.value = {}
+      }
+    } catch {
+      fields.value = []
+      subTypes.value = []
+      subFields.value = {}
+    }
   } catch (reason) {
     error.value = errorMessage(reason)
   } finally {
@@ -110,7 +122,7 @@ onMounted(load)
         <h1>{{ t('record.detail.title') }}</h1>
         <p>{{ t('record.detail.description') }}</p>
       </div>
-      <div v-if="record && isEditor" class="record-detail__actions">
+      <div v-if="record && canMutate" class="record-detail__actions">
         <el-button :data-testid="`record-edit-${record.id}`" type="primary" @click="createEditDraft">{{ t('record.detail.editDraft') }}</el-button>
       </div>
     </div>
@@ -123,7 +135,7 @@ onMounted(load)
         <RecordStatusTag :status="record.status" />
       </div>
 
-      <div v-if="isEditor" class="record-detail__delete">
+      <div v-if="canMutate" class="record-detail__delete">
         <label>
           <span>{{ t('record.detail.deleteReason') }}</span>
           <input name="deleteReason" :value="deleteReason" @input="deleteReason = ($event.target as HTMLInputElement).value">
@@ -137,21 +149,34 @@ onMounted(load)
         <button data-testid="detail-tab-history" type="button" @click="activeTab = 'history'">{{ t('record.detail.tabs.history') }}</button>
       </div>
 
-      <dl v-if="activeTab === 'current'" class="record-detail__grid">
-        <template v-for="field in fields" :key="field.id">
-          <dt>{{ field.displayName }}</dt>
-          <dd>{{ displayValue(record.masterValues, field.code) }}</dd>
-        </template>
-      </dl>
+      <RecordSnapshotTables
+        v-if="activeTab === 'current'"
+        :snapshot="record"
+        :master-fields="fields"
+        :sub-types="subTypes"
+        :sub-fields="subFields"
+        testid-prefix="current"
+      />
 
-      <dl v-else-if="activeTab === 'diff'" class="record-detail__grid">
-        <template v-for="field in diffFields" :key="field.id">
-          <dt>{{ field.displayName }}</dt>
-          <dd>{{ displayValue(previousVersion?.masterValues ?? {}, field.code) }} → {{ displayValue(record.masterValues, field.code) }}</dd>
-        </template>
-      </dl>
+      <div v-else-if="activeTab === 'diff'" class="record-detail__diff">
+        <RecordSnapshotTables
+          v-if="previousVersion"
+          :snapshot="previousVersion"
+          :master-fields="fields"
+          :sub-types="subTypes"
+          :sub-fields="subFields"
+          testid-prefix="diff-before"
+        />
+        <RecordSnapshotTables
+          :snapshot="record"
+          :master-fields="fields"
+          :sub-types="subTypes"
+          :sub-fields="subFields"
+          testid-prefix="diff-after"
+        />
+      </div>
 
-      <RecordHistoryTable v-else :snapshots="history" :fields="fields" />
+      <RecordHistoryTable v-else :snapshots="history" :fields="fields" :sub-types="subTypes" :sub-fields="subFields" />
     </template>
   </section>
 </template>

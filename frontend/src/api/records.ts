@@ -60,6 +60,10 @@ export interface RecordDraftCommand {
   deleteReason: string | null
 }
 
+export interface SubmissionResponse {
+  approvalTaskId: number
+}
+
 export interface EditLock {
   recordId: number
   departmentId: number
@@ -71,7 +75,7 @@ export interface EditLock {
 
 export interface Paged<T> {
   content: T[]
-  number: number
+  page: number
   size: number
   totalElements: number
   totalPages: number
@@ -132,12 +136,16 @@ export function getRecordDraft(draftId: number): Promise<RecordDraft> {
   return http.get<RecordDraft>(`/master-record-draft/${draftId}`)
 }
 
+export function listRecordDrafts(): Promise<RecordDraft[]> {
+  return http.get<RecordDraft[]>('/master-record-draft')
+}
+
 export function copyRecordDraft(draftId: number): Promise<RecordDraft> {
   return http.post<RecordDraft>(`/master-record-draft/${draftId}/copy`)
 }
 
-export function submitRecordDraft(draftId: number): Promise<void> {
-  return http.post<void>(`/master-record-draft/${draftId}/submit`)
+export function submitRecordDraft(draftId: number, token: string | null): Promise<SubmissionResponse> {
+  return http.post<SubmissionResponse>(`/master-record-draft/${draftId}/submit`, { token })
 }
 
 export function requestRecordDeletion(recordId: number, reason: string): Promise<RecordDraft> {

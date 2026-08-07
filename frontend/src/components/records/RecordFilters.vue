@@ -34,8 +34,8 @@ function update<K extends keyof RecordFilterModel>(key: K, value: RecordFilterMo
       <span>{{ t('record.filters.status') }}</span>
       <select name="status" :value="modelValue.status" @change="update('status', ($event.target as HTMLSelectElement).value)">
         <option value="">{{ t('record.filters.all') }}</option>
-        <option value="ACTIVE">ACTIVE</option>
-        <option value="DELETED">DELETED</option>
+        <option value="ACTIVE">{{ t('record.status.ACTIVE') }}</option>
+        <option value="DELETED">{{ t('record.status.DELETED') }}</option>
       </select>
     </label>
     <label class="record-filters__toggle">

@@ -2,15 +2,24 @@ package com.example.mdm.record;
 
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 public class JdbcCodeSequenceRepository implements CodeSequenceRepository {
   private final NamedParameterJdbcTemplate jdbc;
+  private final TransactionTemplate allocations;
 
   public JdbcCodeSequenceRepository(NamedParameterJdbcTemplate jdbc) {
     this.jdbc = jdbc;
+    var dataSource = Objects.requireNonNull(jdbc.getJdbcTemplate().getDataSource(),
+        "Code sequence data source is required");
+    allocations = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+    allocations.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
 
   @Override public CodeRule findRule(long masterTypeId) {
@@ -30,6 +39,13 @@ public class JdbcCodeSequenceRepository implements CodeSequenceRepository {
   }
 
   @Override public int allocate(long masterTypeId, LocalDate sequenceDate) {
+    Integer allocated = allocations.execute(status -> allocateInTransaction(masterTypeId,
+        sequenceDate));
+    if (allocated == null) throw new IllegalStateException("Code sequence allocation failed");
+    return allocated;
+  }
+
+  private int allocateInTransaction(long masterTypeId, LocalDate sequenceDate) {
     var parameters = Map.of("masterTypeId", masterTypeId, "sequenceDate", sequenceDate);
     jdbc.update("INSERT INTO code_sequences(master_type_id,sequence_date,next_value) "
             + "VALUES(:masterTypeId,:sequenceDate,2) ON DUPLICATE KEY UPDATE next_value=next_value+1",
@@ -39,5 +55,15 @@ public class JdbcCodeSequenceRepository implements CodeSequenceRepository {
         Integer.class);
     if (allocated == null) throw new IllegalStateException("Code sequence allocation failed");
     return allocated;
+  }
+
+  @Override public boolean codeExists(long masterTypeId, String recordCode) {
+    Integer count = jdbc.queryForObject("SELECT ("
+            + "(SELECT COUNT(*) FROM master_records WHERE master_type_id=:masterTypeId "
+            + "AND record_code=:recordCode) + "
+            + "(SELECT COUNT(*) FROM master_record_drafts WHERE master_type_id=:masterTypeId "
+            + "AND record_code=:recordCode AND status IN ('DRAFT','PENDING'))) ",
+        Map.of("masterTypeId", masterTypeId, "recordCode", recordCode), Integer.class);
+    return count != null && count > 0;
   }
 }

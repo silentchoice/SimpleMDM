@@ -36,6 +36,7 @@ export function createAppRouter(history: RouterHistory = import.meta.env.MODE ==
           { path: 'metadata/active', name: 'active-metadata', component: DepartmentMetadataView, meta: { titleKey: 'routes.activeMetadata', roles: [...departmentMetadataRoles] } },
           { path: 'metadata/changes/new', name: 'submit-change', component: DepartmentMetadataView, props: { initialTab: 'submit' }, meta: { titleKey: 'routes.submitChange', roles: ['DEPT_EDITOR'] } },
           { path: 'records', name: 'records', component: RecordListView, meta: { titleKey: 'routes.records', roles: [...businessDataRoles] } },
+          { path: 'records/new', name: 'record-new', component: RecordEditorView, meta: { titleKey: 'routes.recordDraft', roles: ['DEPT_EDITOR'] } },
           { path: 'records/:recordId', name: 'record-detail', component: RecordDetailView, meta: { titleKey: 'routes.recordDetail', roles: [...businessDataRoles] } },
           { path: 'records/drafts/:draftId', name: 'record-draft', component: RecordEditorView, meta: { titleKey: 'routes.recordDraft', roles: ['DEPT_EDITOR'] } },
           { path: 'metadata/approvals', name: 'approvals', component: ApprovalListView, meta: { titleKey: 'routes.approvals', roles: ['DEPT_APPROVER'] } },

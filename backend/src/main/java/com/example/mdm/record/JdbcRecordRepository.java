@@ -129,6 +129,16 @@ public class JdbcRecordRepository implements RecordRepository {
   }
 
   @Override
+  public List<RecordDraft> findDrafts(long departmentId, long actorId) {
+    var headers = jdbc.query("SELECT id,master_record_id,master_type_id,department_id,record_code,"
+            + "record_action,base_version,field_values,status,created_by,delete_reason "
+            + "FROM master_record_drafts WHERE department_id=:department AND created_by=:actor "
+            + "AND status IN ('DRAFT','PENDING','REJECTED') ORDER BY updated_at DESC,id DESC",
+        Map.of("department", departmentId, "actor", actorId), draftMapper());
+    return headers.stream().map(header -> toDraft(header, findDraftChildren(header.id()))).toList();
+  }
+
+  @Override
   public RecordView findRecord(long departmentId, long recordId) {
     var found = jdbc.query("SELECT id,master_type_id,department_id,record_code,field_values,version,"
             + "status FROM master_records WHERE department_id=:department AND id=:id",

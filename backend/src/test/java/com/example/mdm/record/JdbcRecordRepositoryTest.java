@@ -113,6 +113,21 @@ class JdbcRecordRepositoryTest {
         });
   }
 
+  @SuppressWarnings("unchecked")
+  @Test void draftCollectionIsScopedToDepartmentActorAndRecoverableStatuses() {
+    when(jdbc.query(anyString(), anyMap(), any(RowMapper.class))).thenReturn(List.of());
+
+    assertThat(repository.findDrafts(7L, 12L)).isEmpty();
+
+    var sql = ArgumentCaptor.forClass(String.class);
+    var parameters = ArgumentCaptor.forClass(Map.class);
+    verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+    assertThat(sql.getValue()).contains("department_id=:department", "created_by=:actor",
+        "'DRAFT','PENDING','REJECTED'");
+    assertThat(parameters.getValue()).containsEntry("department", 7L)
+        .containsEntry("actor", 12L);
+  }
+
   private RecordDraft draft(long id, RecordStatus status) {
     return new RecordDraft(id, 81L, 9L, 7L, "CUS-20260805-0001", RecordAction.UPDATE,
         3L, Map.of("name", "North Supplier"), List.of(

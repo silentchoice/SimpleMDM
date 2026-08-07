@@ -97,6 +97,23 @@ describe('master-type template list', () => {
     expect(wrapper.text()).toContain('SUP-20260805-0001')
   })
 
+  it('opens a blank creation form when the template has no code rule yet', async () => {
+    metadataApi.getCodeRule.mockRejectedValueOnce({ status: 404, message: 'Code rule not found' })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid=edit-code-rule-7]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role=dialog]').exists()).toBe(true)
+    expect((wrapper.get('[name=pattern]').element as HTMLInputElement).value).toBe('')
+    await wrapper.get('[name=pattern]').setValue('AST-{yyyyMMdd}-{0001}')
+    await wrapper.get('[data-testid=code-rule-save]').trigger('click')
+    await flushPromises()
+    expect(metadataApi.updateCodeRule).toHaveBeenCalledWith(7,
+      { pattern: 'AST-{yyyyMMdd}-{0001}' })
+  })
+
   it('localizes the code-rule pattern label for both locales', async () => {
     const wrapper = mountView()
     await flushPromises()

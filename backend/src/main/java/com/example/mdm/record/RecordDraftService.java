@@ -5,6 +5,7 @@ import com.example.mdm.auth.Role;
 import com.example.mdm.auth.UserPrincipal;
 import com.example.mdm.common.error.BusinessException;
 import com.example.mdm.metadata.FieldValueValidator;
+import com.example.mdm.metadata.FieldDefinition;
 import com.example.mdm.metadata.MetadataRepository;
 import com.example.mdm.metadata.SubType;
 import java.time.Clock;
@@ -58,9 +59,10 @@ public class RecordDraftService {
     requireCommand(command);
     requireAssignedTemplate(actor, command.masterTypeId());
     RecordView formal = formalFor(command, actor.department().id());
+    ValidatedContent content = validateContent(actor.department().id(), command, formal);
     String code = command.action() == RecordAction.CREATE
         ? codes.allocate(command.masterTypeId(), LocalDate.now(clock)) : formal.recordCode();
-    var draft = buildDraft(0L, code, RecordStatus.DRAFT, actor, command, formal);
+    var draft = buildDraft(0L, code, RecordStatus.DRAFT, actor, command, content);
     return records.saveDraft(actor.department().id(), actor.id(), draft);
   }
 
@@ -73,14 +75,20 @@ public class RecordDraftService {
     requireUnchangedPath(existing, command);
     requireAssignedTemplate(actor, existing.masterTypeId());
     RecordView formal = formalFor(command, actor.department().id());
+    ValidatedContent content = validateContent(actor.department().id(), command, formal);
     var replacement = buildDraft(existing.id(), existing.recordCode(), RecordStatus.DRAFT, actor,
-        command, formal);
+        command, content);
     return records.saveDraft(actor.department().id(), actor.id(), replacement);
   }
 
   public RecordDraft getDraft(long draftId) {
     UserPrincipal actor = editor();
     return ownedDraft(actor, draftId);
+  }
+
+  public List<RecordDraft> listMine() {
+    UserPrincipal actor = editor();
+    return records.findDrafts(actor.department().id(), actor.id());
   }
 
   @Transactional
@@ -93,7 +101,8 @@ public class RecordDraftService {
     requireAssignedTemplate(actor, rejected.masterTypeId());
     var command = toCommand(rejected);
     RecordView formal = formalFor(command, actor.department().id());
-    var copy = buildDraft(0L, rejected.recordCode(), RecordStatus.DRAFT, actor, command, formal);
+    ValidatedContent content = validateContent(actor.department().id(), command, formal);
+    var copy = buildDraft(0L, rejected.recordCode(), RecordStatus.DRAFT, actor, command, content);
     return records.saveDraft(actor.department().id(), actor.id(), copy);
   }
 
@@ -116,14 +125,39 @@ public class RecordDraftService {
   }
 
   private RecordDraft buildDraft(long id, String recordCode, RecordStatus status,
-      UserPrincipal actor, RecordDraftCommand command, RecordView formal) {
-    validator.validate(metadata.findMasterFields(actor.department().id(), command.masterTypeId()),
-        command.masterValues());
-    var children = validatedChildren(actor.department().id(), command.masterTypeId(),
-        command.children(), command.action(), formal);
+      UserPrincipal actor, RecordDraftCommand command, ValidatedContent content) {
     return new RecordDraft(id, command.recordId(), command.masterTypeId(), actor.department().id(),
-        recordCode, command.action(), command.baseVersion(), command.masterValues(), children,
+        recordCode, command.action(), command.baseVersion(), content.masterValues(), content.children(),
         status, actor.id(), normalizeReason(command.deleteReason()));
+  }
+
+  private ValidatedContent validateContent(long departmentId, RecordDraftCommand command,
+      RecordView formal) {
+    var definitions = metadata.findMasterFields(departmentId, command.masterTypeId());
+    Map<String, Object> masterValues = normalizeOptionalBlanks(definitions,
+        command.masterValues());
+    validator.validate(definitions, masterValues);
+    return new ValidatedContent(masterValues, validatedChildren(departmentId,
+        command.masterTypeId(), command.children(), command.action(), formal));
+  }
+
+  private Map<String, Object> normalizeOptionalBlanks(List<FieldDefinition> definitions,
+      Map<String, Object> values) {
+    Map<String, FieldDefinition> byCode = new HashMap<>();
+    definitions.forEach(field -> byCode.put(field.code(), field));
+    var normalized = new LinkedHashMap<String, Object>();
+    values.forEach((code, value) -> {
+      FieldDefinition field = byCode.get(code);
+      if (field == null || field.required() || !emptyOptionalValue(value)) {
+        normalized.put(code, value);
+      }
+    });
+    return normalized;
+  }
+
+  private boolean emptyOptionalValue(Object value) {
+    return value == null || value instanceof String text && text.isBlank()
+        || value instanceof java.util.Collection<?> items && items.isEmpty();
   }
 
   private List<RecordDraft.ChildRows> validatedChildren(long departmentId, long masterTypeId,
@@ -157,8 +191,10 @@ public class RecordDraftService {
           throw BusinessException.badRequest("Duplicate child record id: " + row.recordId());
         }
         requireChildIdentity(action, type.id(), row.recordId(), formalRowTypes);
-        validator.validate(metadata.findSubFields(departmentId, type.id()), row.values());
-        rows.add(new RecordDraft.ChildRow(row.recordId(), row.rowOrder(), row.values()));
+        var definitions = metadata.findSubFields(departmentId, type.id());
+        Map<String, Object> values = normalizeOptionalBlanks(definitions, row.values());
+        validator.validate(definitions, values);
+        rows.add(new RecordDraft.ChildRow(row.recordId(), row.rowOrder(), values));
       }
       rows.sort(Comparator.comparingInt(RecordDraft.ChildRow::rowOrder));
       result.add(new RecordDraft.ChildRows(type.id(), rows));
@@ -265,4 +301,7 @@ public class RecordDraftService {
   private BusinessException notEditable() {
     return new BusinessException(HttpStatus.CONFLICT, "Draft is no longer editable");
   }
+
+  private record ValidatedContent(Map<String, Object> masterValues,
+      List<RecordDraft.ChildRows> children) {}
 }

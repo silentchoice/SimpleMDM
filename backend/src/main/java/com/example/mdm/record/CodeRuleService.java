@@ -8,7 +8,6 @@ import java.time.LocalDate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CodeRuleService {
@@ -47,11 +46,14 @@ public class CodeRuleService {
     return rule;
   }
 
-  @Transactional
   public String allocate(long masterTypeId, LocalDate sequenceDate) {
     CodeRule rule = repository.findRule(masterTypeId);
     if (rule == null) throw BusinessException.notFound("Code rule");
-    return validateRecordCode(rule.render(sequenceDate, repository.allocate(masterTypeId, sequenceDate)));
+    while (true) {
+      String code = validateRecordCode(
+          rule.render(sequenceDate, repository.allocate(masterTypeId, sequenceDate)));
+      if (!repository.codeExists(masterTypeId, code)) return code;
+    }
   }
 
   public String preview(CodeRule rule) {

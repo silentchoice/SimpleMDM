@@ -2,12 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { acquireRecordLock, getRecord, getRecordDraft, listRecordHistory, releaseRecordLock, renewRecordLock, submitRecordDraft, updateRecordDraft, type EditLock, type HistorySnapshot, type RecordDetail, type RecordDraft, type RecordDraftCommand } from '../../api/records'
-import { listMasterFields, listSubFields, listSubTypes, type FieldDefinition, type SubType } from '../../api/metadata'
+import { acquireRecordLock, copyRecordDraft, createRecordDraft, getRecord, getRecordDraft, listRecordHistory, releaseRecordLock, renewRecordLock, submitRecordDraft, updateRecordDraft, type EditLock, type HistorySnapshot, type RecordDetail, type RecordDraft, type RecordDraftCommand } from '../../api/records'
+import { currentMasterType, listMasterFields, listSubFields, listSubTypes, type FieldDefinition, type SubType } from '../../api/metadata'
 import DynamicChildTable, { type EditorChildRow } from '../../components/records/DynamicChildTable.vue'
 import DynamicMasterForm from '../../components/records/DynamicMasterForm.vue'
 import RecordHistoryTable from '../../components/records/RecordHistoryTable.vue'
 import RecordStatusTag from '../../components/records/RecordStatusTag.vue'
+import RecordSnapshotTables from '../../components/records/RecordSnapshotTables.vue'
 import type { ApiError } from '../../types'
 
 const route = useRoute()
@@ -60,34 +61,50 @@ function draftFieldValue(code: string): string {
   return code === 'deleteReason' ? value : ''
 }
 
+function emptyValue(field: FieldDefinition): unknown {
+  if (field.fieldType === 'SWITCH') return false
+  if (field.fieldType === 'MULTISELECT') return []
+  return ''
+}
+
+function normalizeValues(fields: FieldDefinition[], values: Record<string, unknown>): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {}
+  for (const field of fields) {
+    if (!(field.code in values)) continue
+    const value = values[field.code]
+    const optionalEmpty = !field.required && (value == null || value === '' || (Array.isArray(value) && value.length === 0))
+    if (!optionalEmpty) normalized[field.code] = value
+  }
+  return normalized
+}
+
 function buildCommand(): RecordDraftCommand {
   return {
     recordId: draft.value?.recordId ?? null,
     masterTypeId: draft.value?.masterTypeId ?? 0,
     baseVersion: draft.value?.baseVersion ?? 0,
     action: draft.value?.action ?? 'CREATE',
-    masterValues: clone(masterValues.value),
+    masterValues: normalizeValues(masterFields.value, masterValues.value),
     children: subTypes.value.map((type) => ({
       subTypeId: type.id,
       rows: (childRows.value[type.id] ?? []).map((row, index) => ({
         recordId: row.recordId,
         rowOrder: index,
-        values: clone(row.values)
+        values: normalizeValues(subFields.value[type.id] ?? [], row.values)
       }))
     })),
     deleteReason: draft.value?.action === 'DELETE' ? (draft.value.deleteReason ?? '').trim() : null
   }
 }
 
-const isDirty = computed(() => lastSavedPayload.value !== JSON.stringify(buildCommand()))
+const isDirty = computed(() => draft.value?.action !== 'DELETE'
+  && lastSavedPayload.value !== JSON.stringify(buildCommand()))
 const canSubmitDelete = computed(() => draft.value?.action !== 'DELETE' || Boolean((draft.value?.deleteReason ?? '').trim()))
-
-function displayValue(values: Record<string, unknown>, code: string): string {
-  const value = values[code]
-  if (Array.isArray(value)) return value.join(', ')
-  if (typeof value === 'boolean') return value ? 'true' : 'false'
-  return value == null ? '—' : String(value)
-}
+const isEditableDraft = computed(() => draft.value?.status === 'DRAFT'
+  && draft.value.action !== 'DELETE' && !readOnlyConflict.value)
+const canSubmit = computed(() => draft.value?.status === 'DRAFT'
+  && !readOnlyConflict.value && canSubmitDelete.value)
+const canCopyRejected = computed(() => draft.value?.status === 'REJECTED')
 
 function syncDraftState(loaded: RecordDraft): void {
   draft.value = clone(loaded)
@@ -106,6 +123,12 @@ function syncDraftState(loaded: RecordDraft): void {
 }
 
 function validate(): boolean {
+  if (draft.value?.action === 'DELETE') {
+    fieldErrors.value = canSubmitDelete.value ? {} : {
+      deleteReason: t('record.editor.deleteReasonRequired')
+    }
+    return canSubmitDelete.value
+  }
   const nextErrors: Record<string, string> = {}
   for (const field of masterFields.value) {
     const value = masterValues.value[field.code]
@@ -120,9 +143,6 @@ function validate(): boolean {
         if (field.required && empty) nextErrors[`${type.id}:${row.clientId}:${field.code}`] = `${field.displayName} ${t('record.editor.required')}`
       }
     }
-  }
-  if (draft.value?.action === 'DELETE' && !(draft.value.deleteReason ?? '').trim()) {
-    nextErrors.deleteReason = t('record.editor.deleteReasonRequired')
   }
   fieldErrors.value = nextErrors
   return Object.keys(nextErrors).length === 0
@@ -160,7 +180,7 @@ async function bestEffortRelease(): Promise<void> {
 }
 
 async function acquireLockIfNeeded(): Promise<void> {
-  if (!draft.value?.recordId) return
+  if (!draft.value?.recordId || draft.value.status !== 'DRAFT') return
   try {
     const acquired = await acquireRecordLock(draft.value.recordId)
     lock.value = acquired
@@ -177,7 +197,22 @@ async function load(): Promise<void> {
   refreshGuidance.value = ''
   readOnlyConflict.value = false
   try {
-    const loadedDraft = await getRecordDraft(Number(route.params.draftId))
+    const creating = route.name === 'record-new'
+    const assigned = creating ? await currentMasterType() : null
+    let loadedDraft = creating ? {
+      id: 0,
+      recordId: null,
+      masterTypeId: assigned!.id,
+      departmentId: 0,
+      recordCode: '',
+      action: 'CREATE' as const,
+      baseVersion: 0,
+      masterValues: {},
+      children: [],
+      status: 'DRAFT' as const,
+      createdBy: 0,
+      deleteReason: null
+    } : await getRecordDraft(Number(route.params.draftId))
     const [fields, types] = await Promise.all([
       listMasterFields(loadedDraft.masterTypeId),
       listSubTypes(loadedDraft.masterTypeId)
@@ -186,6 +221,10 @@ async function load(): Promise<void> {
     subTypes.value = types
     const children = await Promise.all(types.map(async (type) => [type.id, await listSubFields(type.id)] as const))
     subFields.value = Object.fromEntries(children)
+    if (creating) {
+      loadedDraft = { ...loadedDraft,
+        masterValues: Object.fromEntries(fields.map((field) => [field.code, emptyValue(field)])) }
+    }
     syncDraftState(loadedDraft)
     if (loadedDraft.recordId) {
       const [detail, versions] = await Promise.all([
@@ -217,7 +256,7 @@ function updateChildValue(subTypeId: number, clientId: string, code: string, val
 }
 
 function addChildRow(subTypeId: number): void {
-  const values = Object.fromEntries((subFields.value[subTypeId] ?? []).map((field) => [field.code, '']))
+  const values = Object.fromEntries((subFields.value[subTypeId] ?? []).map((field) => [field.code, emptyValue(field)]))
   childRows.value = {
     ...childRows.value,
     [subTypeId]: [...(childRows.value[subTypeId] ?? []), { clientId: rowKey(null), recordId: null, rowOrder: (childRows.value[subTypeId] ?? []).length, values }]
@@ -241,14 +280,24 @@ function moveChildRow(subTypeId: number, clientId: string, direction: 'up' | 'do
   childRows.value = { ...childRows.value, [subTypeId]: rows }
 }
 
+async function persistDraft(): Promise<RecordDraft> {
+  if (!draft.value) throw new Error('Draft is unavailable')
+  const creating = draft.value.id === 0
+  const saved = creating
+    ? await createRecordDraft(buildCommand())
+    : await updateRecordDraft(draft.value.id, buildCommand())
+  syncDraftState(saved)
+  if (creating) await router.replace(`/records/drafts/${saved.id}`)
+  return saved
+}
+
 async function saveDraft(): Promise<void> {
-  if (!draft.value || saving.value || submitting.value || readOnlyConflict.value) return
+  if (!draft.value || saving.value || submitting.value || !isEditableDraft.value) return
   refreshGuidance.value = ''
   if (!validate()) return
   saving.value = true
   try {
-    const saved = await updateRecordDraft(draft.value.id, buildCommand())
-    syncDraftState(saved)
+    await persistDraft()
     error.value = ''
   } catch (reason) {
     error.value = errorMessage(reason)
@@ -259,12 +308,13 @@ async function saveDraft(): Promise<void> {
 }
 
 async function submitDraft(): Promise<void> {
-  if (!draft.value || saving.value || submitting.value || readOnlyConflict.value || !canSubmitDelete.value) return
+  if (!draft.value || saving.value || submitting.value || !canSubmit.value) return
   refreshGuidance.value = ''
   if (!validate()) return
   submitting.value = true
   try {
-    await submitRecordDraft(draft.value.id)
+    const submitted = isDirty.value || draft.value.id === 0 ? await persistDraft() : draft.value
+    await submitRecordDraft(submitted.id, lock.value?.token ?? null)
     await bestEffortRelease()
     skipLeaveConfirm.value = true
     await router.push(draft.value.recordId ? `/records/${draft.value.recordId}` : '/records')
@@ -274,6 +324,22 @@ async function submitDraft(): Promise<void> {
   } finally {
     submitting.value = false
     skipLeaveConfirm.value = false
+  }
+}
+
+async function copyRejected(): Promise<void> {
+  if (!draft.value || !canCopyRejected.value || saving.value || submitting.value) return
+  saving.value = true
+  error.value = ''
+  try {
+    const copy = await copyRecordDraft(draft.value.id)
+    syncDraftState(copy)
+    await router.replace(`/records/drafts/${copy.id}`)
+    await acquireLockIfNeeded()
+  } catch (reason) {
+    error.value = errorMessage(reason)
+  } finally {
+    saving.value = false
   }
 }
 
@@ -330,24 +396,26 @@ function beforeUnload(event: BeforeUnloadEvent): void {
         <button type="button" @click="activeTab = 'history'">{{ t('record.editor.tabs.history') }}</button>
       </div>
 
-      <div v-if="activeTab === 'current' && currentRecord" class="record-detail__grid">
-        <template v-for="field in masterFields" :key="field.id">
-          <dt>{{ field.displayName }}</dt>
-          <dd>{{ displayValue(currentRecord.masterValues, field.code) }}</dd>
-        </template>
-      </div>
+      <RecordSnapshotTables
+        v-if="activeTab === 'current' && currentRecord"
+        :snapshot="currentRecord"
+        :master-fields="masterFields"
+        :sub-types="subTypes"
+        :sub-fields="subFields"
+        testid-prefix="editor-current"
+      />
 
       <div v-else-if="activeTab === 'history'">
-        <RecordHistoryTable :snapshots="history" :fields="masterFields" />
+        <RecordHistoryTable :snapshots="history" :fields="masterFields" :sub-types="subTypes" :sub-fields="subFields" />
       </div>
 
       <div v-else>
-        <p v-if="readOnlyConflict">{{ t('record.editor.readOnly') }}</p>
+        <p v-if="readOnlyConflict || !isEditableDraft">{{ t('record.editor.readOnly') }}</p>
         <label class="dynamic-form__field">
           <span>{{ t('record.list.recordCode') }}</span>
           <input name="recordCode" readonly :value="draft.recordCode">
         </label>
-        <DynamicMasterForm :fields="masterFields" :values="masterValues" :errors="fieldErrors" :readonly="readOnlyConflict" @update="updateMasterValue" />
+        <DynamicMasterForm :fields="masterFields" :values="masterValues" :errors="fieldErrors" :readonly="!isEditableDraft" @update="updateMasterValue" />
 
         <div class="record-editor__subtypes">
           <button
@@ -368,7 +436,7 @@ function beforeUnload(event: BeforeUnloadEvent): void {
           :fields="subFields[type.id] ?? []"
           :rows="childRows[type.id] ?? []"
           :errors="fieldErrors"
-          :readonly="readOnlyConflict"
+          :readonly="!isEditableDraft"
           @add="addChildRow"
           @remove="removeChildRow"
           @move="moveChildRow"
@@ -377,14 +445,15 @@ function beforeUnload(event: BeforeUnloadEvent): void {
 
         <label v-if="draft.action === 'DELETE'" class="dynamic-form__field">
           <span>{{ t('record.detail.deleteReason') }}</span>
-          <input name="deleteReason" :value="draftFieldValue('deleteReason')" :readonly="readOnlyConflict" @input="draft = draft ? { ...draft, deleteReason: ($event.target as HTMLInputElement).value } : null">
+          <input name="deleteReason" :value="draftFieldValue('deleteReason')" readonly>
           <p v-if="fieldErrors.deleteReason" class="form-error">{{ fieldErrors.deleteReason }}</p>
         </label>
 
-        <div v-if="!readOnlyConflict" class="record-editor__actions">
+        <div class="record-editor__actions">
           <el-button data-testid="record-cancel" @click="cancelEdit">{{ t('common.cancel') }}</el-button>
-          <el-button data-testid="record-save" type="primary" :disabled="saving || submitting" @click="saveDraft">{{ saving ? t('common.saving') : t('common.save') }}</el-button>
-          <el-button data-testid="record-submit" type="success" :disabled="saving || submitting || !canSubmitDelete" @click="submitDraft">{{ t('record.editor.submit') }}</el-button>
+          <el-button v-if="isEditableDraft" data-testid="record-save" type="primary" :disabled="saving || submitting" @click="saveDraft">{{ saving ? t('common.saving') : t('common.save') }}</el-button>
+          <el-button v-if="canSubmit" data-testid="record-submit" type="success" :disabled="saving || submitting" @click="submitDraft">{{ t('record.editor.submit') }}</el-button>
+          <el-button v-if="canCopyRejected" data-testid="record-copy" type="primary" :disabled="saving || submitting" @click="copyRejected">{{ t('record.editor.copyRejected') }}</el-button>
         </div>
       </div>
     </template>

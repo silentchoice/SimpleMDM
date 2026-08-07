@@ -1,6 +1,7 @@
 package com.example.mdm.record;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -58,6 +59,26 @@ class CodeRuleControllerSecurityTest {
     mvc.perform(put("/api/master-type/41/code-rule").header("Authorization", editor)
             .contentType(MediaType.APPLICATION_JSON).content("{\"pattern\":\"CUS-{yyyyMMdd}-{0001}\"}"))
         .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value(403));
+  }
+
+  @Test void missingRuleReturns404AndPutCreatesTheFirstRule() throws Exception {
+    String admin = token(1, Role.SUPER_ADMIN);
+
+    mvc.perform(get("/api/master-type/41/code-rule").header("Authorization", admin))
+        .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value(404));
+
+    mvc.perform(put("/api/master-type/41/code-rule").header("Authorization", admin)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"pattern\":\"CUS-{yyyyMMdd}-{0001}\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.pattern").value("CUS-{yyyyMMdd}-{0001}"))
+        .andExpect(jsonPath("$.data.preview").value("CUS-20260805-0001"));
+    verify(repository).save(new CodeRule(41, "CUS-{yyyyMMdd}-{0001}", 4));
+
+    when(repository.findRule(41)).thenReturn(new CodeRule(41, "CUS-{yyyyMMdd}-{0001}", 4));
+    mvc.perform(get("/api/master-type/41/code-rule").header("Authorization", admin))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.pattern").value("CUS-{yyyyMMdd}-{0001}"));
   }
 
   private String token(long id, Role role) {

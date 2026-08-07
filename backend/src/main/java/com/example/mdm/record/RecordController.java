@@ -70,6 +70,12 @@ public class RecordController {
     return success(drafts.create(command), request);
   }
 
+  @GetMapping("/api/master-record-draft")
+  @PreAuthorize("hasRole('DEPT_EDITOR')")
+  public ApiResponse<List<RecordDraft>> drafts(HttpServletRequest request) {
+    return success(drafts.listMine(), request);
+  }
+
   @PutMapping("/api/master-record-draft/{draftId}")
   @PreAuthorize("hasRole('DEPT_EDITOR')")
   public ApiResponse<RecordDraft> update(@PathVariable long draftId,

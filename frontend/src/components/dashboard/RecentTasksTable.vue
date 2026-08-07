@@ -8,7 +8,12 @@ const props = defineProps<{
   canOpenApprovalDetails: boolean
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+function taskTypeLabel(taskType: string): string {
+  const key = `dashboard.taskTypes.${taskType}`
+  return te(key) ? t(key) : taskType
+}
 
 const rows = computed(() => props.tasks.map((task) => ({
   ...task,
@@ -35,7 +40,7 @@ const rows = computed(() => props.tasks.map((task) => ({
           <router-link v-if="canOpenApprovalDetails" :to="task.detailTo">#{{ task.id }}</router-link>
           <span v-else>#{{ task.id }}</span>
         </td>
-        <td>{{ task.taskType }}</td>
+        <td>{{ taskTypeLabel(task.taskType) }}</td>
         <td>{{ task.entityId }}</td>
         <td>{{ t(`status.${task.status}`) }}</td>
         <td>{{ task.submittedAt }}</td>

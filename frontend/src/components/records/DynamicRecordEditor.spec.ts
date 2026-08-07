@@ -7,11 +7,14 @@ import { i18n, setLocale } from '../../i18n'
 import { useAuthStore } from '../../stores/auth'
 
 const metadataApi = vi.hoisted(() => ({
+  currentMasterType: vi.fn(),
   listMasterFields: vi.fn(),
   listSubTypes: vi.fn(),
   listSubFields: vi.fn()
 }))
 const recordsApi = vi.hoisted(() => ({
+  createRecordDraft: vi.fn(),
+  copyRecordDraft: vi.fn(),
   getRecordDraft: vi.fn(),
   getRecord: vi.fn(),
   listRecordHistory: vi.fn(),
@@ -111,7 +114,7 @@ const history = [
   { ...record, version: 3, masterValues: { name: 'Laptop fleet v3', enabled: false } }
 ]
 
-async function mountEditor() {
+async function mountEditor(path = '/records/drafts/91') {
   const pinia = createPinia()
   setActivePinia(pinia)
   useAuthStore().setSession({
@@ -121,7 +124,7 @@ async function mountEditor() {
     department: { id: 7, code: 'OPS', name: 'Operations' }
   })
   const router = createAppRouter()
-  await router.push('/records/drafts/91')
+  await router.push(path)
   await router.isReady()
   const wrapper = mount(RouterHost, { global: { plugins: [pinia, ElementPlus, i18n, router] } })
   await flushPromises()
@@ -134,6 +137,7 @@ describe('dynamic record editor', () => {
     localStorage.clear()
     sessionStorage.clear()
     setLocale('en-US')
+    metadataApi.currentMasterType.mockResolvedValue({ id: 41, code: 'ASSET', name: 'Asset', status: 'ACTIVE' })
     metadataApi.listMasterFields.mockResolvedValue(masterFields)
     metadataApi.listSubTypes.mockResolvedValue(subTypes)
     metadataApi.listSubFields.mockImplementation((id: number) => Promise.resolve(subTypeFields[id] ?? []))
@@ -141,6 +145,9 @@ describe('dynamic record editor', () => {
     recordsApi.getRecord.mockResolvedValue(record)
     recordsApi.listRecordHistory.mockResolvedValue(history)
     recordsApi.updateRecordDraft.mockResolvedValue(structuredClone(draft))
+    recordsApi.createRecordDraft.mockResolvedValue({ ...structuredClone(draft), id: 99,
+      recordId: null, recordCode: 'AST-0099', action: 'CREATE', baseVersion: 0 })
+    recordsApi.copyRecordDraft.mockResolvedValue({ ...structuredClone(draft), id: 99, status: 'DRAFT' })
     recordsApi.submitRecordDraft.mockResolvedValue(undefined)
     recordsApi.acquireRecordLock.mockResolvedValue({
       recordId: 81,
@@ -318,17 +325,90 @@ describe('dynamic record editor', () => {
     resolveSubmit(undefined)
     await flushPromises()
 
-    recordsApi.getRecordDraft.mockResolvedValueOnce({ ...structuredClone(draft), id: 92, action: 'DELETE', deleteReason: '' })
+    const updatesBeforeDelete = recordsApi.updateRecordDraft.mock.calls.length
+    recordsApi.getRecordDraft.mockResolvedValueOnce({ ...structuredClone(draft), id: 92,
+      action: 'DELETE', masterValues: { retiredField: 'historical value' }, children: [],
+      deleteReason: 'Duplicate record' })
     const deletion = await mountEditor()
-    expect(deletion.wrapper.get('[data-testid="record-submit"]').attributes()).toHaveProperty('disabled')
-    await deletion.wrapper.get('[name="deleteReason"]').setValue('Duplicate record')
+    expect(deletion.wrapper.get('[name="deleteReason"]').attributes()).toHaveProperty('readonly')
+    expect(deletion.wrapper.find('[data-testid="record-save"]').exists()).toBe(false)
     expect(deletion.wrapper.get('[data-testid="record-submit"]').attributes('disabled')).toBeUndefined()
+    await deletion.wrapper.get('[data-testid="record-submit"]').trigger('click')
+    await flushPromises()
+    expect(recordsApi.submitRecordDraft).toHaveBeenCalledWith(92, 'lock-token')
+    expect(recordsApi.updateRecordDraft).toHaveBeenCalledTimes(updatesBeforeDelete)
 
     recordsApi.updateRecordDraft.mockRejectedValueOnce({ status: 409, message: 'Version conflict', requestId: 'req-409' })
-    await deletion.wrapper.get('[data-testid="record-save"]').trigger('click')
+    const conflicted = await mountEditor()
+    await conflicted.wrapper.get('[data-testid="record-save"]').trigger('click')
     await flushPromises()
-    expect(deletion.wrapper.get('[role="alert"]').text()).toContain('req-409')
-    expect(deletion.wrapper.text()).toContain('Refresh the latest record before saving again')
+    expect(conflicted.wrapper.get('[role="alert"]').text()).toContain('req-409')
+    expect(conflicted.wrapper.text()).toContain('Refresh the latest record before saving again')
+  })
+
+  it('saves dirty content before submit and sends the in-memory edit-lock token', async () => {
+    const changed = { ...structuredClone(draft), masterValues: { ...draft.masterValues,
+      name: 'Saved before submit' } }
+    recordsApi.updateRecordDraft.mockResolvedValueOnce(changed)
+    const { wrapper } = await mountEditor()
+
+    await wrapper.get('[name="field-name"]').setValue('Saved before submit')
+    await wrapper.get('[data-testid="record-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(recordsApi.updateRecordDraft).toHaveBeenCalledTimes(1)
+    expect(recordsApi.submitRecordDraft).toHaveBeenCalledWith(91, 'lock-token')
+    expect(recordsApi.updateRecordDraft.mock.invocationCallOrder[0])
+        .toBeLessThan(recordsApi.submitRecordDraft.mock.invocationCallOrder[0])
+  })
+
+  it('does not persist a new route until the first valid save and omits optional blank typed values', async () => {
+    const { wrapper, router } = await mountEditor('/records/new')
+
+    expect(recordsApi.getRecordDraft).not.toHaveBeenCalled()
+    expect(recordsApi.createRecordDraft).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="record-save"]').trigger('click')
+    expect(recordsApi.createRecordDraft).not.toHaveBeenCalled()
+
+    await wrapper.get('[name="field-name"]').setValue('New laptop')
+    await wrapper.get('[name="field-stage"]').setValue('NEW')
+    await wrapper.get('[data-testid="child-301-add"]').trigger('click')
+    await wrapper.get('[name="child-301-row-0-email"]').setValue('new@example.com')
+    await wrapper.get('[data-testid="record-save"]').trigger('click')
+    await flushPromises()
+
+    expect(recordsApi.createRecordDraft).toHaveBeenCalledWith({
+      recordId: null,
+      masterTypeId: 41,
+      baseVersion: 0,
+      action: 'CREATE',
+      masterValues: { name: 'New laptop', stage: 'NEW', enabled: false },
+      children: [
+        { subTypeId: 301, rows: [{ recordId: null, rowOrder: 0,
+          values: { email: 'new@example.com', primary: false } }] },
+        { subTypeId: 302, rows: [] }
+      ],
+      deleteReason: null
+    })
+    expect(router.currentRoute.value.fullPath).toBe('/records/drafts/99')
+  })
+
+  it('freezes pending and rejected drafts and exposes rejected-copy instead of in-place editing', async () => {
+    recordsApi.getRecordDraft.mockResolvedValueOnce({ ...structuredClone(draft), status: 'PENDING' })
+    const pending = await mountEditor()
+    expect(pending.wrapper.find('[data-testid="record-save"]').exists()).toBe(false)
+    expect(pending.wrapper.find('[data-testid="record-submit"]').exists()).toBe(false)
+    expect(pending.wrapper.get('[name="field-name"]').attributes()).toHaveProperty('readonly')
+    expect(recordsApi.acquireRecordLock).not.toHaveBeenCalled()
+
+    recordsApi.getRecordDraft.mockResolvedValueOnce({ ...structuredClone(draft), status: 'REJECTED' })
+    const rejected = await mountEditor()
+    expect(rejected.wrapper.find('[data-testid="record-save"]').exists()).toBe(false)
+    expect(rejected.wrapper.find('[data-testid="record-submit"]').exists()).toBe(false)
+    await rejected.wrapper.get('[data-testid="record-copy"]').trigger('click')
+    await flushPromises()
+    expect(recordsApi.copyRecordDraft).toHaveBeenCalledWith(91)
+    expect(rejected.router.currentRoute.value.fullPath).toBe('/records/drafts/99')
   })
 
   it('acquires an edit lock for existing records, renews it before expiry, and releases it on cancel and unmount without persisting the token', async () => {

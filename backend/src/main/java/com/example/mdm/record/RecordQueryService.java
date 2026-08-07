@@ -57,11 +57,20 @@ public class RecordQueryService {
     UserPrincipal actor = reader();
     RecordQuery normalized = normalize(query);
     Long departmentId = actor.department() == null ? null : actor.department().id();
+    SourcePage databasePage = source.page(normalized, departmentId);
+    if (databasePage != null) {
+      List<RecordView> content = visibility.filterAll(databasePage.records().stream()
+          .map(StoredRecord::view).toList(), departmentId);
+      int totalPages = databasePage.total() == 0 ? 0
+          : (int) ((databasePage.total() + normalized.size() - 1) / normalized.size());
+      return new Paged<>(content, normalized.page(), normalized.size(), databasePage.total(),
+          totalPages);
+    }
     Comparator<StoredRecord> comparator = SORTS.get(normalized.sortBy())
         .thenComparingLong(item -> item.view().id());
     if ("desc".equals(normalized.sortDirection())) comparator = comparator.reversed();
 
-    List<StoredRecord> visible = source.records().stream()
+    List<StoredRecord> candidates = source.records().stream()
         .filter(item -> normalized.includeDeleted() || "ACTIVE".equals(item.view().status()))
         .filter(item -> normalized.masterTypeId() == null
             || item.view().masterTypeId() == normalized.masterTypeId())
@@ -70,11 +79,17 @@ public class RecordQueryService {
         .filter(item -> normalized.updatedFrom() == null
             || !item.updatedAt().isBefore(normalized.updatedFrom()))
         .filter(item -> normalized.updatedTo() == null
-            || !item.updatedAt().isAfter(normalized.updatedTo()))
-        .map(item -> new StoredRecord(visibility.filter(item.view(), departmentId), item.updatedAt()))
+            || !item.updatedAt().isAfter(normalized.updatedTo())).toList();
+    List<RecordView> filtered = visibility.filterAll(
+        candidates.stream().map(StoredRecord::view).toList(), departmentId);
+    var visible = new ArrayList<StoredRecord>();
+    for (int index = 0; index < candidates.size(); index++) {
+      visible.add(new StoredRecord(filtered.get(index), candidates.get(index).updatedAt()));
+    }
+    visible = visible.stream()
         .filter(item -> contains(item.view().recordCode(), normalized.recordCode()))
         .filter(item -> keywordMatches(item.view(), normalized.keyword()))
-        .sorted(comparator).toList();
+        .sorted(comparator).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
     long start = (long) normalized.page() * normalized.size();
     int from = start >= visible.size() ? visible.size() : (int) start;
@@ -95,8 +110,7 @@ public class RecordQueryService {
     UserPrincipal actor = reader();
     Long departmentId = actor.department() == null ? null : actor.department().id();
     source.record(recordId);
-    return source.history(recordId, HISTORY_LIMIT).stream()
-        .map(view -> visibility.filter(view, departmentId)).toList();
+    return visibility.filterAll(source.history(recordId, HISTORY_LIMIT), departmentId);
   }
 
   private RecordQuery normalize(RecordQuery query) {
@@ -179,9 +193,13 @@ public class RecordQueryService {
   }
 
   record StoredRecord(RecordView view, LocalDateTime updatedAt) {}
+  record SourcePage(List<StoredRecord> records, long total) {
+    SourcePage { records = List.copyOf(records); }
+  }
 
   interface RecordSource {
     List<StoredRecord> records();
+    default SourcePage page(RecordQuery query, Long viewerDepartmentId) { return null; }
     RecordView record(long recordId);
     List<RecordView> history(long recordId, int limit);
   }
@@ -190,6 +208,10 @@ public class RecordQueryService {
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper json;
     private final RecordSnapshotCodec snapshots;
+    private static final Map<String, String> SQL_SORTS = Map.of(
+        "id", "record.id", "recordCode", "LOWER(record.record_code)",
+        "masterTypeId", "record.master_type_id", "version", "record.version",
+        "status", "record.status", "updatedAt", "record.updated_at");
 
     private JdbcRecordSource(NamedParameterJdbcTemplate jdbc, ObjectMapper json,
         RecordSnapshotCodec snapshots) {
@@ -209,6 +231,107 @@ public class RecordQueryService {
             return new StoredRecord(withChildren(header),
                 result.getObject("updated_at", LocalDateTime.class));
           });
+    }
+
+    @Override public SourcePage page(RecordQuery query, Long viewerDepartmentId) {
+      QueryPlan plan = queryPlan(query, viewerDepartmentId);
+      Long total = jdbc.queryForObject("SELECT COUNT(*) FROM master_records record" + plan.where(),
+          plan.parameters(), Long.class);
+      long count = total == null ? 0 : total;
+      if (count == 0) return new SourcePage(List.of(), 0);
+
+      plan.parameters().addValue("limit", query.size())
+          .addValue("offset", (long) query.page() * query.size());
+      String direction = query.sortDirection().toUpperCase(Locale.ROOT);
+      String order = SQL_SORTS.get(query.sortBy());
+      List<StoredRecord> headers = jdbc.query("SELECT record.id,record.master_type_id,"
+              + "record.department_id,record.record_code,record.field_values,record.version,"
+              + "record.status,record.updated_at FROM master_records record" + plan.where()
+              + " ORDER BY " + order + " " + direction + ",record.id " + direction
+              + " LIMIT :limit OFFSET :offset",
+          plan.parameters(), (result, row) -> new StoredRecord(header(result.getLong("id"),
+              result.getLong("master_type_id"), result.getLong("department_id"),
+              result.getString("record_code"), result.getString("field_values"),
+              result.getLong("version"), result.getString("status")),
+              result.getObject("updated_at", LocalDateTime.class)));
+      return new SourcePage(withChildren(headers), count);
+    }
+
+    private QueryPlan queryPlan(RecordQuery query, Long viewerDepartmentId) {
+      var where = new StringBuilder(" WHERE record.status IN ('ACTIVE','DELETED')");
+      var parameters = new MapSqlParameterSource();
+      if (!query.includeDeleted()) where.append(" AND record.status='ACTIVE'");
+      if (query.masterTypeId() != null) {
+        where.append(" AND record.master_type_id=:masterTypeId");
+        parameters.addValue("masterTypeId", query.masterTypeId());
+      }
+      if (query.status() != null) {
+        where.append(" AND record.status=:status");
+        parameters.addValue("status", query.status());
+      }
+      if (query.updatedFrom() != null) {
+        where.append(" AND record.updated_at>=:updatedFrom");
+        parameters.addValue("updatedFrom", query.updatedFrom());
+      }
+      if (query.updatedTo() != null) {
+        where.append(" AND record.updated_at<=:updatedTo");
+        parameters.addValue("updatedTo", query.updatedTo());
+      }
+      if (query.recordCode() != null) {
+        where.append(" AND LOCATE(:recordCode,LOWER(record.record_code))>0");
+        parameters.addValue("recordCode", query.recordCode().toLowerCase(Locale.ROOT));
+      }
+      if (query.keyword() != null) {
+        parameters.addValue("keyword", query.keyword().toLowerCase(Locale.ROOT));
+        parameters.addValue("viewerDepartment", viewerDepartmentId, java.sql.Types.BIGINT);
+        where.append(" AND (LOCATE(:keyword,LOWER(record.record_code))>0")
+            .append(" OR EXISTS (SELECT 1 FROM master_fields field WHERE ")
+            .append("field.department_id=record.department_id AND ")
+            .append("field.master_type_id=record.master_type_id AND field.status='ACTIVE' AND ")
+            .append("(record.department_id=:viewerDepartment OR field.share_config=TRUE) AND ")
+            .append("LOCATE(:keyword,LOWER(CAST(JSON_EXTRACT(record.field_values,")
+            .append("CONCAT('$.',field.code)) AS CHAR)))>0)")
+            .append(" OR EXISTS (SELECT 1 FROM sub_records child JOIN sub_fields field ON ")
+            .append("field.sub_type_id=child.sub_type_id AND field.department_id=record.department_id ")
+            .append("WHERE child.master_record_id=record.id AND field.status='ACTIVE' AND ")
+            .append("(record.department_id=:viewerDepartment OR field.share_config=TRUE) AND ")
+            .append("((record.status='ACTIVE' AND child.status='ACTIVE') OR ")
+            .append("(record.status='DELETED' AND child.status='DELETED' ")
+            .append("AND child.version=record.version-1)) AND ")
+            .append("LOCATE(:keyword,LOWER(CAST(JSON_EXTRACT(child.field_values,")
+            .append("CONCAT('$.',field.code)) AS CHAR)))>0))");
+      }
+      return new QueryPlan(where.toString(), parameters);
+    }
+
+    private List<StoredRecord> withChildren(List<StoredRecord> headers) {
+      if (headers.isEmpty()) return headers;
+      List<Long> ids = headers.stream().map(item -> item.view().id()).toList();
+      record Child(long recordId, long subTypeId, RecordView.ChildRow row) {}
+      List<Child> rows = jdbc.query("SELECT child.master_record_id,child.id,child.sub_type_id,"
+              + "child.row_order,child.field_values FROM sub_records child "
+              + "JOIN master_records record ON record.id=child.master_record_id "
+              + "WHERE child.master_record_id IN (:recordIds) AND "
+              + "((record.status='ACTIVE' AND child.status='ACTIVE') OR "
+              + "(record.status='DELETED' AND child.status='DELETED' "
+              + "AND child.version=record.version-1)) "
+              + "ORDER BY child.master_record_id,child.sub_type_id,child.row_order,child.id",
+          new MapSqlParameterSource("recordIds", ids), (result, row) -> new Child(
+              result.getLong("master_record_id"), result.getLong("sub_type_id"),
+              new RecordView.ChildRow(result.getLong("id"), result.getInt("row_order"),
+                  readValues(result.getString("field_values")))));
+      var byRecord = new LinkedHashMap<Long, LinkedHashMap<Long, List<RecordView.ChildRow>>>();
+      rows.forEach(child -> byRecord.computeIfAbsent(child.recordId(), ignored -> new LinkedHashMap<>())
+          .computeIfAbsent(child.subTypeId(), ignored -> new ArrayList<>()).add(child.row()));
+      return headers.stream().map(item -> {
+        var groups = byRecord.getOrDefault(item.view().id(), new LinkedHashMap<>()).entrySet()
+            .stream().map(entry -> new RecordView.ChildRows(entry.getKey(), entry.getValue()))
+            .toList();
+        var view = item.view();
+        return new StoredRecord(new RecordView(view.id(), view.masterTypeId(), view.departmentId(),
+            view.recordCode(), view.masterValues(), groups, view.version(), view.status()),
+            item.updatedAt());
+      }).toList();
     }
 
     @Override public RecordView record(long recordId) {
@@ -273,5 +396,7 @@ public class RecordQueryService {
         throw new IllegalStateException("Invalid record values", exception);
       }
     }
+
+    private record QueryPlan(String where, MapSqlParameterSource parameters) {}
   }
 }

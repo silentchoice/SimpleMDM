@@ -1,6 +1,7 @@
 package com.example.mdm.record;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -48,6 +49,27 @@ class RecordWorkflowMigrationTest {
           .isEqualTo("UPDATE");
       assertThat(database.queryString("SELECT record_action FROM master_record_drafts WHERE record_code='NEW'"))
           .isEqualTo("CREATE");
+      assertThat(database.queryLong("SELECT base_version FROM master_record_drafts WHERE record_code='UPD'"))
+          .isEqualTo(7L);
+      assertThat(database.queryLong("SELECT base_version FROM master_record_drafts WHERE record_code='NEW'"))
+          .isZero();
+      assertThat(database.columnNullable("master_record_drafts", "base_version")).isFalse();
+    }
+  }
+
+  @Test void migrationStopsBeforeV6WithAnActionableDuplicateActiveDraftPreflight()
+      throws Exception {
+    try (MigrationDatabase database = MigrationDatabase.start()) {
+      database.createSchema();
+      Flyway.configure().dataSource(database.schemaUrl(), database.username, database.password)
+          .locations("classpath:db/migration").target("5").load().migrate();
+      database.insertDuplicatePreV6Drafts();
+
+      assertThatThrownBy(() -> Flyway.configure()
+          .dataSource(database.schemaUrl(), database.username, database.password)
+          .locations("classpath:db/migration").load().migrate())
+          .hasRootCauseMessage("Resolve duplicate active record drafts before retrying migration V6");
+      assertThat(database.columnExists("master_record_drafts", "record_action")).isFalse();
     }
   }
 
@@ -101,10 +123,25 @@ class RecordWorkflowMigrationTest {
             + "VALUES('TASK1','Task 1','ACTIVE',1)");
         statement.executeUpdate("INSERT INTO master_records(master_type_id,department_id,record_code,field_values,status) "
             + "VALUES(1,1,'UPD','{}','ACTIVE')");
+        statement.executeUpdate("UPDATE master_records SET version=7 WHERE record_code='UPD'");
         statement.executeUpdate("INSERT INTO master_record_drafts(master_record_id,master_type_id,department_id,"
             + "record_code,field_values,status,created_by) VALUES(1,1,1,'UPD','{}','DRAFT',1)");
         statement.executeUpdate("INSERT INTO master_record_drafts(master_type_id,department_id,record_code,"
             + "field_values,status,created_by) VALUES(1,1,'NEW','{}','DRAFT',1)");
+      }
+    }
+
+    void insertDuplicatePreV6Drafts() throws Exception {
+      try (var connection = DriverManager.getConnection(schemaUrl(), username, password);
+          var statement = connection.createStatement()) {
+        statement.executeUpdate("INSERT INTO departments(code,name,status) VALUES('TASK1','Task 1','ACTIVE')");
+        statement.executeUpdate("INSERT INTO users(username,password_hash,display_name,status) "
+            + "VALUES('task1','x','Task 1','ACTIVE')");
+        statement.executeUpdate("INSERT INTO master_types(code,name,status,created_by) "
+            + "VALUES('TASK1','Task 1','ACTIVE',1)");
+        statement.executeUpdate("INSERT INTO master_record_drafts(master_type_id,department_id,"
+            + "record_code,field_values,status,created_by) VALUES"
+            + "(1,1,'DUP','{}','DRAFT',1),(1,1,'DUP','{}','PENDING',1)");
       }
     }
 
@@ -121,6 +158,11 @@ class RecordWorkflowMigrationTest {
     String columnDefault(String table, String column) throws Exception {
       return queryString("SELECT column_default FROM information_schema.columns WHERE table_schema='"
           + schema + "' AND table_name='" + table + "' AND column_name='" + column + "'");
+    }
+
+    boolean columnNullable(String table, String column) throws Exception {
+      return "YES".equals(queryString("SELECT is_nullable FROM information_schema.columns WHERE table_schema='"
+          + schema + "' AND table_name='" + table + "' AND column_name='" + column + "'"));
     }
 
     java.util.List<String> indexColumns(String table, String index) throws Exception {
@@ -146,6 +188,8 @@ class RecordWorkflowMigrationTest {
     }
 
     boolean queryBoolean(String sql) throws Exception { return Integer.parseInt(queryString(sql)) > 0; }
+
+    long queryLong(String sql) throws Exception { return Long.parseLong(queryString(sql)); }
 
     String queryString(String sql) throws Exception {
       try (var connection = DriverManager.getConnection(schemaUrl(), username, password);

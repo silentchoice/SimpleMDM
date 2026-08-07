@@ -97,8 +97,11 @@ public class DashboardService {
 
     @Override public long activatedSince(Long departmentId, LocalDateTime start) {
       MapSqlParameterSource parameters = departmentParameters(departmentId).addValue("start", start);
-      return count("SELECT COUNT(*) FROM approval_tasks WHERE entity_type='RECORD' "
-          + "AND status='APPROVED' AND reviewed_at>=:start" + departmentClause(departmentId),
+      return count("SELECT COUNT(*) FROM approval_tasks task JOIN master_record_drafts draft "
+          + "ON draft.id=task.entity_id WHERE task.entity_type='RECORD' "
+          + "AND task.status='APPROVED' AND task.reviewed_at>=:start "
+          + "AND draft.record_action<>'DELETE'"
+          + (departmentId == null ? "" : " AND task.department_id=:department"),
           parameters);
     }
 

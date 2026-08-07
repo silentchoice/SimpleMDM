@@ -78,6 +78,19 @@ class RecordControllerSecurityTest {
         .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value(401));
   }
 
+  @Test void editorCanOpenTheCurrentUserDraftCollectionEndpoint() throws Exception {
+    when(drafts.listMine()).thenReturn(List.of());
+    mvc.perform(get("/api/master-record-draft")
+            .header("Authorization", token(12, Role.DEPT_EDITOR)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data").isArray());
+    mvc.perform(get("/api/master-record-draft")
+            .header("Authorization", token(13, Role.DEPT_VIEWER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value(403));
+    verify(drafts).listMine();
+  }
+
   private String token(long id, Role role) {
     when(accountStates.findActive(id)).thenReturn(new AccountState(id, SALES.id(), List.of(role)));
     return "Bearer " + jwt.issue(new UserPrincipal(id, "user" + id, "User " + id,

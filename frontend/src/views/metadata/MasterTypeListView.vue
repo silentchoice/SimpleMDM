@@ -70,7 +70,13 @@ async function openCodeRule(masterType: MasterType): Promise<void> {
     codeRulePattern.value = rule.pattern
     codeRulePreview.value = rule.preview
     codeRuleOpen.value = true
-  } catch (reason) { error.value = errorMessage(reason) }
+  } catch (reason) {
+    if ((reason as ApiError).status === 404) {
+      codeRulePattern.value = ''
+      codeRulePreview.value = ''
+      codeRuleOpen.value = true
+    } else error.value = errorMessage(reason)
+  }
 }
 
 async function saveCodeRule(): Promise<void> {

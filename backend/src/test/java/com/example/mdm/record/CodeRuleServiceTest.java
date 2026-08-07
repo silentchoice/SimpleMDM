@@ -68,6 +68,7 @@ class CodeRuleServiceTest {
       nextByDay.put(key, next + 1);
       return next;
     }
+    @Override public boolean codeExists(long masterTypeId, String recordCode) { return false; }
   }
 
   static final class FixedSequenceRepository implements CodeSequenceRepository {
@@ -77,5 +78,6 @@ class CodeRuleServiceTest {
     @Override public CodeRule findRule(long masterTypeId) { return rule; }
     @Override public void save(CodeRule saved) { throw new UnsupportedOperationException(); }
     @Override public int allocate(long masterTypeId, LocalDate sequenceDate) { return sequence; }
+    @Override public boolean codeExists(long masterTypeId, String recordCode) { return false; }
   }
 }

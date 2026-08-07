@@ -32,7 +32,9 @@ export const recordMessages = {
         createDraft: '创建草稿',
         recordCode: '编码',
         view: '查看',
-        nextPage: '下一页'
+        nextPage: '下一页',
+        myDrafts: '我的草稿',
+        resumeDraft: '继续处理'
       },
       detail: {
         title: '业务数据详情',
@@ -40,6 +42,9 @@ export const recordMessages = {
         editDraft: '编辑',
         deleteReason: '删除原因',
         requestDelete: '发起删除',
+        masterFields: '主记录字段',
+        subTypeFallback: '子类型 #{id}',
+        row: '行',
         tabs: {
           current: '当前',
           diff: '差异',
@@ -59,7 +64,8 @@ export const recordMessages = {
         deleteReasonRequired: '删除原因为必填项',
         refreshGuidance: '请先刷新最新正式记录后再保存。',
         discardConfirm: '草稿尚未保存，确定离开吗？',
-        readOnly: '只读'
+        readOnly: '只读',
+        copyRejected: '复制驳回草稿'
       }
     }
   },
@@ -96,7 +102,9 @@ export const recordMessages = {
         createDraft: 'Create draft',
         recordCode: 'Record code',
         view: 'View',
-        nextPage: 'Next page'
+        nextPage: 'Next page',
+        myDrafts: 'My drafts',
+        resumeDraft: 'Resume'
       },
       detail: {
         title: 'Business data detail',
@@ -104,6 +112,9 @@ export const recordMessages = {
         editDraft: 'Edit',
         deleteReason: 'Delete reason',
         requestDelete: 'Request delete',
+        masterFields: 'Master fields',
+        subTypeFallback: 'Sub-type #{id}',
+        row: 'Row',
         tabs: {
           current: 'Current',
           diff: 'Diff',
@@ -123,7 +134,8 @@ export const recordMessages = {
         deleteReasonRequired: 'Delete reason is required',
         refreshGuidance: 'Refresh the latest record before saving again',
         discardConfirm: 'You have unsaved changes. Leave this draft?',
-        readOnly: 'Read-only'
+        readOnly: 'Read-only',
+        copyRejected: 'Copy rejected draft'
       }
     }
   }

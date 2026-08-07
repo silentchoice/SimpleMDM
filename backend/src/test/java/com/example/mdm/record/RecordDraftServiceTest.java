@@ -72,6 +72,34 @@ class RecordDraftServiceTest {
     verify(authorization).requireDepartment(7L);
   }
 
+  @Test void optionalBlankTypedValuesAreOmittedForMasterAndChildRows() {
+    when(metadata.findMasterFields(7L, 9L)).thenReturn(List.of(
+        field(1L, 9L, "name", true),
+        typedField(3L, 9L, "quantity", FieldType.NUMBER, false, List.of()),
+        typedField(4L, 9L, "startDate", FieldType.DATE, false, List.of()),
+        typedField(5L, 9L, "stage", FieldType.SELECT, false, List.of("NEW"))));
+    when(metadata.findSubFields(7L, 31L)).thenReturn(List.of(
+        field(2L, 31L, "contact", true),
+        typedField(6L, 31L, "changedAt", FieldType.DATETIME, false, List.of()),
+        typedField(7L, 31L, "kind", FieldType.RADIO, false, List.of("WORK"))));
+    var childValues = new LinkedHashMap<String, Object>();
+    childValues.put("contact", "Li");
+    childValues.put("changedAt", "");
+    childValues.put("kind", "");
+    var command = new RecordDraftCommand(null, 9L, 0L, RecordAction.CREATE,
+        new LinkedHashMap<>(Map.of("name", "North Supplier", "quantity", "",
+            "startDate", "", "stage", "")),
+        List.of(new ChildRows(31L, List.of(new ChildRowCommand(null, 0,
+            childValues)))),
+        null);
+
+    RecordDraft saved = service.create(command);
+
+    assertThat(saved.masterValues()).containsExactlyEntriesOf(Map.of("name", "North Supplier"));
+    assertThat(saved.children().get(0).rows().get(0).values())
+        .containsExactlyEntriesOf(Map.of("contact", "Li"));
+  }
+
   @Test void aMissingRequiredValueInAnyChildRowRejectsTheWholeDraft() {
     var command = new RecordDraftCommand(null, 9L, 0L, RecordAction.CREATE,
         Map.of("name", "North Supplier"), List.of(new ChildRows(31L, List.of(
@@ -82,6 +110,7 @@ class RecordDraftServiceTest {
           assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
           assertThat(exception.getMessage()).contains("contact");
         });
+    verify(codes, never()).allocate(Mockito.anyLong(), Mockito.any());
   }
 
   @Test void unknownOrInactiveSubtypeIsRejectedBeforeItsValuesCanBeSaved() {
@@ -134,6 +163,15 @@ class RecordDraftServiceTest {
     authenticatePeerEditor();
 
     assertForbidden(() -> service.getDraft(21L));
+  }
+
+  @Test void currentUserDraftListNeverReturnsAPeerEditorsDraft() {
+    var memory = (MemoryRecordRepository) records;
+    memory.draft = draft(21L, RecordStatus.DRAFT, RecordAction.CREATE, null);
+    assertThat(service.listMine()).extracting(RecordDraft::id).containsExactly(21L);
+
+    authenticatePeerEditor();
+    assertThat(service.listMine()).isEmpty();
   }
 
   @Test void peerEditorCannotUpdateAnotherEditorsDraft() {
@@ -271,6 +309,12 @@ class RecordDraftServiceTest {
         0, MetadataStatus.ACTIVE);
   }
 
+  private FieldDefinition typedField(long id, long owner, String code, FieldType type,
+      boolean required, List<String> options) {
+    return new FieldDefinition(id, owner, code, code, type, required, options, false,
+        0, MetadataStatus.ACTIVE);
+  }
+
   private static final class MemoryRecordRepository implements RecordRepository {
     private long nextId = 100;
     private RecordDraft draft;
@@ -288,6 +332,11 @@ class RecordDraftServiceTest {
       if (draft == null || draft.id() != draftId) throw BusinessException.notFound("Draft");
       if (draft.departmentId() != departmentId) throw BusinessException.forbidden();
       return draft;
+    }
+
+    @Override public List<RecordDraft> findDrafts(long departmentId, long actorId) {
+      return draft != null && draft.departmentId() == departmentId && draft.createdBy() == actorId
+          ? List.of(draft) : List.of();
     }
 
     @Override public RecordView findRecord(long departmentId, long recordId) {

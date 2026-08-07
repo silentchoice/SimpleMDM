@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { currentMasterType, listMasterFields, type FieldDefinition } from '../../api/metadata'
-import { createRecordDraft, listRecords, type RecordDraftCommand, type RecordSummary } from '../../api/records'
+import { copyRecordDraft, listRecordDrafts, listRecords, type RecordDraft, type RecordSummary } from '../../api/records'
 import { useAuthStore } from '../../stores/auth'
 import RecordFilters, { type RecordFilterModel } from '../../components/records/RecordFilters.vue'
 import RecordStatusTag from '../../components/records/RecordStatusTag.vue'
@@ -18,6 +18,7 @@ const error = ref('')
 const masterTypeId = ref<number | null>(null)
 const fields = ref<FieldDefinition[]>([])
 const items = ref<RecordSummary[]>([])
+const myDrafts = ref<RecordDraft[]>([])
 const pageNumber = ref(0)
 const pageSize = ref(20)
 const totalPages = ref(0)
@@ -25,10 +26,6 @@ const filters = ref<RecordFilterModel>({ recordCode: '', keyword: '', status: ''
 const latestRequest = ref(0)
 
 const isEditor = computed(() => auth.hasAnyRole(['DEPT_EDITOR']))
-
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
-}
 
 function errorMessage(reason: unknown): string {
   const value = reason as ApiError
@@ -42,10 +39,6 @@ function displayValue(item: RecordSummary, code: string): string {
   if (Array.isArray(value)) return value.join(', ')
   if (typeof value === 'boolean') return value ? 'true' : 'false'
   return value == null ? '—' : String(value)
-}
-
-function createEmptyValues(): Record<string, unknown> {
-  return Object.fromEntries(fields.value.map((field) => [field.code, field.fieldType === 'MULTISELECT' ? [] : field.fieldType === 'SWITCH' ? false : '']))
 }
 
 async function loadRecords(page = 0): Promise<void> {
@@ -87,6 +80,7 @@ async function loadMetadataAndRecords(): Promise<void> {
     const assignment = await currentMasterType()
     masterTypeId.value = assignment.id
     fields.value = await listMasterFields(assignment.id)
+    myDrafts.value = isEditor.value ? await listRecordDrafts() : []
     await loadRecords(0)
   } catch (reason) {
     loading.value = false
@@ -97,18 +91,14 @@ async function loadMetadataAndRecords(): Promise<void> {
 async function createDraft(): Promise<void> {
   if (!masterTypeId.value) return
   error.value = ''
-  const body: RecordDraftCommand = {
-    recordId: null,
-    masterTypeId: masterTypeId.value,
-    baseVersion: 0,
-    action: 'CREATE',
-    masterValues: createEmptyValues(),
-    children: [],
-    deleteReason: null
-  }
+  await router.push('/records/new')
+}
+
+async function copyRejected(draftId: number): Promise<void> {
+  error.value = ''
   try {
-    const draft = await createRecordDraft(clone(body))
-    await router.push(`/records/drafts/${draft.id}`)
+    const copy = await copyRecordDraft(draftId)
+    await router.push(`/records/drafts/${copy.id}`)
   } catch (reason) {
     error.value = errorMessage(reason)
   }
@@ -128,6 +118,23 @@ onMounted(loadMetadataAndRecords)
     </div>
 
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+
+    <section v-if="isEditor && myDrafts.length" class="record-drafts">
+      <h2>{{ t('record.list.myDrafts') }}</h2>
+      <table class="records-table">
+        <thead><tr><th>{{ t('record.list.recordCode') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+        <tbody>
+          <tr v-for="item in myDrafts" :key="item.id">
+            <td>{{ item.recordCode }}</td>
+            <td><RecordStatusTag :status="item.status" /></td>
+            <td class="records-table__actions">
+              <router-link :to="`/records/drafts/${item.id}`" :data-testid="`draft-resume-${item.id}`">{{ t('record.list.resumeDraft') }}</router-link>
+              <button v-if="item.status === 'REJECTED'" :data-testid="`draft-copy-${item.id}`" type="button" @click="copyRejected(item.id)">{{ t('record.editor.copyRejected') }}</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
 
     <RecordFilters v-model="filters" @search="loadRecords(0)" />
 
