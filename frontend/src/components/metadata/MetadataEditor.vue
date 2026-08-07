@@ -79,7 +79,7 @@ function validateBeforeSubmit(): string {
   return ''
 }
 function fieldSubmission(item: FieldDefinition): FieldSubmission {
-  return { code: item.code, displayName: item.displayName, fieldType: item.fieldType, required: item.required, options: [...item.options], shared: props.family === 'sub-fields' && item.shared, sortOrder: item.sortOrder }
+  return { code: item.code, displayName: item.displayName, fieldType: item.fieldType, required: item.required, options: [...item.options], shared: item.shared, sortOrder: item.sortOrder }
 }
 function errorMessage(reason: unknown): string {
   const apiError = reason as ApiError
@@ -104,7 +104,17 @@ async function submit(): Promise<void> {
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <p v-if="taskId" role="status">{{ t('metadata.editor.taskSubmitted', { id: taskId }) }}</p>
     <ol>
-      <li v-for="(item, index) in drafts" :key="`${item.id}-${index}`"><span>{{ item.code }} — {{ 'displayName' in item ? item.displayName : item.name }}</span><el-button :data-testid="`edit-${index}`" text :disabled="saving" @click="edit(index)">{{ t('common.edit') }}</el-button><el-button :data-testid="`remove-${index}`" text type="danger" :disabled="saving" @click="remove(index)">{{ t('metadata.editor.remove') }}</el-button><el-button :data-testid="`move-up-${index}`" text :disabled="saving || index === 0" @click="move(index, -1)">{{ t('metadata.editor.up') }}</el-button><el-button :data-testid="`move-down-${index}`" text :disabled="saving || index === drafts.length - 1" @click="move(index, 1)">{{ t('metadata.editor.down') }}</el-button></li>
+      <li v-for="(item, index) in drafts" :key="`${item.id}-${index}`">
+        <span>{{ item.code }} — {{ 'displayName' in item ? item.displayName : item.name }}</span>
+        <template v-if="'displayName' in item">
+          <span :data-testid="`field-type-${index}`">{{ item.fieldType ? t(`metadata.fieldTypes.${item.fieldType}`) : '' }}</span>
+          <span :data-testid="`field-shared-${index}`">{{ item.shared ? t('metadata.fieldEditor.shared') : '-' }}</span>
+        </template>
+        <el-button :data-testid="`edit-${index}`" text :disabled="saving" @click="edit(index)">{{ t('common.edit') }}</el-button>
+        <el-button :data-testid="`remove-${index}`" text type="danger" :disabled="saving" @click="remove(index)">{{ t('metadata.editor.remove') }}</el-button>
+        <el-button :data-testid="`move-up-${index}`" text :disabled="saving || index === 0" @click="move(index, -1)">{{ t('metadata.editor.up') }}</el-button>
+        <el-button :data-testid="`move-down-${index}`" text :disabled="saving || index === drafts.length - 1" @click="move(index, 1)">{{ t('metadata.editor.down') }}</el-button>
+      </li>
     </ol>
     <el-button :data-testid="`submit-${family}`" type="primary" :loading="saving" :disabled="saving" @click="submit">{{ t('metadata.editor.submit', { family: t(`metadata.editor.${family === 'master-fields' ? 'masterFields' : family === 'sub-types' ? 'subTypes' : 'subFields'}`) }) }}</el-button>
     <FieldEditorDrawer :open="drawerOpen" :family="family" :draft="editing" @close="discard" @save="saveDraft" />

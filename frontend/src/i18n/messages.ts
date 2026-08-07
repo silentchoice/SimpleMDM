@@ -37,6 +37,9 @@ export const messages = {
       dashboard: '仪表盘',
       activeMetadata: '当前元数据',
       submitChange: '提交变更',
+      records: '业务数据',
+      recordDetail: '业务数据详情',
+      recordDraft: '业务数据草稿',
       approvals: '审批中心',
       approvalDetail: '审批详情',
       masterTypeTemplates: '主数据类型模板',
@@ -50,6 +53,7 @@ export const messages = {
       dashboard: '仪表盘',
       activeMetadata: '当前元数据',
       submitChange: '提交变更',
+      records: '业务数据',
       approvals: '审批中心',
       masterTypeTemplates: '主数据类型模板',
       users: '用户管理',
@@ -98,6 +102,7 @@ export const messages = {
         create: '创建主数据类型',
         code: '代码',
         name: '名称',
+        codeRule: '编码规则',
         assignDepartment: '分配部门'
       },
       masterTypeDrawer: {
@@ -289,6 +294,9 @@ export const messages = {
       dashboard: 'Dashboard',
       activeMetadata: 'Active Metadata',
       submitChange: 'Submit Change',
+      records: 'Business Data',
+      recordDetail: 'Business Data Detail',
+      recordDraft: 'Business Data Draft',
       approvals: 'Approvals',
       approvalDetail: 'Approval detail',
       masterTypeTemplates: 'Master Type Templates',
@@ -302,6 +310,7 @@ export const messages = {
       dashboard: 'Dashboard',
       activeMetadata: 'Active Metadata',
       submitChange: 'Submit Change',
+      records: 'Business Data',
       approvals: 'Approvals',
       masterTypeTemplates: 'Master Type Templates',
       users: 'Users',
@@ -350,6 +359,7 @@ export const messages = {
         create: 'Create master type',
         code: 'Code',
         name: 'Name',
+        codeRule: 'Code rule',
         assignDepartment: 'Assign department'
       },
       masterTypeDrawer: {

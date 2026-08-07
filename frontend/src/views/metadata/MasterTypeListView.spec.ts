@@ -5,7 +5,11 @@ import MasterTypeListView from './MasterTypeListView.vue'
 import { i18n, setLocale } from '../../i18n'
 
 const metadataApi = vi.hoisted(() => ({
-  listMasterTypes: vi.fn(), createMasterType: vi.fn(), assignDepartment: vi.fn()
+  listMasterTypes: vi.fn(),
+  createMasterType: vi.fn(),
+  assignDepartment: vi.fn(),
+  getCodeRule: vi.fn(),
+  updateCodeRule: vi.fn()
 }))
 const systemApi = vi.hoisted(() => ({ listDepartments: vi.fn() }))
 
@@ -30,6 +34,8 @@ describe('master-type template list', () => {
     metadataApi.listMasterTypes.mockResolvedValue(masterTypes)
     metadataApi.createMasterType.mockResolvedValue(masterTypes[0])
     metadataApi.assignDepartment.mockResolvedValue(undefined)
+    metadataApi.getCodeRule.mockResolvedValue({ pattern: 'CUS-{yyyyMMdd}-{0001}', sequenceWidth: 4, preview: 'CUS-20260805-0001' })
+    metadataApi.updateCodeRule.mockResolvedValue({ pattern: 'SUP-{yyyyMMdd}-{0001}', sequenceWidth: 4, preview: 'SUP-20260805-0001' })
     systemApi.listDepartments.mockResolvedValue(departments)
   })
 
@@ -38,13 +44,13 @@ describe('master-type template list', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Asset')
-    await wrapper.get('[data-testid="master-type-create"]').trigger('click')
+    await wrapper.get('[data-testid=master-type-create]').trigger('click')
     await wrapper.get('form').trigger('submit')
     expect(metadataApi.createMasterType).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('请输入代码和名称')
 
-    await wrapper.get('[name="code"]').setValue('ORDER')
-    await wrapper.get('[name="name"]').setValue('Order')
+    await wrapper.get('[name=code]').setValue('ORDER')
+    await wrapper.get('[name=name]').setValue('Order')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
@@ -55,9 +61,9 @@ describe('master-type template list', () => {
   it('offers only active departments for a selected template assignment', async () => {
     const wrapper = mountView()
     await flushPromises()
-    await wrapper.get('[data-testid="assign-department-7"]').trigger('click')
+    await wrapper.get('[data-testid=assign-department-7]').trigger('click')
 
-    expect(wrapper.text()).toContain('将 Asset 分配给部门')
+    expect(wrapper.text()).toContain('Asset')
     expect(wrapper.text()).toContain('Operations')
     expect(wrapper.text()).not.toContain('Legacy')
   })
@@ -65,8 +71,8 @@ describe('master-type template list', () => {
   it('assigns the selected department and refreshes templates after success', async () => {
     const wrapper = mountView()
     await flushPromises()
-    await wrapper.get('[data-testid="assign-department-7"]').trigger('click')
-    await wrapper.get('[name="departmentId"]').setValue('3')
+    await wrapper.get('[data-testid=assign-department-7]').trigger('click')
+    await wrapper.get('[name=departmentId]').setValue('3')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
@@ -74,16 +80,34 @@ describe('master-type template list', () => {
     expect(metadataApi.listMasterTypes).toHaveBeenCalledTimes(2)
   })
 
+  it('loads the current code rule preview and saves an updated pattern for the selected template', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid=edit-code-rule-7]').trigger('click')
+    await flushPromises()
+
+    expect(metadataApi.getCodeRule).toHaveBeenCalledWith(7)
+    expect(wrapper.text()).toContain('CUS-20260805-0001')
+
+    await wrapper.get('[name=pattern]').setValue('SUP-{yyyyMMdd}-{0001}')
+    await wrapper.get('[data-testid=code-rule-save]').trigger('click')
+    await flushPromises()
+
+    expect(metadataApi.updateCodeRule).toHaveBeenCalledWith(7, { pattern: 'SUP-{yyyyMMdd}-{0001}' })
+    expect(wrapper.text()).toContain('SUP-20260805-0001')
+  })
+
   it('shows duplicate assignment conflicts and leaves the list unrefreshed', async () => {
     metadataApi.assignDepartment.mockRejectedValueOnce({ message: 'Department already has a template', requestId: 'req-409', status: 409 })
     const wrapper = mountView()
     await flushPromises()
-    await wrapper.get('[data-testid="assign-department-7"]').trigger('click')
-    await wrapper.get('[name="departmentId"]').setValue('3')
+    await wrapper.get('[data-testid=assign-department-7]').trigger('click')
+    await wrapper.get('[name=departmentId]').setValue('3')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Department already has a template（请求 ID：req-409）')
+    expect(wrapper.text()).toContain('Department already has a template')
+    expect(wrapper.text()).toContain('req-409')
     expect(metadataApi.listMasterTypes).toHaveBeenCalledTimes(1)
   })
 
@@ -95,8 +119,9 @@ describe('master-type template list', () => {
     expect(wrapper.text()).toContain('创建主数据类型')
     expect(wrapper.text()).toContain('启用')
     expect(wrapper.text()).toContain('分配部门')
-    await wrapper.get('[data-testid="assign-department-7"]').trigger('click')
-    await wrapper.get('[name="departmentId"]').setValue('3')
+    expect(wrapper.text()).toContain('编码规则')
+    await wrapper.get('[data-testid=assign-department-7]').trigger('click')
+    await wrapper.get('[name=departmentId]').setValue('3')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(metadataApi.assignDepartment).toHaveBeenCalledWith(7, 3)
@@ -106,5 +131,6 @@ describe('master-type template list', () => {
     expect(wrapper.text()).toContain('Master Type Templates')
     expect(wrapper.text()).toContain('Create master type')
     expect(wrapper.text()).toContain('Active')
+    expect(wrapper.text()).toContain('Code rule')
   })
 })

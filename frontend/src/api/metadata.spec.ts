@@ -8,7 +8,7 @@ vi.mock('./http', () => ({ http }))
 
 import {
   assignDepartment, createMasterType, currentMasterType, listMasterFields, listMasterTypes, listSubFields, listSubTypes,
-  submitMasterFields, submitSubFields, submitSubTypes, type FieldSubmission, type SubTypeSubmission
+  submitMasterFields, submitSubFields, submitSubTypes, getCodeRule, updateCodeRule, type CodeRuleResponse, type FieldSubmission, type SubTypeSubmission
 } from './metadata'
 
 describe('metadata API client', () => {
@@ -68,5 +68,25 @@ describe('metadata API client', () => {
     expect(http.post).toHaveBeenNthCalledWith(1, '/master-field/41', [field])
     expect(http.post).toHaveBeenNthCalledWith(2, '/sub-type/41', [subType])
     expect(http.post).toHaveBeenNthCalledWith(3, '/sub-field/55', [{ ...field, shared: true }])
+  })
+
+  it('loads and saves code rules through the master-type path only', async () => {
+    const codeRule: CodeRuleResponse = {
+      pattern: 'CUS-{yyyyMMdd}-{0001}',
+      sequenceWidth: 4,
+      preview: 'CUS-20260805-0001'
+    }
+    http.get.mockResolvedValue(codeRule)
+    http.put.mockResolvedValue({ ...codeRule, pattern: 'SUP-{yyyyMMdd}-{0001}', preview: 'SUP-20260805-0001' })
+
+    await expect(getCodeRule(41)).resolves.toEqual(codeRule)
+    await expect(updateCodeRule(41, { pattern: 'SUP-{yyyyMMdd}-{0001}' })).resolves.toEqual({
+      ...codeRule,
+      pattern: 'SUP-{yyyyMMdd}-{0001}',
+      preview: 'SUP-20260805-0001'
+    })
+
+    expect(http.get).toHaveBeenCalledWith('/master-type/41/code-rule')
+    expect(http.put).toHaveBeenCalledWith('/master-type/41/code-rule', { pattern: 'SUP-{yyyyMMdd}-{0001}' })
   })
 })

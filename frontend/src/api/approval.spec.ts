@@ -16,6 +16,7 @@ import {
 
 const task: ApprovalTask = {
   id: 91,
+  taskType: 'METADATA',
   entityKind: 'MASTER_FIELDS',
   entityId: 41,
   status: 'PENDING',
@@ -45,6 +46,17 @@ describe('metadata approval API client', () => {
     await expect(getApprovalTask(91)).resolves.toEqual(task)
 
     expect(http.get).toHaveBeenCalledWith('/metadata-approval/91')
+  })
+
+  it('passes an explicit record task type without changing the path authority', async () => {
+    const recordTask = { ...task, id: 92, taskType: 'RECORD', entityKind: 'RECORD', entityId: 81 } as const
+    http.get.mockResolvedValueOnce([recordTask]).mockResolvedValueOnce(recordTask)
+
+    await expect(listApprovalTasks('PENDING', 'RECORD')).resolves.toEqual([recordTask])
+    await expect(getApprovalTask(92, 'RECORD')).resolves.toEqual(recordTask)
+
+    expect(http.get).toHaveBeenNthCalledWith(1, '/metadata-approval?status=PENDING&taskType=RECORD')
+    expect(http.get).toHaveBeenNthCalledWith(2, '/metadata-approval/92?taskType=RECORD')
   })
 
   it('sends an optional approval comment as a nullable body field', async () => {

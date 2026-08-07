@@ -10,6 +10,7 @@ const menu: MenuItem[] = [
   { labelKey: 'menu.dashboard', to: '/', roles: ['SUPER_ADMIN', 'DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
   { labelKey: 'menu.activeMetadata', to: '/metadata/active', roles: ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
   { labelKey: 'menu.submitChange', to: '/metadata/changes/new', roles: ['DEPT_EDITOR'] },
+  { labelKey: 'menu.records', to: '/records', roles: ['DEPT_EDITOR', 'DEPT_APPROVER', 'DEPT_VIEWER'] },
   { labelKey: 'menu.approvals', to: '/metadata/approvals', roles: ['DEPT_APPROVER'] },
   { labelKey: 'menu.masterTypeTemplates', to: '/metadata/templates', roles: ['SUPER_ADMIN'] },
   { labelKey: 'menu.users', to: '/system/users', roles: ['SUPER_ADMIN'] },

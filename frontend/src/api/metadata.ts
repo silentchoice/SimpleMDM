@@ -57,6 +57,16 @@ export interface ApprovalSubmission {
   approvalTaskId: number
 }
 
+export interface CodeRuleResponse {
+  pattern: string
+  sequenceWidth: number
+  preview: string
+}
+
+export interface CodeRuleSubmission {
+  pattern: string
+}
+
 export const ACTIVE_METADATA_INVALIDATED_EVENT = 'mdm:active-metadata-invalidated'
 export function invalidateActiveMetadata(): void {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACTIVE_METADATA_INVALIDATED_EVENT))
@@ -85,4 +95,10 @@ export function listSubFields(subTypeId: number): Promise<FieldDefinition[]> {
 }
 export function submitSubFields(subTypeId: number, fields: FieldSubmission[]): Promise<ApprovalSubmission> {
   return http.post<ApprovalSubmission>(`/sub-field/${subTypeId}`, fields)
+}
+export function getCodeRule(masterTypeId: number): Promise<CodeRuleResponse> {
+  return http.get<CodeRuleResponse>(`/master-type/${masterTypeId}/code-rule`)
+}
+export function updateCodeRule(masterTypeId: number, body: CodeRuleSubmission): Promise<CodeRuleResponse> {
+  return http.put<CodeRuleResponse>(`/master-type/${masterTypeId}/code-rule`, body)
 }

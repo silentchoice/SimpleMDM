@@ -7,7 +7,7 @@ export interface HttpClient {
   post<T>(url: string, body?: unknown): Promise<T>
   put<T>(url: string, body?: unknown): Promise<T>
   patch<T>(url: string, body?: unknown): Promise<T>
-  delete<T>(url: string): Promise<T>
+  delete<T>(url: string, body?: unknown): Promise<T>
 }
 
 export interface HttpOptions {
@@ -75,7 +75,7 @@ export function createHttpClient(options: HttpOptions = {}): HttpClient {
     post: <T>(url: string, body?: unknown) => request<T>('post', url, body),
     put: <T>(url: string, body?: unknown) => request<T>('put', url, body),
     patch: <T>(url: string, body?: unknown) => request<T>('patch', url, body),
-    delete: <T>(url: string) => request<T>('delete', url)
+    delete: <T>(url: string, body?: unknown) => request<T>('delete', url, body)
   }
 }
 

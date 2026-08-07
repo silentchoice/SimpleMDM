@@ -1,10 +1,12 @@
 import { http } from './http'
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
-export type MetadataEntityKind = 'MASTER_FIELDS' | 'SUB_TYPES' | 'SUB_FIELDS'
+export type ApprovalTaskType = 'METADATA' | 'RECORD'
+export type MetadataEntityKind = 'MASTER_FIELDS' | 'SUB_TYPES' | 'SUB_FIELDS' | 'RECORD'
 
 export interface ApprovalTask {
   id: number
+  taskType: ApprovalTaskType
   entityKind: MetadataEntityKind
   entityId: number
   status: ApprovalStatus
@@ -26,12 +28,16 @@ export interface SnapshotEnvelope {
   orderedDefinitions: unknown[]
 }
 
-export function listApprovalTasks(status: ApprovalStatus = 'PENDING'): Promise<ApprovalTask[]> {
-  return http.get<ApprovalTask[]>(`/metadata-approval?status=${encodeURIComponent(status)}`)
+function taskTypeQuery(taskType?: ApprovalTaskType): string {
+  return taskType ? `&taskType=${encodeURIComponent(taskType)}` : ''
 }
 
-export function getApprovalTask(taskId: number): Promise<ApprovalTask> {
-  return http.get<ApprovalTask>(`/metadata-approval/${taskId}`)
+export function listApprovalTasks(status: ApprovalStatus = 'PENDING', taskType?: ApprovalTaskType): Promise<ApprovalTask[]> {
+  return http.get<ApprovalTask[]>(`/metadata-approval?status=${encodeURIComponent(status)}${taskTypeQuery(taskType)}`)
+}
+
+export function getApprovalTask(taskId: number, taskType?: ApprovalTaskType): Promise<ApprovalTask> {
+  return http.get<ApprovalTask>(`/metadata-approval/${taskId}${taskType ? `?taskType=${encodeURIComponent(taskType)}` : ''}`)
 }
 
 export function approveApprovalTask(taskId: number, comment?: string): Promise<void> {

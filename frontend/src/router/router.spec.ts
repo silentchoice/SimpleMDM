@@ -50,21 +50,35 @@ describe('authenticated router and menu', () => {
   it('shows Chinese navigation labels by default and restores English labels after switching', () => {
     const labels = () => menuForRoles(['DEPT_EDITOR']).map((item) => i18n.global.t(item.labelKey))
 
-    expect(labels()).toEqual(['仪表盘', '当前元数据', '提交变更'])
+    expect(labels()).toEqual(['仪表盘', '当前元数据', '提交变更', '业务数据'])
 
     setLocale('en-US')
 
-    expect(labels()).toEqual(['Dashboard', 'Active Metadata', 'Submit Change'])
+    expect(labels()).toEqual(['Dashboard', 'Active Metadata', 'Submit Change', 'Business Data'])
   })
 
   it('keeps the read-only viewer menu free of change and system actions', () => {
     const labels = menuForRoles(['DEPT_VIEWER']).map((item) => i18n.global.t(item.labelKey))
 
     expect(labels).toContain('当前元数据')
+    expect(labels).toContain('业务数据')
     expect(labels).not.toContain('提交变更')
     expect(labels).not.toContain('审批中心')
     expect(labels).not.toContain('用户管理')
     expect(labels).not.toContain('部门管理')
+  })
+
+  it('allows viewers to open the read-only record detail route but not the editor route', async () => {
+    useAuthStore().setSession({ ...editorSession, roles: ['DEPT_VIEWER'] })
+    const viewerRouter = createAppRouter()
+    await viewerRouter.push('/records/81')
+    await viewerRouter.isReady()
+
+    expect(viewerRouter.currentRoute.value.name).toBe('record-detail')
+
+    await viewerRouter.push('/records/drafts/91')
+    await viewerRouter.isReady()
+    expect(viewerRouter.currentRoute.value.path).toBe('/forbidden')
   })
 
   it('makes master-type templates available only to super administrators', async () => {

@@ -52,7 +52,7 @@ const fieldTypes: FieldType[] = ['TEXT', 'NUMBER', 'DATE', 'DATETIME', 'SELECT',
           <select v-model="form.fieldType" name="fieldType"><option value="">{{ t('metadata.fieldEditor.selectType') }}</option><option v-for="type in fieldTypes" :key="type" :value="type">{{ t(`metadata.fieldTypes.${type}`) }}</option></select>
         </label>
         <label><input v-model="form.required" type="checkbox" name="required" /> {{ t('metadata.fieldEditor.required') }}</label>
-        <label v-if="family === 'sub-fields'"><input v-model="form.shared" type="checkbox" name="shared" /> {{ t('metadata.fieldEditor.shared') }}</label>
+        <label v-if="isField"><input v-model="form.shared" type="checkbox" name="shared" /> {{ t('metadata.fieldEditor.shared') }}</label>
         <label v-if="supportsOptions">{{ t('metadata.fieldEditor.options') }}<textarea :value="form.options.join(', ')" name="options" @input="form.options = ($event.target as HTMLTextAreaElement).value.split(',')" /></label>
       </template>
       <label v-else>{{ t('metadata.fieldEditor.name') }} <input v-model="form.name" name="name" /></label>

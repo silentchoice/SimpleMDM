@@ -19,8 +19,8 @@ describe('metadata editor', () => {
 
   it('deep-copies ACTIVE fields before editing and leaves props untouched', async () => {
     const wrapper = mountEditor()
-    await wrapper.get('[data-testid="edit-0"]').trigger('click')
-    await wrapper.get('[name="displayName"]').setValue('Changed')
+    await wrapper.get('[data-testid=edit-0]').trigger('click')
+    await wrapper.get('[name=displayName]').setValue('Changed')
     await wrapper.get('form').trigger('submit')
 
     expect(activeField.displayName).toBe('Serial number')
@@ -29,28 +29,28 @@ describe('metadata editor', () => {
 
   it('rejects invalid code and missing field name or type', async () => {
     const wrapper = mountEditor()
-    await wrapper.get('[data-testid="add-item"]').trigger('click')
-    await wrapper.get('[name="code"]').setValue('1bad')
+    await wrapper.get('[data-testid=add-item]').trigger('click')
+    await wrapper.get('[name=code]').setValue('1bad')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.text()).toContain('代码必须以字母开头')
-    await wrapper.get('[name="code"]').setValue('NEW_FIELD')
+    await wrapper.get('[name=code]').setValue('NEW_FIELD')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.text()).toContain('名称为必填项')
-    await wrapper.get('[name="displayName"]').setValue('New field')
+    await wrapper.get('[name=displayName]').setValue('New field')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.text()).toContain('字段类型为必填项')
   })
 
   it('requires distinct select options and rejects duplicate codes or orders', async () => {
     const wrapper = mountEditor()
-    await wrapper.get('[data-testid="add-item"]').trigger('click')
-    await wrapper.get('[name="code"]').setValue('SERIAL')
-    await wrapper.get('[name="displayName"]').setValue('Duplicate')
-    await wrapper.get('[name="fieldType"]').setValue('SELECT')
-    await wrapper.get('[name="options"]').setValue('A, A')
+    await wrapper.get('[data-testid=add-item]').trigger('click')
+    await wrapper.get('[name=code]').setValue('SERIAL')
+    await wrapper.get('[name=displayName]').setValue('Duplicate')
+    await wrapper.get('[name=fieldType]').setValue('SELECT')
+    await wrapper.get('[name=options]').setValue('A, A')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.text()).toContain('选项不能重复')
-    await wrapper.get('[name="options"]').setValue('A, B')
+    await wrapper.get('[name=options]').setValue('A, B')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.text()).toContain('代码重复')
   })
@@ -58,13 +58,13 @@ describe('metadata editor', () => {
   it('reorders drafts and displays the approval task ID without reloading ACTIVE', async () => {
     const onSubmit = vi.fn().mockResolvedValue({ approvalTaskId: 701 })
     const wrapper = mountEditor(onSubmit)
-    await wrapper.get('[data-testid="add-item"]').trigger('click')
-    await wrapper.get('[name="code"]').setValue('SECOND')
-    await wrapper.get('[name="displayName"]').setValue('Second')
-    await wrapper.get('[name="fieldType"]').setValue('TEXT')
+    await wrapper.get('[data-testid=add-item]').trigger('click')
+    await wrapper.get('[name=code]').setValue('SECOND')
+    await wrapper.get('[name=displayName]').setValue('Second')
+    await wrapper.get('[name=fieldType]').setValue('TEXT')
     await wrapper.get('form').trigger('submit')
-    await wrapper.get('[data-testid="move-up-1"]').trigger('click')
-    await wrapper.get('[data-testid="submit-master-fields"]').trigger('click')
+    await wrapper.get('[data-testid=move-up-1]').trigger('click')
+    await wrapper.get('[data-testid=submit-master-fields]').trigger('click')
 
     expect(onSubmit).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ code: 'SECOND', fieldType: 'TEXT', sortOrder: 0 })]))
     expect(wrapper.text()).toContain('审批任务 #701')
@@ -72,16 +72,43 @@ describe('metadata editor', () => {
 
   it('rejects repeated sort orders before submitting a field family', async () => {
     const wrapper = mount(MetadataEditor, { props: { family: 'master-fields', ownerId: 41, activeItems: [activeField, { ...activeField, id: 2, code: 'SECOND', sortOrder: 0 }], onSubmit: vi.fn() }, global: { plugins: [ElementPlus, i18n] } })
-    await wrapper.get('[data-testid="submit-master-fields"]').trigger('click')
+    await wrapper.get('[data-testid=submit-master-fields]').trigger('click')
 
     expect(wrapper.text()).toContain('排序序号重复')
+  })
+
+  it('shows shared switches for both field families and defaults new master-field submissions to shared false', async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ approvalTaskId: 705 })
+    const wrapper = mountEditor(onSubmit)
+    await wrapper.get('[data-testid=add-item]').trigger('click')
+    expect(wrapper.get('[name=shared]').element).toBeInstanceOf(HTMLInputElement)
+    expect((wrapper.get('[name=shared]').element as HTMLInputElement).checked).toBe(false)
+    await wrapper.get('[name=code]').setValue('VISIBLE_FIELD')
+    await wrapper.get('[name=displayName]').setValue('Visible field')
+    await wrapper.get('[name=fieldType]').setValue('TEXT')
+    await wrapper.get('form').trigger('submit')
+    await wrapper.get('[data-testid=submit-master-fields]').trigger('click')
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ code: 'VISIBLE_FIELD', shared: false })]))
+
+    const subWrapper = mount(MetadataEditor, {
+      props: {
+        family: 'sub-fields',
+        ownerId: 55,
+        activeItems: [{ ...activeField, ownerTypeId: 55, fieldType: 'SWITCH', shared: true }],
+        onSubmit: vi.fn()
+      },
+      global: { plugins: [ElementPlus, i18n] }
+    })
+    expect(subWrapper.text()).toContain('开关')
+    expect(subWrapper.text()).toContain('共享')
   })
 
   it('removes a draft item so the submitted replacement snapshot can delete ACTIVE metadata', async () => {
     const onSubmit = vi.fn().mockResolvedValue({ approvalTaskId: 702 })
     const wrapper = mount(MetadataEditor, { props: { family: 'master-fields', ownerId: 41, activeItems: [activeField, { ...activeField, id: 2, code: 'SECOND', displayName: 'Second', sortOrder: 1 }], onSubmit }, global: { plugins: [ElementPlus, i18n] } })
-    await wrapper.get('[data-testid="remove-0"]').trigger('click')
-    await wrapper.get('[data-testid="submit-master-fields"]').trigger('click')
+    await wrapper.get('[data-testid=remove-0]').trigger('click')
+    await wrapper.get('[data-testid=submit-master-fields]').trigger('click')
 
     expect(onSubmit).toHaveBeenCalledWith([expect.objectContaining({ code: 'SECOND', sortOrder: 0 })])
   })
@@ -90,7 +117,7 @@ describe('metadata editor', () => {
     let resolve!: (value: { approvalTaskId: number }) => void
     const onSubmit = vi.fn(() => new Promise<{ approvalTaskId: number }>((done) => { resolve = done }))
     const wrapper = mountEditor(onSubmit)
-    const submit = wrapper.get('[data-testid="submit-master-fields"]')
+    const submit = wrapper.get('[data-testid=submit-master-fields]')
     await submit.trigger('click')
     await submit.trigger('click')
     expect(onSubmit).toHaveBeenCalledTimes(1)
@@ -98,9 +125,10 @@ describe('metadata editor', () => {
     await flushPromises()
 
     const failed = mountEditor(vi.fn().mockRejectedValue({ message: 'Pending task', requestId: 'req-pending' }))
-    await failed.get('[data-testid="submit-master-fields"]').trigger('click')
+    await failed.get('[data-testid=submit-master-fields]').trigger('click')
     await flushPromises()
-    expect(failed.text()).toContain('Pending task（请求 ID：req-pending）')
+    expect(failed.text()).toContain('Pending task')
+    expect(failed.text()).toContain('req-pending')
   })
 
   it('switches editor actions, field-type labels, and feedback to English without translating payload enums', async () => {
@@ -108,14 +136,14 @@ describe('metadata editor', () => {
     const wrapper = mountEditor(onSubmit)
     expect(wrapper.text()).toContain('主字段')
     expect(wrapper.text()).toContain('添加')
-    await wrapper.get('[data-testid="add-item"]').trigger('click')
-    expect(wrapper.get('[name="fieldType"]').text()).toContain('文本')
-    expect(wrapper.get('[name="fieldType"]').find('option[value="TEXT"]').exists()).toBe(true)
-    await wrapper.get('[name="code"]').setValue('NEW_FIELD')
-    await wrapper.get('[name="displayName"]').setValue('New field')
-    await wrapper.get('[name="fieldType"]').setValue('TEXT')
+    await wrapper.get('[data-testid=add-item]').trigger('click')
+    expect(wrapper.get('[name=fieldType]').text()).toContain('文本')
+    expect(wrapper.get('[name=fieldType]').find('option[value=TEXT]').exists()).toBe(true)
+    await wrapper.get('[name=code]').setValue('NEW_FIELD')
+    await wrapper.get('[name=displayName]').setValue('New field')
+    await wrapper.get('[name=fieldType]').setValue('TEXT')
     await wrapper.get('form').trigger('submit')
-    await wrapper.get('[data-testid="submit-master-fields"]').trigger('click')
+    await wrapper.get('[data-testid=submit-master-fields]').trigger('click')
     await flushPromises()
     expect(onSubmit).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ fieldType: 'TEXT' })]))
 
