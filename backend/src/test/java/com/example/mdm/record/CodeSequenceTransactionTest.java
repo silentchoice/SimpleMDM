@@ -47,6 +47,17 @@ class CodeSequenceTransactionTest {
     }
   }
 
+  @Test void allocationKeepsRejectedCreateDraftCodesReservedWhenTheSequenceLags()
+      throws Exception {
+    try (SequenceDatabase database = SequenceDatabase.start()) {
+      database.insertRejectedCreateDraft("CUS-20260805-0001");
+
+      assertThat(database.service().allocate(1L, SEQUENCE_DATE))
+          .isEqualTo("CUS-20260805-0002");
+      assertThat(database.nextValue()).isEqualTo(3L);
+    }
+  }
+
   @Test void concurrentAllocationsAreUniqueAndAdvanceTheSequenceExactlyOnceEach()
       throws Exception {
     try (SequenceDatabase database = SequenceDatabase.start()) {
@@ -147,6 +158,12 @@ class CodeSequenceTransactionTest {
     void insertFormalRecord(String code) {
       jdbc.getJdbcTemplate().update("INSERT INTO master_records(master_type_id,department_id,"
           + "record_code,field_values,status,created_by) VALUES(1,1,?,'{}','ACTIVE',1)", code);
+    }
+
+    void insertRejectedCreateDraft(String code) {
+      jdbc.getJdbcTemplate().update("INSERT INTO master_record_drafts(master_type_id,"
+          + "department_id,record_code,record_action,base_version,field_values,status,created_by) "
+          + "VALUES(1,1,?,'CREATE',0,'{}','REJECTED',1)", code);
     }
 
     long nextValue() {

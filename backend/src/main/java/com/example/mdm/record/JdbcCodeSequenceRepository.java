@@ -62,7 +62,7 @@ public class JdbcCodeSequenceRepository implements CodeSequenceRepository {
             + "(SELECT COUNT(*) FROM master_records WHERE master_type_id=:masterTypeId "
             + "AND record_code=:recordCode) + "
             + "(SELECT COUNT(*) FROM master_record_drafts WHERE master_type_id=:masterTypeId "
-            + "AND record_code=:recordCode AND status IN ('DRAFT','PENDING'))) ",
+            + "AND record_code=:recordCode AND status IN ('DRAFT','PENDING','REJECTED'))) ",
         Map.of("masterTypeId", masterTypeId, "recordCode", recordCode), Integer.class);
     return count != null && count > 0;
   }

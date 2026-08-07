@@ -26,6 +26,7 @@ const filters = ref<RecordFilterModel>({ recordCode: '', keyword: '', status: ''
 const latestRequest = ref(0)
 
 const isEditor = computed(() => auth.hasAnyRole(['DEPT_EDITOR']))
+const hasForeignRecords = computed(() => items.value.some((item) => !isOwnRecord(item)))
 
 function errorMessage(reason: unknown): string {
   const value = reason as ApiError
@@ -34,11 +35,24 @@ function errorMessage(reason: unknown): string {
     : value.message
 }
 
-function displayValue(item: RecordSummary, code: string): string {
-  const value = item.masterValues[code]
+function formatValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(', ')
   if (typeof value === 'boolean') return value ? 'true' : 'false'
   return value == null ? '—' : String(value)
+}
+
+function displayValue(item: RecordSummary, code: string): string {
+  return formatValue(item.masterValues[code])
+}
+
+function isOwnRecord(item: RecordSummary): boolean {
+  return item.departmentId === auth.session?.department?.id
+}
+
+function sourceFields(item: RecordSummary): { code: string; value: unknown }[] {
+  return Object.entries(item.masterValues)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([code, value]) => ({ code, value }))
 }
 
 async function loadRecords(page = 0): Promise<void> {
@@ -146,14 +160,27 @@ onMounted(loadMetadataAndRecords)
         <tr>
           <th>{{ t('record.list.recordCode') }}</th>
           <th v-for="field in fields" :key="field.id">{{ field.displayName }}</th>
+          <th v-if="hasForeignRecords">{{ t('record.list.sourceFields') }}</th>
           <th>{{ t('common.status') }}</th>
           <th>{{ t('common.actions') }}</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in items" :key="item.id">
+        <tr v-for="item in items" :key="item.id" :data-testid="`record-row-${item.id}`">
           <td>{{ item.recordCode }}</td>
-          <td v-for="field in fields" :key="field.id">{{ displayValue(item, field.code) }}</td>
+          <td v-for="field in fields" :key="field.id" :data-testid="`record-field-${item.id}-${field.code}`">
+            {{ isOwnRecord(item) ? displayValue(item, field.code) : '—' }}
+          </td>
+          <td v-if="hasForeignRecords">
+            <dl v-if="!isOwnRecord(item)" :data-testid="`record-source-fields-${item.id}`">
+              <template v-for="sourceField in sourceFields(item)" :key="sourceField.code">
+                <dt><code>{{ sourceField.code }}</code></dt>
+                <dd>{{ formatValue(sourceField.value) }}</dd>
+              </template>
+              <template v-if="!sourceFields(item).length">—</template>
+            </dl>
+            <span v-else>—</span>
+          </td>
           <td><RecordStatusTag :status="item.status" /></td>
           <td class="records-table__actions">
             <router-link :to="`/records/${item.id}`" :data-testid="`record-view-${item.id}`">{{ t('record.list.view') }}</router-link>

@@ -34,7 +34,8 @@ export const recordMessages = {
         view: '查看',
         nextPage: '下一页',
         myDrafts: '我的草稿',
-        resumeDraft: '继续处理'
+        resumeDraft: '继续处理',
+        sourceFields: '来源字段'
       },
       detail: {
         title: '业务数据详情',
@@ -104,7 +105,8 @@ export const recordMessages = {
         view: 'View',
         nextPage: 'Next page',
         myDrafts: 'My drafts',
-        resumeDraft: 'Resume'
+        resumeDraft: 'Resume',
+        sourceFields: 'Source fields'
       },
       detail: {
         title: 'Business data detail',

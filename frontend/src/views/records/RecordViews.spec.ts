@@ -176,6 +176,36 @@ describe('record list and detail views', () => {
     expect(recordsApi.listRecordDrafts).toHaveBeenCalledTimes(1)
   })
 
+  it('uses viewer metadata only for own rows and raw source keys for shared foreign rows', async () => {
+    metadataApi.listMasterFields.mockResolvedValueOnce([
+      { ...masterFields[0], displayName: 'Viewer name' }
+    ])
+    recordsApi.listRecords.mockResolvedValueOnce({
+      ...page,
+      content: [
+        record,
+        {
+          ...record,
+          id: 82,
+          departmentId: 8,
+          recordCode: 'AST-SHARED',
+          masterValues: { name: 'Foreign name', sourceOnly: 'Foreign-only value' }
+        }
+      ]
+    })
+
+    const { wrapper } = await mountAt('/records')
+
+    expect(wrapper.text()).toContain('Viewer name')
+    expect(wrapper.get('[data-testid="record-field-81-name"]').text()).toBe('Laptop fleet')
+    expect(wrapper.get('[data-testid="record-field-82-name"]').text()).toBe('—')
+    const sourceFields = wrapper.get('[data-testid="record-source-fields-82"]')
+    expect(sourceFields.text()).toContain('name')
+    expect(sourceFields.text()).toContain('Foreign name')
+    expect(sourceFields.text()).toContain('sourceOnly')
+    expect(sourceFields.text()).toContain('Foreign-only value')
+  })
+
   it('localizes record filter labels and actions in Chinese by default and switches them back to English', async () => {
     setLocale('zh-CN')
     const { wrapper } = await mountAt('/records')
